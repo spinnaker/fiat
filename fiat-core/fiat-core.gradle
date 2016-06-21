@@ -1,0 +1,9 @@
+dependencies {
+  spinnaker.group("lombok")
+  spinnaker.group("retrofitDefault")
+
+  compile spinnaker.dependency('springContext')
+  compile spinnaker.dependency('guava')
+
+  testCompile spinnaker.dependency('spockSpring')
+}
