@@ -27,8 +27,8 @@ public class InMemoryPermissionsRepository implements PermissionsRepository {
   private final Map<String, UserPermission> permissions = new HashMap<>();
 
   @Override
-  public InMemoryPermissionsRepository put(String id, UserPermission permission) {
-    this.permissions.put(id, permission);
+  public InMemoryPermissionsRepository put(UserPermission permission) {
+    this.permissions.put(permission.getId(), permission);
     return this;
   }
 
@@ -43,7 +43,7 @@ public class InMemoryPermissionsRepository implements PermissionsRepository {
   }
 
   @Override
-  public UserPermission remove(String id) {
-    return this.permissions.remove(id);
+  public void remove(String id) {
+    this.permissions.remove(id);
   }
 }

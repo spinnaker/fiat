@@ -36,8 +36,8 @@ class UserRolesSyncerSpec extends Specification {
           .setId("user2")
           .setAccounts([new Account().setName("account2")] as Set)
 
-      permissionsRepo.put("user1", user1)
-      permissionsRepo.put("user2", user2)
+      permissionsRepo.put(user1)
+      permissionsRepo.put(user2)
 
       def newUser2 = new UserPermission()
           .setId("user2")
