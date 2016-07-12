@@ -18,7 +18,8 @@ package com.netflix.spinnaker.fiat.permissions;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.HashBasedTable;
+import com.fasterxml.jackson.databind.util.ArrayIterator;
+import com.google.common.collect.ArrayTable;
 import com.google.common.collect.Table;
 import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.Account;
@@ -38,6 +39,7 @@ import redis.clients.jedis.Response;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -46,10 +48,10 @@ import java.util.stream.Collectors;
 /**
  * This Redis-backed permission repository is structured in a way to optimized reading types of
  * resource permissions. In general, this looks like a key schema like:
- *
+ * <p>
  * "prefix:myuser@domain.org:resources" -> {"resourceName1" -> "<serialized json of resourceName1>",
- *                                          "resourceName2" -> "<serialized json of resourceName1>"}
- *
+ * "resourceName2" -> "<serialized json of resourceName1>"}
+ * <p>
  * Additionally, a helper key, called the "all users" key, maintains a set of all usernames.
  */
 @Component
@@ -72,7 +74,6 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private JedisSource jedisSource;
 
   // TODO(ttomsu): Add RedisCacheOptions from Clouddriver.
-
   @Override
   public PermissionsRepository put(@NonNull UserPermission permission) {
     try (Jedis jedis = jedisSource.getJedis()) {
@@ -109,7 +110,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   }
 
   @Override
-  public UserPermission get(@NonNull String id) {
+  public Optional<UserPermission> get(@NonNull String id) {
     UserPermission userPermission = new UserPermission().setId(id);
     try (Jedis jedis = jedisSource.getJedis()) {
       for (Resource r : Resource.values()) {
@@ -128,7 +129,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       log.error("Storage exception reading " + id + " entry.", e);
     }
 
-    return userPermission.isEmpty() ? null : userPermission;
+    return userPermission.isEmpty() ? Optional.empty() : Optional.of(userPermission);
   }
 
   @Override
@@ -168,7 +169,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       Set<String> allUserIds = jedis.smembers(allUsersKey());
 
       Table<String, Resource, Response<Map<String, String>>> responseTable =
-          HashBasedTable.create(allUserIds.size(), Resource.values().length);
+          ArrayTable.create(allUserIds, new ArrayIterator<>(Resource.values()));
 
       Pipeline p = jedis.pipelined();
       for (String userId : allUserIds) {

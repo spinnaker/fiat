@@ -20,7 +20,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Account
 import com.netflix.spinnaker.fiat.model.resources.Application
-import com.netflix.spinnaker.fiat.redis.EmbeddedRedis
+import com.netflix.spinnaker.fiat.redis.JedisSource
+import com.netflix.spinnaker.kork.jedis.EmbeddedRedis
 import redis.clients.jedis.Jedis
 import spock.lang.AutoCleanup
 import spock.lang.Shared
@@ -46,15 +47,21 @@ class RedisPermissionsRepositorySpec extends Specification {
 
   def setupSpec() {
     embeddedRedis = EmbeddedRedis.embed()
-    jedis = embeddedRedis.jedisPoolSource.jedis
+    jedis = embeddedRedis.jedis
     jedis.flushDB()
   }
 
   def setup() {
+    JedisSource js = new JedisSource() {
+      @Override
+      Jedis getJedis() {
+        return embeddedRedis.jedis
+      }
+    }
     repo = new RedisPermissionsRepository()
         .setPrefix(prefix)
         .setObjectMapper(objectMapper)
-        .setJedisSource(embeddedRedis.jedisPoolSource)
+        .setJedisSource(js)
   }
 
   def cleanup() {
@@ -91,7 +98,7 @@ class RedisPermissionsRepositorySpec extends Specification {
                  '{"name":"app2","requiredGroupMembership":[]}')
 
     when:
-      def result = repo.get("testUser2")
+      def result = repo.get("testUser2").get()
 
     then:
       result

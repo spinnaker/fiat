@@ -50,8 +50,8 @@ class UserRolesSyncerSpec extends Specification {
           .setPermissionsResolver(permissionsResolver)
 
     expect:
-      permissionsRepo.get("user1") == user1
-      permissionsRepo.get("user2") == user2
+      permissionsRepo.get("user1").get() == user1
+      permissionsRepo.get("user2").get() == user2
 
     when:
       syncer.sync()
@@ -60,7 +60,7 @@ class UserRolesSyncerSpec extends Specification {
       permissionsResolver.resolve(_ as Set) >> ["user1": user1, "user2": newUser2]
 
     expect:
-      permissionsRepo.get("user1") == user1
-      permissionsRepo.get("user2") == newUser2
+      permissionsRepo.get("user1").get() == user1
+      permissionsRepo.get("user2").get() == newUser2
   }
 }

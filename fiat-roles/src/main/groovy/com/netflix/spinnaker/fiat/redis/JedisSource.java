@@ -19,5 +19,5 @@ package com.netflix.spinnaker.fiat.redis;
 import redis.clients.jedis.Jedis;
 
 public interface JedisSource {
-    Jedis getJedis();
+  Jedis getJedis();
 }

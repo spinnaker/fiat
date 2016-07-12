@@ -16,6 +16,7 @@
 
 package com.netflix.spinnaker.fiat.controllers
 
+import com.netflix.spinnaker.fiat.permissions.InMemoryPermissionsRepository
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Account
@@ -25,7 +26,7 @@ class AuthorizeControllerSpec extends Specification {
 
   def "should get user from repo"() {
     setup:
-      PermissionsRepository repository = Mock(PermissionsRepository)
+      PermissionsRepository repository = new InMemoryPermissionsRepository()
       AuthorizeController controller = new AuthorizeController(permissionsRepository: repository)
 
     when:
@@ -36,7 +37,7 @@ class AuthorizeControllerSpec extends Specification {
 
     when:
       def foo = new UserPermission().setId("foo")
-      repository.get("foo") >> foo
+      repository.put(foo)
       def result = controller.getUserPermission("foo")
 
     then:
@@ -45,7 +46,7 @@ class AuthorizeControllerSpec extends Specification {
 
   def "should get user's accounts from repo"() {
     setup:
-      PermissionsRepository repository = Mock(PermissionsRepository)
+      PermissionsRepository repository = new InMemoryPermissionsRepository()
       AuthorizeController controller = new AuthorizeController(permissionsRepository: repository)
 
     when:
@@ -57,7 +58,7 @@ class AuthorizeControllerSpec extends Specification {
     when:
       def bar = new Account().setName("bar")
       def foo = new UserPermission().setId("foo").setAccounts([bar] as Set)
-      repository.get("foo") >> foo
+      repository.put(foo)
       def result = controller.getUserAccounts("foo")
 
     then:
@@ -66,7 +67,7 @@ class AuthorizeControllerSpec extends Specification {
 
   def "should get user's accounts by name from repo"() {
     setup:
-      PermissionsRepository repository = Mock(PermissionsRepository)
+      PermissionsRepository repository = new InMemoryPermissionsRepository()
       AuthorizeController controller = new AuthorizeController(permissionsRepository: repository)
 
     when:
@@ -78,7 +79,7 @@ class AuthorizeControllerSpec extends Specification {
     when:
       def bar = new Account().setName("bar")
       def foo = new UserPermission().setId("foo").setAccounts([bar] as Set)
-      repository.get("foo") >> foo
+      repository.put(foo)
       def result = controller.getUserAccount("foo", "bar")
 
     then:

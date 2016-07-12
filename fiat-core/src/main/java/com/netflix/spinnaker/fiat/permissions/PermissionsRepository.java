@@ -19,6 +19,7 @@ package com.netflix.spinnaker.fiat.permissions;
 import com.netflix.spinnaker.fiat.model.UserPermission;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A PermissionsRepository is responsible for persisting UserPermission objects under a user ID key.
@@ -30,11 +31,10 @@ public interface PermissionsRepository {
 
   PermissionsRepository put(UserPermission permission);
 
-  UserPermission get(String id);
+  Optional<UserPermission> get(String id);
 
   /**
    * Gets all UserPermissions in the repository keyed by user ID.
-   * @return
    */
   Map<String, UserPermission> getAllById();
 

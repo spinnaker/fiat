@@ -29,5 +29,5 @@ dependencies {
   compile "com.squareup.retrofit:converter-simplexml:1.9.0"
   compile "com.diffplug.durian:durian:3.4.0"
 
-  testCompile "com.github.kstyrc:embedded-redis:0.6"
+  testCompile spinnaker.dependency("korkJedisTest")
 }

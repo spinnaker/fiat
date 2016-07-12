@@ -34,12 +34,6 @@ import redis.clients.jedis.Protocol
 @ConditionalOnProperty("redis.connection")
 class RedisConfig {
 
-  @Value('${redis.scheduler: default}')
-  String schedulerType;
-
-  @Value('${redis.parallelism: -1}')
-  Integer parallelism;
-
   @Bean
   JedisSource jedisSource(JedisPool jedisPool) {
     return new JedisPoolSource(jedisPool);
@@ -48,7 +42,7 @@ class RedisConfig {
   @Bean
   @ConfigurationProperties('redis')
   GenericObjectPoolConfig redisPoolConfig() {
-    new GenericObjectPoolConfig(maxTotal: 100, maxIdle: 100, minIdle: 25)
+    new GenericObjectPoolConfig(maxTotal: 20, maxIdle: 20, minIdle: 5)
   }
 
   @Bean
@@ -71,16 +65,6 @@ class RedisConfig {
     String password = redisConnection.userInfo ? redisConnection.userInfo.split(':', 2)[1] : null
 
     new JedisPool(redisPoolConfig ?: new GenericObjectPoolConfig(), host, port, timeout, password, database, null)
-  }
-
-  @Bean
-  JedisPool jedisPoolPrevious(
-      @Value('${redis.connection:redis://localhost:6379}') String mainConnection,
-      @Value('${redis.connection.previous:#{null}}') String connection) {
-    if (mainConnection == connection || connection == null) {
-      return null
-    }
-    return createPool(null, connection, 1000)
   }
 
   @Bean
