@@ -74,10 +74,9 @@ public class DefaultServiceAccountProvider implements ServiceAccountProvider {
   public void updateServiceAccounts() {
     front50Service
         .getAllServiceAccounts()
-        .stream()
-        .forEach(serviceAccount -> {
+        .forEach(serviceAccount ->
           permissionsResolver.resolve(serviceAccount.getName())
-              .ifPresent(permissionsRepo::put);
-        });
+              .ifPresent(permissionsRepo::put)
+        );
   }
 }
