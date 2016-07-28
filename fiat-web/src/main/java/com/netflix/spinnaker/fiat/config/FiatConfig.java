@@ -3,6 +3,7 @@ package com.netflix.spinnaker.fiat.config;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableList;
 import com.netflix.spinnaker.config.OkHttpClientConfiguration;
 import com.netflix.spinnaker.fiat.permissions.InMemoryPermissionsRepository;
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository;
@@ -51,9 +52,9 @@ public class FiatConfig {
   @Setter
   private boolean retryOnConnectionFailure;
 
-  @Value("${services.connection.retryBackoff.maxSeconds:5}")
+  @Value("${okHttpClient.retries.maxElapsedBackoffMs:5000}")
   @Setter
-  private long maxElapsedBackoffSeconds;
+  private long maxElapsedBackoffMs;
 
   @Bean
   @ConditionalOnMissingBean(PermissionsRepository.class)
@@ -96,7 +97,7 @@ public class FiatConfig {
     val client = okHttpClientConfig.create();
     client.setConnectionPool(new ConnectionPool(maxIdleConnections, keepAliveDurationMs));
     client.setRetryOnConnectionFailure(retryOnConnectionFailure);
-    client.interceptors().add(new RetryingInterceptor(maxElapsedBackoffSeconds));
+    client.interceptors().add(new RetryingInterceptor(maxElapsedBackoffMs));
     return new OkClient(client);
   }
 
@@ -104,12 +105,15 @@ public class FiatConfig {
   @AllArgsConstructor
   private static class RetryingInterceptor implements Interceptor {
 
-    private long maxElapsedBackoffSeconds;
+    // http://restcookbook.com/HTTP%20Methods/idempotency/
+    private static final List<String> NON_RETRYABLE_METHODS = ImmutableList.of("POST", "PATCH");
+
+    private long maxElapsedBackoffMs;
 
     @Override
     public Response intercept(Chain chain) throws IOException {
       ExponentialBackOff backoff = new ExponentialBackOff();
-      backoff.setMaxElapsedTime(TimeUnit.SECONDS.toMillis(maxElapsedBackoffSeconds));
+      backoff.setMaxElapsedTime(maxElapsedBackoffMs);
       BackOffExecution backOffExec = backoff.start();
 
       Response response = null;
@@ -117,7 +121,7 @@ public class FiatConfig {
       while (waitTime != BackOffExecution.STOP) {
         Request request = chain.request();
         response = chain.proceed(request);
-        if (response.isSuccessful()) {
+        if (response.isSuccessful() || NON_RETRYABLE_METHODS.contains(request.method())) {
           return response;
         }
 
