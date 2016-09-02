@@ -19,18 +19,18 @@ package com.netflix.spinnaker.fiat.model.resources;
 import lombok.NonNull;
 import org.apache.commons.lang3.StringUtils;
 
-public enum Resource {
+public enum ResourceType {
   ACCOUNT,
   APPLICATION,
   SERVICE_ACCOUNT; // Fiat service account.
 
   // TODO(ttomsu): This is Redis-specific, so it probably shouldn't go here.
-  public static Resource parse(@NonNull String pluralOrKey) {
+  public static ResourceType parse(@NonNull String pluralOrKey) {
     if (pluralOrKey.contains(":")) {
       pluralOrKey = StringUtils.substringAfterLast(pluralOrKey, ":");
     }
     String singular = StringUtils.removeEnd(pluralOrKey, "s");
-    return Resource.valueOf(singular.toUpperCase());
+    return ResourceType.valueOf(singular.toUpperCase());
   }
 
   public String keySuffix() {
