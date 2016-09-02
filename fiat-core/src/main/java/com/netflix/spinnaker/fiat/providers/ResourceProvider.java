@@ -14,11 +14,16 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model.resources;
+package com.netflix.spinnaker.fiat.providers;
 
-import java.util.List;
+import com.netflix.spinnaker.fiat.model.resources.Resource;
 
-public interface GroupAccessControlled extends Resource {
+import java.util.Collection;
+import java.util.Set;
 
-  List<String> getRequiredGroupMembership();
+public interface ResourceProvider<R extends Resource> {
+
+  Set<R> getAll() throws ProviderException;
+
+  Set<R> getAll(Collection<String> groups) throws ProviderException;
 }

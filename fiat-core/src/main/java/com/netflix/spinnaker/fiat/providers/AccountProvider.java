@@ -18,14 +18,5 @@ package com.netflix.spinnaker.fiat.providers;
 
 import com.netflix.spinnaker.fiat.model.resources.Account;
 
-import java.util.Collection;
-import java.util.Set;
-
-public interface AccountProvider {
-
-  /**
-   * @param groups
-   * @return all accounts to which a user with the specified set of roles or groups has access.
-   */
-  Set<Account> getAccounts(Collection<String> groups) throws ProviderException;
+public interface AccountProvider extends GroupAccessControlledResourceProvider<Account> {
 }

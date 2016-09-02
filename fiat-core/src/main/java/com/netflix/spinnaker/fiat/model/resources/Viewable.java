@@ -19,7 +19,7 @@ package com.netflix.spinnaker.fiat.model.resources;
 public interface Viewable {
   BaseView getView();
 
-  // Empty class used for referencing ResourceType-specific View objects.
+  // Empty class used for referencing Resource-specific View objects.
   class BaseView {
   }
 }

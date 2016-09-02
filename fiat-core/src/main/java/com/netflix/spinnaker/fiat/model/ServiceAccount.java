@@ -39,7 +39,7 @@ public class ServiceAccount implements Resource, Viewable {
 
   @Data
   @NoArgsConstructor
-  public static class View extends BaseView implements Resource {
+  public static class View extends BaseView {
     String name;
 
     public View(ServiceAccount serviceAccount) {
