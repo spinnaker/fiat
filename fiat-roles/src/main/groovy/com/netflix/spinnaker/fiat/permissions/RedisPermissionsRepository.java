@@ -26,7 +26,7 @@ import com.netflix.spinnaker.fiat.model.ServiceAccount;
 import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Application;
-import com.netflix.spinnaker.fiat.model.resources.Named;
+import com.netflix.spinnaker.fiat.model.resources.Resource;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
 import com.netflix.spinnaker.fiat.redis.JedisSource;
 import lombok.NonNull;
@@ -92,7 +92,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       for (ResourceType r : ResourceType.values()) {
         Map<String, String> resourceValues = new HashMap<>();
 
-        Consumer<Named> putInValuesMap = namedResource -> {
+        Consumer<Resource> putInValuesMap = namedResource -> {
           try {
             resourceValues.put(namedResource.getName(),
                                objectMapper.writeValueAsString(namedResource));
