@@ -100,7 +100,7 @@ public class UserPermission implements Viewable {
   @Data
   @NoArgsConstructor
   @SuppressWarnings("unchecked")
-  public static class View extends BaseView implements Resource {
+  public static class View extends BaseView {
     String name;
     Set<Account.View> accounts;
     Set<Application.View> applications;

@@ -42,7 +42,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -85,42 +84,42 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
   @Override
   public RedisPermissionsRepository put(@NonNull UserPermission permission) {
-    try (Jedis jedis = jedisSource.getJedis()) {
-      for (ResourceType r : ResourceType.values()) {
-        Map<String, String> resourceValues = new HashMap<>();
+    Map<ResourceType, Map<String, String>> resourceTypeToRedisValue =
+        new HashMap<>(ResourceType.values().length);
 
-        Consumer<Resource> putInValuesMap = namedResource -> {
+    permission
+        .getAllResources()
+        .forEach(resource -> {
           try {
-            resourceValues.put(namedResource.getName(),
-                               objectMapper.writeValueAsString(namedResource));
+            resourceTypeToRedisValue
+                .computeIfAbsent(resource.getResourceType(), key -> new HashMap<>())
+                .put(resource.getName(), objectMapper.writeValueAsString(resource));
           } catch (JsonProcessingException jpe) {
             log.error("Serialization exception writing " + permission.getId() + " entry.", jpe);
           }
-        };
+        });
 
-        switch (r) {
-          case ACCOUNT:
-            permission.getAccounts().forEach(putInValuesMap);
-            break;
-          case APPLICATION:
-            permission.getApplications().forEach(putInValuesMap);
-            break;
-          case SERVICE_ACCOUNT:
-            permission.getServiceAccounts().forEach(putInValuesMap);
-            break;
-        }
+    try (Jedis jedis = jedisSource.getJedis()) {
+      Pipeline pipeline1 = jedis.pipelined();
+      Pipeline pipeline2 = jedis.pipelined();
 
-        String userId = permission.getId();
+      String userId = permission.getId();
+      if (!userId.equalsIgnoreCase(UNRESTRICTED)) {
+        pipeline2.sadd(allUsersKey(), userId);
+      }
+
+      for (ResourceType r : ResourceType.values()) {
         String userResourceKey = userKey(userId, r);
 
-        jedis.del(userResourceKey); // Clears any values that may have been deleted.
-        if (!userId.equalsIgnoreCase(UNRESTRICTED)) {
-          jedis.sadd(allUsersKey(), userId);
-        }
-        if (!resourceValues.isEmpty()) {
-          jedis.hmset(userResourceKey, resourceValues);
+        pipeline1.del(userResourceKey); // Clears any values that may have been deleted.
+
+        Map<String, String> redisValue = resourceTypeToRedisValue.get(r);
+        if (redisValue != null && !redisValue.isEmpty()) {
+          pipeline2.hmset(userResourceKey, redisValue);
         }
       }
+      pipeline1.sync();
+      pipeline2.sync();
     } catch (Exception e) {
       log.error("Storage exception writing " + permission.getId() + " entry.", e);
     }
