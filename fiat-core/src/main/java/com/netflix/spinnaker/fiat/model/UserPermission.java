@@ -17,12 +17,14 @@
 package com.netflix.spinnaker.fiat.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.google.common.collect.ImmutableSet;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import com.netflix.spinnaker.fiat.model.resources.Viewable;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.val;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -30,6 +32,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Data
 public class UserPermission implements Viewable {
@@ -55,6 +58,10 @@ public class UserPermission implements Viewable {
   }
 
   public void addResources(Collection<Resource> resources) {
+    if (resources == null) {
+      return;
+    }
+
     resources.forEach(resource -> {
       if (resource instanceof Account) {
         accounts.add((Account) resource);
@@ -66,6 +73,23 @@ public class UserPermission implements Viewable {
         throw new IllegalArgumentException("Cannot add unknown resource " + resource);
       }
     });
+  }
+
+  @JsonIgnore
+  public Set<Resource> getAllResources() {
+    Set<Resource> retVal = new HashSet<>();
+    retVal.addAll(accounts);
+    retVal.addAll(applications);
+    retVal.addAll(serviceAccounts);
+    return retVal;
+  }
+
+  /**
+   * This method adds all of other's resources to this one.
+   * @param other
+   */
+  public void merge(UserPermission other) {
+    this.addResources(other.getAllResources());
   }
 
   @JsonIgnore

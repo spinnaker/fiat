@@ -22,16 +22,15 @@ import com.fasterxml.jackson.databind.util.ArrayIterator;
 import com.google.common.collect.ArrayTable;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
-import com.netflix.spinnaker.fiat.model.ServiceAccount;
+import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig;
 import com.netflix.spinnaker.fiat.model.UserPermission;
-import com.netflix.spinnaker.fiat.model.resources.Account;
-import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
 import com.netflix.spinnaker.fiat.redis.JedisSource;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -57,6 +56,10 @@ import java.util.stream.Collectors;
  * }
  * </code>
  * Additionally, a helper key, called the "all users" key, maintains a set of all usernames.
+ * <p>
+ * It's important to note that gets and puts are not symmetrical by design. That is, what you put in
+ * will likely not be exactly what you get out. That's because of "unrestricted" resources, which
+ * are added to the returned UserPermission.
  */
 // TODO(ttomsu): Add RedisCacheOptions from Clouddriver.
 @Component
@@ -65,6 +68,8 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
   private static final String KEY_PERMISSIONS = "permissions";
   private static final String KEY_ALL_USERS = "users";
+
+  private static final String UNRESTRICTED = UnrestrictedResourceConfig.UNRESTRICTED_USERNAME;
 
   @Value("${fiat.redis.prefix:spinnaker:fiat}")
   @Setter
@@ -95,13 +100,13 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
         switch (r) {
           case ACCOUNT:
-            permission.getAccounts().stream().forEach(putInValuesMap);
+            permission.getAccounts().forEach(putInValuesMap);
             break;
           case APPLICATION:
-            permission.getApplications().stream().forEach(putInValuesMap);
+            permission.getApplications().forEach(putInValuesMap);
             break;
           case SERVICE_ACCOUNT:
-            permission.getServiceAccounts().stream().forEach(putInValuesMap);
+            permission.getServiceAccounts().forEach(putInValuesMap);
             break;
         }
 
@@ -109,7 +114,9 @@ public class RedisPermissionsRepository implements PermissionsRepository {
         String userResourceKey = userKey(userId, r);
 
         jedis.del(userResourceKey); // Clears any values that may have been deleted.
-        jedis.sadd(allUsersKey(), userId);
+        if (!userId.equalsIgnoreCase(UNRESTRICTED)) {
+          jedis.sadd(allUsersKey(), userId);
+        }
         if (!resourceValues.isEmpty()) {
           jedis.hmset(userResourceKey, resourceValues);
         }
@@ -126,16 +133,11 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     try (Jedis jedis = jedisSource.getJedis()) {
       for (ResourceType r : ResourceType.values()) {
         Map<String, String> resourceMap = jedis.hgetAll(userKey(id, r));
+        userPermission.addResources(extractResources(r, resourceMap));
 
-        switch (r) {
-          case ACCOUNT:
-            userPermission.getAccounts().addAll(extractAccounts(resourceMap));
-            break;
-          case APPLICATION:
-            userPermission.getApplications().addAll(extractApplications(resourceMap));
-            break;
-          case SERVICE_ACCOUNT:
-            userPermission.getServiceAccounts().addAll(extractServiceAccounts(resourceMap));
+        Map<String, String> unrestrictedMap = jedis.hgetAll(unrestrictedUserKey(r));
+        if (!unrestrictedMap.isEmpty()) {
+          userPermission.addResources(extractResources(r, unrestrictedMap));
         }
       }
     } catch (Exception e) {
@@ -157,26 +159,15 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       String userId = entry1.getKey();
       for (Map.Entry<ResourceType, Response<Map<String, String>>> entry2 : entry1.getValue().entrySet()) {
         ResourceType r = entry2.getKey();
+
         Map<String /*resourceName*/, String /*resource json*/> resourceMap = entry2.getValue().get();
+        allById.computeIfAbsent(userId, id -> new UserPermission().setId(id))
+               .addResources(extractResources(r, resourceMap));
 
-        Function<String, UserPermission> newUser = id -> new UserPermission().setId(id);
-
-        switch (r) {
-          case ACCOUNT:
-            allById.computeIfAbsent(userId, newUser)
-                   .getAccounts()
-                   .addAll(extractAccounts(resourceMap));
-            break;
-          case APPLICATION:
-            allById.computeIfAbsent(userId, newUser)
-                   .getApplications()
-                   .addAll(extractApplications(resourceMap));
-            break;
-          case SERVICE_ACCOUNT:
-            allById.computeIfAbsent(userId, newUser)
-                   .getServiceAccounts()
-                   .addAll(extractServiceAccounts(resourceMap));
-            break;
+        val responseMap = responseTable.get(unrestrictedUserKey(r), r);
+        if (responseMap != null) {
+          Map<String /*resourceName*/, String /*resource json*/> unrestrictedMap = responseMap.get();
+          allById.get(userId).addResources(extractResources(r, unrestrictedMap));
         }
       }
     }
@@ -209,7 +200,6 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
   @Override
   public void remove(@NonNull String id) {
-    UserPermission userPermission = new UserPermission().setId(id);
     try (Jedis jedis = jedisSource.getJedis()) {
       jedis.srem(allUsersKey(), id);
       for (ResourceType r : ResourceType.values()) {
@@ -220,38 +210,24 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     }
   }
 
-  String allUsersKey() {
+  private String allUsersKey() {
     return String.format("%s:%s", prefix, KEY_ALL_USERS);
   }
 
-  String userKey(String userId, ResourceType r) {
+  private String unrestrictedUserKey(ResourceType r) {
+    return userKey(UNRESTRICTED, r);
+  }
+
+  private String userKey(String userId, ResourceType r) {
     return String.format("%s:%s:%s:%s", prefix, KEY_PERMISSIONS, userId, r.keySuffix());
   }
 
-  private Set<Account> extractAccounts(Map<String, String> resourceMap) {
+  private Set<Resource> extractResources(ResourceType r, Map<String, String> resourceMap) {
     return resourceMap
         .values()
         .stream()
-        .map((ThrowingFunction<String, Account>) serialized ->
-            objectMapper.readValue(serialized, Account.class))
-        .collect(Collectors.toSet());
-  }
-
-  private Set<Application> extractApplications(Map<String, String> resourceMap) {
-    return resourceMap
-        .values()
-        .stream()
-        .map((ThrowingFunction<String, Application>) serialized ->
-            objectMapper.readValue(serialized, Application.class))
-        .collect(Collectors.toSet());
-  }
-
-  private Set<ServiceAccount> extractServiceAccounts(Map<String, String> resourceMap) {
-    return resourceMap
-        .values()
-        .stream()
-        .map((ThrowingFunction<String, ServiceAccount>) serialized ->
-            objectMapper.readValue(serialized, ServiceAccount.class))
+        .map((ThrowingFunction<String, ? extends Resource>) serialized ->
+            objectMapper.readValue(serialized, r.modelClass))
         .collect(Collectors.toSet());
   }
 
