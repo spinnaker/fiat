@@ -88,8 +88,9 @@ public class UserPermission implements Viewable {
    * This method adds all of other's resources to this one.
    * @param other
    */
-  public void merge(UserPermission other) {
+  public UserPermission merge(UserPermission other) {
     this.addResources(other.getAllResources());
+    return this;
   }
 
   @JsonIgnore

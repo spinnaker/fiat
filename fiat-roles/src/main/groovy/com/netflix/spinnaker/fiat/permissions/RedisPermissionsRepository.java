@@ -30,7 +30,6 @@ import com.netflix.spinnaker.fiat.redis.JedisSource;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -50,8 +49,8 @@ import java.util.stream.Collectors;
  * resource permissions. In general, this looks like a key schema like:
  * <code>
  * "prefix:myuser@domain.org:resources": {
- *   "resourceName1": "[serialized json of resourceName1]",
- *   "resourceName2": "[serialized json of resourceName2]"
+ * "resourceName1": "[serialized json of resourceName1]",
+ * "resourceName2": "[serialized json of resourceName2]"
  * }
  * </code>
  * Additionally, a helper key, called the "all users" key, maintains a set of all usernames.
@@ -104,9 +103,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       Pipeline pipeline2 = jedis.pipelined();
 
       String userId = permission.getId();
-      if (!userId.equalsIgnoreCase(UNRESTRICTED)) {
-        pipeline2.sadd(allUsersKey(), userId);
-      }
+      pipeline2.sadd(allUsersKey(), userId);
 
       for (ResourceType r : ResourceType.values()) {
         String userResourceKey = userKey(userId, r);
@@ -128,22 +125,26 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
   @Override
   public Optional<UserPermission> get(@NonNull String id) {
-    UserPermission userPermission = new UserPermission().setId(id);
+    UserPermission userPermission = null;
     try (Jedis jedis = jedisSource.getJedis()) {
-      for (ResourceType r : ResourceType.values()) {
-        Map<String, String> resourceMap = jedis.hgetAll(userKey(id, r));
-        userPermission.addResources(extractResources(r, resourceMap));
+      RawUserPermission userResponseMap = new RawUserPermission();
+      RawUserPermission unrestrictedResponseMap = new RawUserPermission();
 
-        Map<String, String> unrestrictedMap = jedis.hgetAll(unrestrictedUserKey(r));
-        if (!unrestrictedMap.isEmpty()) {
-          userPermission.addResources(extractResources(r, unrestrictedMap));
-        }
+      Pipeline p = jedis.pipelined();
+      for (ResourceType r : ResourceType.values()) {
+        Response<Map<String, String>> resourceMap = p.hgetAll(userKey(id, r));
+        userResponseMap.put(r, resourceMap);
+        Response<Map<String, String>> unrestrictedMap = p.hgetAll(unrestrictedUserKey(r));
+        unrestrictedResponseMap.put(r, unrestrictedMap);
       }
+      p.sync();
+
+      UserPermission unrestrictedUser = getUserPermission(UNRESTRICTED, unrestrictedResponseMap);
+      userPermission = getUserPermission(id, userResponseMap).merge(unrestrictedUser);
     } catch (Exception e) {
       log.error("Storage exception reading " + id + " entry.", e);
     }
-
-    return userPermission.isEmpty() ? Optional.empty() : Optional.of(userPermission);
+    return userPermission == null ? Optional.empty() : Optional.of(userPermission);
   }
 
   @Override
@@ -152,25 +153,32 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     if (responseTable == null) {
       return new HashMap<>(0);
     }
+
     Map<String, UserPermission> allById = new HashMap<>(responseTable.rowKeySet().size());
 
-    for (Map.Entry<String, Map<ResourceType, Response<Map<String, String>>>> entry1 : responseTable.rowMap().entrySet()) {
-      String userId = entry1.getKey();
-      for (Map.Entry<ResourceType, Response<Map<String, String>>> entry2 : entry1.getValue().entrySet()) {
-        ResourceType r = entry2.getKey();
+    RawUserPermission rawUnrestricted = new RawUserPermission(responseTable.row(UNRESTRICTED));
+    UserPermission unrestrictedUser = getUserPermission(UNRESTRICTED, rawUnrestricted);
 
-        Map<String /*resourceName*/, String /*resource json*/> resourceMap = entry2.getValue().get();
-        allById.computeIfAbsent(userId, id -> new UserPermission().setId(id))
-               .addResources(extractResources(r, resourceMap));
-
-        val responseMap = responseTable.get(unrestrictedUserKey(r), r);
-        if (responseMap != null) {
-          Map<String /*resourceName*/, String /*resource json*/> unrestrictedMap = responseMap.get();
-          allById.get(userId).addResources(extractResources(r, unrestrictedMap));
-        }
-      }
+    for (String userId : responseTable.rowKeySet()) {
+      RawUserPermission rawUser = new RawUserPermission(responseTable.row(userId));
+      UserPermission permission = getUserPermission(userId, rawUser);
+      allById.put(userId, permission.merge(unrestrictedUser));
     }
     return allById;
+  }
+
+  private UserPermission getUserPermission(String userId, RawUserPermission raw) {
+
+    UserPermission permission = new UserPermission().setId(userId);
+
+    for (Map.Entry<ResourceType, Response<Map<String, String>>> entry : raw.entrySet()) {
+      ResourceType r = entry.getKey();
+
+      Map<String /*resourceName*/, String /*resource json*/> resourceMap = entry.getValue().get();
+      permission.addResources(extractResources(r, resourceMap));
+    }
+
+    return permission;
   }
 
   private Table<String, ResourceType, Response<Map<String, String>>> getAllFromRedis() {
@@ -246,5 +254,16 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     }
 
     R applyThrows(T t) throws Exception;
+  }
+
+  private class RawUserPermission extends HashMap<ResourceType, Response<Map<String, String>>> {
+
+    RawUserPermission() {
+      super();
+    }
+
+    RawUserPermission(Map<ResourceType, Response<Map<String, String>>> source) {
+      super(source);
+    }
   }
 }
