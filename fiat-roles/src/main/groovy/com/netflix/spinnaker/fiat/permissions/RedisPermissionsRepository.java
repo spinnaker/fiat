@@ -99,24 +99,24 @@ public class RedisPermissionsRepository implements PermissionsRepository {
         });
 
     try (Jedis jedis = jedisSource.getJedis()) {
-      Pipeline pipeline1 = jedis.pipelined();
-      Pipeline pipeline2 = jedis.pipelined();
+      Pipeline deleteOldValuesPipeline = jedis.pipelined();
+      Pipeline insertNewValuesPipeline = jedis.pipelined();
 
       String userId = permission.getId();
-      pipeline2.sadd(allUsersKey(), userId);
+      insertNewValuesPipeline.sadd(allUsersKey(), userId);
 
       for (ResourceType r : ResourceType.values()) {
         String userResourceKey = userKey(userId, r);
 
-        pipeline1.del(userResourceKey); // Clears any values that may have been deleted.
+        deleteOldValuesPipeline.del(userResourceKey);
 
         Map<String, String> redisValue = resourceTypeToRedisValue.get(r);
         if (redisValue != null && !redisValue.isEmpty()) {
-          pipeline2.hmset(userResourceKey, redisValue);
+          insertNewValuesPipeline.hmset(userResourceKey, redisValue);
         }
       }
-      pipeline1.sync();
-      pipeline2.sync();
+      deleteOldValuesPipeline.sync();
+      insertNewValuesPipeline.sync();
     } catch (Exception e) {
       log.error("Storage exception writing " + permission.getId() + " entry.", e);
     }
