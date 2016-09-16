@@ -30,7 +30,12 @@ import org.springframework.util.Assert;
 import retrofit.RetrofitError;
 import retrofit.client.Response;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -64,13 +69,17 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
       isMemberOfOrg = (response.getStatus() == 204);
     } catch (RetrofitError e) {
       if (e.getKind() == RetrofitError.Kind.NETWORK) {
-        log.error("Could not find the server {master.baseUrl}", e);
+        log.error(String.format("Could not find the server %s", master.getBaseUrl()), e);
         return Collections.emptyList();
       } else if (e.getResponse().getStatus() == 404) {
-        log.error("Could not find the GitHub organization {gitHubProperties.getOrganization()}", e);
+        log.error(String.format("Could not find the GitHub organization %s",
+                                gitHubProperties.getOrganization()),
+                  e);
         return Collections.emptyList();
       } else if (e.getResponse().getStatus() == 401) {
-        log.error("Cannot get GitHub organization {gitHubProperties.getOrganization()} information: Not authorized.", e);
+        log.error(String.format("Cannot get GitHub organization %s information: Not authorized.",
+                                gitHubProperties.getOrganization()),
+                  e);
         return Collections.emptyList();
       }
     }
@@ -86,16 +95,20 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     List<GitHubMaster.Team> teams = new ArrayList<>();
     try {
       teams = master.getGitHubClient().getOrgTeams(gitHubProperties.getOrganization());
-
     } catch (RetrofitError e) {
-      log.error("RetrofitError ${e.response.status} ${e.response.reason} ", e);
+      log.error(String.format("RetrofitError %s %s ",
+                              e.getResponse().getStatus(),
+                              e.getResponse().getReason()),
+                e);
       if (e.getKind() == RetrofitError.Kind.NETWORK) {
-        log.error("Could not find the server ${master.baseUrl}", e);
+        log.error(String.format("Could not find the server %s", master.getBaseUrl()), e);
       } else if (e.getResponse().getStatus() == 404) {
-        log.error(" 404 when getting teams");
+        log.error("404 when getting teams");
         return result;
       } else if (e.getResponse().getStatus() == 401) {
-        log.error("Cannot get GitHub organization ${gitHubProperties.getOrganization()} teams: Not authorized.", e);
+        log.error(String.format("Cannot get GitHub organization %s teams: Not authorized.",
+                                gitHubProperties.getOrganization()),
+                  e);
         return result;
       }
     }
@@ -113,13 +126,16 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
   private boolean isMemberOfTeam(GitHubMaster.Team t, String userName) {
     String ACTIVE = "active";
     try {
-      GitHubMaster.TeamMembership response = master.getGitHubClient().isMemberOfTeam(t.getId(), userName);
+      GitHubMaster.TeamMembership response = master.getGitHubClient()
+                                                   .isMemberOfTeam(t.getId(), userName);
       return (response.getState().equals(ACTIVE));
     } catch (RetrofitError e) {
       if (e.getKind() == RetrofitError.Kind.NETWORK) {
-        log.error("Could not find the server ${master.baseUrl}");
+        log.error(String.format("Could not find the server %s", master.getBaseUrl()), e);
       } else if (e.getResponse().getStatus() == 401) {
-        log.error("Cannot check if $userName is member of ${t.name} teams: Not authorized.", e);
+        log.error(String.format("Cannot check if $userName is member of %s teams: Not authorized.",
+                                t.getName()),
+                  e);
       }
     }
     return false;
