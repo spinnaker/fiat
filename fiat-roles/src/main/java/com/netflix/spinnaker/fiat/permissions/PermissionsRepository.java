@@ -52,9 +52,10 @@ public interface PermissionsRepository {
 
   /**
    * Gets all UserPermissions in the repository that has at least 1 of the specified roles, keyed
-   * by user ID. If anyRoles is null, returns the same result as getAllById() (which
-   * includes the unrestricted user). If anyRoles is empty, it returns a map with a single entry for
-   * the unrestricted user.
+   * by user ID. The returned map will not contain the unrestricted user. If anyRoles is null,
+   * returns the same result as getAllById() (which includes the unrestricted user). If anyRoles is
+   * empty, this is an indication to sync the anonymous/unrestricted user. When this is the case,
+   * this method returns a map with a single entry for the unrestricted user.
    * @param anyRoles
    * @return
    */
