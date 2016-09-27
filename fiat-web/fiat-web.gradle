@@ -25,8 +25,8 @@ dependencies {
   compile spinnaker.dependency('korkWeb')
   compile spinnaker.dependency("korkSwagger")
 
-  compile project(':fiat-core')
-  compile project(':fiat-roles')
+  compile project(':fiat-github')
+  compile project(':fiat-google-groups')
 }
 
 applicationName = 'fiat'
