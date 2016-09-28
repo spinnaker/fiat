@@ -21,7 +21,6 @@ dependencies {
 
   compileOnly spinnaker.dependency("lombok")
 
-  compile spinnaker.dependency("groovy")
   compile spinnaker.dependency("bootActuator")
   compile spinnaker.dependency("bootWeb")
 

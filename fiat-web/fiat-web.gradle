@@ -3,11 +3,13 @@ apply plugin: 'spinnaker.package'
 
 ext {
   springConfigLocation = System.getProperty('spring.config.location', "${System.getProperty('user.home')}/.spinnaker/")
+  springProfiles = System.getProperty('spring.profiles.active', "test,local")
   repackage = System.getProperty('springBoot.repackage', "false")
 }
 
 tasks.withType(org.springframework.boot.gradle.run.BootRunTask) {
   systemProperty('spring.config.location', project.springConfigLocation)
+  systemProperty('spring.profiles.active', project.springProfiles)
 }
 
 configurations.all {
