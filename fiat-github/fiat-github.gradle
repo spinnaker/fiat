@@ -1,8 +1,6 @@
 dependencies {
   compile project(":fiat-roles")
 
-  compile spinnaker.dependency("groovy")
-
   compileOnly spinnaker.dependency("retrofit")
   compileOnly spinnaker.dependency("okHttp")
   compileOnly spinnaker.dependency("okHttpUrlconnection")
