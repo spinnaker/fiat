@@ -30,6 +30,7 @@ import org.springframework.web.context.WebApplicationContext
 import retrofit.RetrofitError
 import spock.lang.Specification
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
@@ -116,5 +117,11 @@ class RolesControllerSpec extends Specification {
     stubFront50Service.getAllApplicationPermissions() >> {
       throw RetrofitError.networkError("test1", new IOException("test2"))
     }
+
+    when:
+    mockMvc.perform(delete("/roles/noRolesUser@group.com")).andExpect(status().isOk())
+
+    then:
+    !permissionsRepository.get("noRolesUser@group.com").isPresent()
   }
 }
