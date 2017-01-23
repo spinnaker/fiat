@@ -31,18 +31,27 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import retrofit.RetrofitError;
+import retrofit.client.Header;
 import retrofit.client.Response;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 @ConditionalOnProperty(value = "auth.groupMembership.service", havingValue = "github")
 public class GithubTeamsUserRolesProvider implements UserRolesProvider, InitializingBean {
+
+  private static List<String> RATE_LIMITING_HEADERS = Arrays.asList(
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset"
+  );
 
   @Autowired
   @Setter
@@ -159,7 +168,16 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     if (e.getKind() == RetrofitError.Kind.NETWORK) {
       msg = String.format("Could not find the server %s", gitHubProperties.getBaseUrl());
     } else if (e.getResponse().getStatus() == 401) {
-      msg = "Not authorized.";
+      msg = "HTTP 401 Unauthorized.";
+    } else if (e.getResponse().getStatus() == 403) {
+      val rateHeaders = e.getResponse()
+                         .getHeaders()
+                         .stream()
+                         .filter(header -> RATE_LIMITING_HEADERS.contains(header.getName()))
+                         .map(Header::toString)
+                         .collect(Collectors.toList());
+
+      msg = "HTTP 403 Forbidden. Rate limit info: " + StringUtils.join(rateHeaders, ", ");
     }
     log.error(msg, e);
   }
