@@ -17,14 +17,10 @@
 package com.netflix.spinnaker.fiat.roles.github.client;
 
 
-import com.netflix.spinnaker.fiat.roles.github.model.GrafqlResult;
+import com.netflix.spinnaker.fiat.roles.github.model.GraphqlResult;
 import com.netflix.spinnaker.fiat.roles.github.model.GraphqlTeamRequest;
-import com.netflix.spinnaker.fiat.roles.github.model.Team;
-import com.netflix.spinnaker.fiat.roles.github.model.TeamMembership;
 import retrofit.client.Response;
 import retrofit.http.*;
-
-import java.util.List;
 
 /**
  * Retrofit interface for interacting with a GitHub REST API.
@@ -36,7 +32,7 @@ public interface GitHubClient {
                                   @Path("username") String username);
 
   @POST("/graphql")
-  GrafqlResult getUserTeams(@Body GraphqlTeamRequest request);
+  GraphqlResult getUserTeams(@Body GraphqlTeamRequest request);
 
 }
 

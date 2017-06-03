@@ -54,7 +54,21 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
       "X-RateLimit-Reset"
   );
 
-  private static String GRAPHQL_QUERY_TPL = "{\norganization(login: \"ORGANIZATION\") {\nteams(first: 100, userLogins: [\"USER\"]) {\nedges {\nnode {\nid\nname\nslug\n}\n}\n}\n}\n}\n\"";
+  private static String GRAPHQL_QUERY_TPL = String.join("\n",
+          "{",
+          "  organization(login: \"ORGANIZATION\") {",
+          "    teams(first: 100, userLogins: [\"USER\"]) {",
+          "      edges {",
+          "        node {",
+          "          id",
+          "          name",
+          "          slug",
+          "          }",
+          "        }",
+          "      }",
+          "    }",
+          "  }",
+          "}");
   private static String ORGANIZATION = "ORGANIZATION";
   private static String USER = "USER";
 
