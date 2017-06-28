@@ -22,5 +22,5 @@ import lombok.Data;
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GraphqlResult {
-  private DataResult data;
+  private DataResult data = new DataResult();
 }
