@@ -93,10 +93,10 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     }
 
     if (!isMemberOfOrg(username)) {
-      log.debug(username + "is not a member of organization " + gitHubProperties.getOrganization());
+      log.debug(username + " is not a member of organization " + gitHubProperties.getOrganization());
       return new ArrayList<>();
     }
-    log.debug(username + "is a member of organization " + gitHubProperties.getOrganization());
+    log.debug(username + " is a member of organization " + gitHubProperties.getOrganization());
 
     List<Role> result = new ArrayList<>();
     result.add(toRole(gitHubProperties.getOrganization()));

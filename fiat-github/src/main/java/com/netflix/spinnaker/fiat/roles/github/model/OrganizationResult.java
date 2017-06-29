@@ -22,5 +22,5 @@ import lombok.Data;
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class OrganizationResult {
-  private TeamsResult teams;
+  private TeamsResult teams = new TeamsResult();
 }

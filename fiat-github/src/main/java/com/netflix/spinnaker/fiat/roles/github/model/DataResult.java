@@ -22,5 +22,5 @@ import lombok.Data;
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DataResult {
-  private OrganizationResult organizationResult;
+  private OrganizationResult organizationResult = new OrganizationResult();
 }
