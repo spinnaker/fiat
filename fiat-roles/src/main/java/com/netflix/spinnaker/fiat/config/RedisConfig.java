@@ -1,7 +1,7 @@
 package com.netflix.spinnaker.fiat.config;
 
-import com.netflix.spinnaker.cats.redis.JedisPoolSource;
-import com.netflix.spinnaker.cats.redis.JedisSource;
+import com.netflix.spinnaker.cats.redis.JedisClientDelegate;
+import com.netflix.spinnaker.cats.redis.RedisClientDelegate;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
@@ -27,8 +27,8 @@ import java.net.URI;
 public class RedisConfig {
 
   @Bean
-  public JedisSource jedisSource(JedisPool jedisPool) {
-    return new JedisPoolSource(jedisPool);
+  RedisClientDelegate redisClientDelegate(JedisPool jedisPool) {
+    return new JedisClientDelegate(jedisPool);
   }
 
   @Bean

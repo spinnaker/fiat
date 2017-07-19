@@ -18,7 +18,7 @@ package com.netflix.spinnaker.fiat.roles
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.netflix.spinnaker.cats.redis.JedisSource
+import com.netflix.spinnaker.cats.redis.JedisClientDelegate
 import com.netflix.spinnaker.fiat.config.ResourceProvidersHealthIndicator
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig
 import com.netflix.spinnaker.fiat.model.UserPermission
@@ -31,6 +31,7 @@ import com.netflix.spinnaker.fiat.providers.ResourceProvider
 import com.netflix.spinnaker.kork.jedis.EmbeddedRedis
 import org.springframework.boot.actuate.health.Health
 import redis.clients.jedis.Jedis
+import redis.clients.jedis.JedisPool
 import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
@@ -51,24 +52,25 @@ class UserRolesSyncerSpec extends Specification {
   Jedis jedis
 
   @Shared
+  JedisPool jedisPool
+
+  @Shared
   RedisPermissionsRepository repo
 
   def setupSpec() {
     embeddedRedis = EmbeddedRedis.embed()
     jedis = embeddedRedis.jedis
     jedis.flushDB()
+
+    jedisPool = embeddedRedis.pool as JedisPool
+    jedisPool.resource.withCloseable { it.flushDB() }
   }
 
   def setup() {
-    JedisSource js = new JedisSource() {
-      @Override
-      Jedis getJedis() {
-        return embeddedRedis.jedis
-      }
-    }
+    def delegate = new JedisClientDelegate(jedisPool)
     repo = new RedisPermissionsRepository()
         .setObjectMapper(objectMapper)
-        .setJedisSource(js)
+        .setRedisClientDelegate(delegate)
   }
 
   def cleanup() {
