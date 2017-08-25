@@ -19,8 +19,9 @@ package com.netflix.spinnaker.fiat.roles.github;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.roles.UserRolesProvider;
 import com.netflix.spinnaker.fiat.roles.github.client.GitHubClient;
+import com.netflix.spinnaker.fiat.roles.github.model.GraphqlTeamRequest;
 import com.netflix.spinnaker.fiat.roles.github.model.Team;
-import com.netflix.spinnaker.fiat.roles.github.model.TeamMembership;
+import com.netflix.spinnaker.fiat.roles.github.model.TeamEdge;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -53,6 +54,24 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
       "X-RateLimit-Reset"
   );
 
+  private static String GRAPHQL_QUERY_TPL = String.join("\n",
+          "{",
+          "  organization(login: \"ORGANIZATION\") {",
+          "    teams(first: 100, userLogins: [\"USER\"]) {",
+          "      edges {",
+          "        node {",
+          "          id",
+          "          name",
+          "          slug",
+          "          }",
+          "        }",
+          "      }",
+          "    }",
+          "  }",
+          "}");
+  private static String ORGANIZATION = "ORGANIZATION";
+  private static String USER = "USER";
+
   @Autowired
   @Setter
   private GitHubClient gitHubClient;
@@ -74,28 +93,24 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     }
 
     if (!isMemberOfOrg(username)) {
-      log.debug(username + "is not a member of organization " + gitHubProperties.getOrganization());
+      log.debug(username + " is not a member of organization " + gitHubProperties.getOrganization());
       return new ArrayList<>();
     }
-    log.debug(username + "is a member of organization " + gitHubProperties.getOrganization());
+    log.debug(username + " is a member of organization " + gitHubProperties.getOrganization());
 
     List<Role> result = new ArrayList<>();
     result.add(toRole(gitHubProperties.getOrganization()));
 
     // Get teams of the org
-    List<Team> teams = getTeams();
-    log.debug("Found " + teams.size() + " teams in org.");
+    List<Team> teams = getTeamsGraphql(username);
+    log.debug("Found " + teams.size() + " teams in org for " + username);
 
-    teams.forEach(t -> {
-      String debugMsg = username + " is a member of team " + t.getName();
-      if (isMemberOfTeam(t, username)) {
-        result.add(toRole(t.getSlug()));
-        debugMsg += ": true";
-      } else {
-        debugMsg += ": false";
-      }
-      log.debug(debugMsg);
-    });
+    result.addAll(
+            teams.stream()
+                    .map(Team::getSlug)
+                    .map(GithubTeamsUserRolesProvider::toRole)
+                    .collect(Collectors.toList())
+    );
 
     return result;
   }
@@ -115,30 +130,14 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     return isMemberOfOrg;
   }
 
-  private List<Team> getTeams() {
-    List<Team> teams = new ArrayList<>();
-    int page = 1;
-    boolean hasMorePages = true;
+  private List<Team> getTeamsGraphql(String username) {
+    log.debug("Fetching " + username + " teams.");
+    List<TeamEdge> edges = new ArrayList<>();
 
-    do {
-      List<Team> teamsPage = getTeamsInOrgPaginated(page++);
-      teams.addAll(teamsPage);
-      if (teamsPage.size() != gitHubProperties.paginationValue) {
-        hasMorePages = false;
-      }
-      log.debug("Got " + teamsPage.size() + " teams back. hasMorePages: " + hasMorePages);
-    } while (hasMorePages);
-
-    return teams;
-  }
-
-  private List<Team> getTeamsInOrgPaginated(int page) {
-    List<Team> teams = new ArrayList<>();
     try {
-      log.debug("Requesting page " + page + " of teams.");
-      teams = gitHubClient.getOrgTeams(gitHubProperties.getOrganization(),
-                                       page,
-                                       gitHubProperties.paginationValue);
+      GraphqlTeamRequest request = new GraphqlTeamRequest();
+      request.setQuery(buildGraphqlQuery(gitHubProperties.getOrganization(), username));
+      edges = gitHubClient.getUserTeams(request).getData().getOrganizationResult().getTeams().getEdges();
     } catch (RetrofitError e) {
       if (e.getResponse().getStatus() != 404) {
         handleNon404s(e);
@@ -146,21 +145,9 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
         log.error("404 when getting teams", e);
       }
     }
-
-    return teams;
-  }
-
-  private boolean isMemberOfTeam(Team t, String username) {
-    String ACTIVE = "active";
-    try {
-      TeamMembership response = gitHubClient.isMemberOfTeam(t.getId(), username);
-      return (response.getState().equals(ACTIVE));
-    } catch (RetrofitError e) {
-      if (e.getResponse().getStatus() != 404) {
-        handleNon404s(e);
-      }
-    }
-    return false;
+    return edges.stream()
+            .map(TeamEdge::getNode)
+            .collect(Collectors.toList());
   }
 
   private void handleNon404s(RetrofitError e) {
@@ -196,5 +183,9 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     userEmails.forEach(email -> emailGroupsMap.put(email, loadRoles(email)));
 
     return emailGroupsMap;
+  }
+
+  private String buildGraphqlQuery(String organization, String user) {
+    return GRAPHQL_QUERY_TPL.replace(ORGANIZATION, organization).replace(USER, user);
   }
 }

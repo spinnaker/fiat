@@ -17,14 +17,10 @@
 package com.netflix.spinnaker.fiat.roles.github.client;
 
 
-import com.netflix.spinnaker.fiat.roles.github.model.Team;
-import com.netflix.spinnaker.fiat.roles.github.model.TeamMembership;
+import com.netflix.spinnaker.fiat.roles.github.model.GraphqlResult;
+import com.netflix.spinnaker.fiat.roles.github.model.GraphqlTeamRequest;
 import retrofit.client.Response;
-import retrofit.http.GET;
-import retrofit.http.Path;
-import retrofit.http.Query;
-
-import java.util.List;
+import retrofit.http.*;
 
 /**
  * Retrofit interface for interacting with a GitHub REST API.
@@ -35,19 +31,8 @@ public interface GitHubClient {
   Response isMemberOfOrganization(@Path("org") String org,
                                   @Path("username") String username);
 
-  /**
-   * This one should use the Current User credentials
-   */
-  @GET("/user/teams")
-  List<Team> getUserTeams();
+  @POST("/graphql")
+  GraphqlResult getUserTeams(@Body GraphqlTeamRequest request);
 
-  @GET("/orgs/{org}/teams")
-  List<Team> getOrgTeams(@Path("org") String org,
-                         @Query("page") int page,
-                         @Query("per_page") int paginationValue);
-
-  @GET("/teams/{idTeam}/memberships/{username}")
-  TeamMembership isMemberOfTeam(@Path("idTeam") Long idTeam,
-                                @Path("username") String username);
 }
 
