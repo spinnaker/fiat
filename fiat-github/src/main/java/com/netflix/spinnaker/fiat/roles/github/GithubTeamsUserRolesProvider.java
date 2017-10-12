@@ -16,11 +16,15 @@
 
 package com.netflix.spinnaker.fiat.roles.github;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.roles.UserRolesProvider;
 import com.netflix.spinnaker.fiat.roles.github.client.GitHubClient;
 import com.netflix.spinnaker.fiat.roles.github.model.Team;
 import com.netflix.spinnaker.fiat.roles.github.model.TeamMembership;
+import lombok.Data;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -40,6 +44,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -61,9 +67,12 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
   @Setter
   private GitHubProperties gitHubProperties;
 
+  private LoadingCache<CacheKey, Boolean> teamMembershipCache;
+
   @Override
   public void afterPropertiesSet() throws Exception {
     Assert.state(gitHubProperties.getOrganization() != null, "Supply an organization");
+    Assert.state(gitHubProperties.getBaseUrl() != null, "Supply a base url");
   }
 
   @Override
@@ -151,14 +160,33 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
   }
 
   private boolean isMemberOfTeam(Team t, String username) {
+    Integer CACHE_EXPIRES_AFTER_MINUTES = 60;
     String ACTIVE = "active";
+
+    if (this.teamMembershipCache == null) {
+      this.teamMembershipCache = CacheBuilder.newBuilder()
+          .maximumSize(1000)
+          .expireAfterWrite(CACHE_EXPIRES_AFTER_MINUTES, TimeUnit.MINUTES)
+          .build(
+              new CacheLoader<CacheKey, Boolean>() {
+                public Boolean load(CacheKey key) {
+                  try {
+                    TeamMembership response = gitHubClient.isMemberOfTeam(key.getTeamId(), key.getUsername());
+                    return (response.getState().equals(ACTIVE));
+                  } catch (RetrofitError e) {
+                    if (e.getResponse().getStatus() != 404) {
+                      handleNon404s(e);
+                    }
+                  }
+                  return false;
+                }
+              });
+    }
+
     try {
-      TeamMembership response = gitHubClient.isMemberOfTeam(t.getId(), username);
-      return (response.getState().equals(ACTIVE));
-    } catch (RetrofitError e) {
-      if (e.getResponse().getStatus() != 404) {
-        handleNon404s(e);
-      }
+      return this.teamMembershipCache.get(new CacheKey(t.getId(), username));
+    } catch (ExecutionException e) {
+      log.error("Failed to read from cache when getting team membership", e);
     }
     return false;
   }
@@ -196,5 +224,10 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     userEmails.forEach(email -> emailGroupsMap.put(email, loadRoles(email)));
 
     return emailGroupsMap;
+  }
+
+  private @Data class CacheKey {
+    private final Long teamId;
+    private final String username;
   }
 }
