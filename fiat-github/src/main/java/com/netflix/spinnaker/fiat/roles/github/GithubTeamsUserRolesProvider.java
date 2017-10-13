@@ -75,6 +75,8 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     Assert.state(gitHubProperties.getBaseUrl() != null, "Supply a base url");
   }
 
+  private static final String ACTIVE = "active";
+
   @Override
   public List<Role> loadRoles(String username) {
     log.debug("loadRoles for user " + username);
@@ -160,27 +162,8 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
   }
 
   private boolean isMemberOfTeam(Team t, String username) {
-    Integer CACHE_EXPIRES_AFTER_MINUTES = 60;
-    String ACTIVE = "active";
-
     if (this.teamMembershipCache == null) {
-      this.teamMembershipCache = CacheBuilder.newBuilder()
-          .maximumSize(1000)
-          .expireAfterWrite(CACHE_EXPIRES_AFTER_MINUTES, TimeUnit.MINUTES)
-          .build(
-              new CacheLoader<CacheKey, Boolean>() {
-                public Boolean load(CacheKey key) {
-                  try {
-                    TeamMembership response = gitHubClient.isMemberOfTeam(key.getTeamId(), key.getUsername());
-                    return (response.getState().equals(ACTIVE));
-                  } catch (RetrofitError e) {
-                    if (e.getResponse().getStatus() != 404) {
-                      handleNon404s(e);
-                    }
-                  }
-                  return false;
-                }
-              });
+      initializeTeamMembershipCache();
     }
 
     try {
@@ -189,6 +172,26 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
       log.error("Failed to read from cache when getting team membership", e);
     }
     return false;
+  }
+
+  private void initializeTeamMembershipCache() {
+    this.teamMembershipCache = CacheBuilder.newBuilder()
+      .maximumSize(1000)
+      .expireAfterWrite(this.gitHubProperties.getMembershipCacheTTLSeconds(), TimeUnit.SECONDS)
+      .build(
+        new CacheLoader<CacheKey, Boolean>() {
+          public Boolean load(CacheKey key) {
+            try {
+              TeamMembership response = gitHubClient.isMemberOfTeam(key.getTeamId(), key.getUsername());
+              return (response.getState().equals(GithubTeamsUserRolesProvider.ACTIVE));
+            } catch (RetrofitError e) {
+              if (e.getResponse().getStatus() != 404) {
+                handleNon404s(e);
+              }
+            }
+            return false;
+          }
+        });
   }
 
   private void handleNon404s(RetrofitError e) {
@@ -226,7 +229,8 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     return emailGroupsMap;
   }
 
-  private @Data class CacheKey {
+  @Data
+  private class CacheKey {
     private final Long teamId;
     private final String username;
   }
