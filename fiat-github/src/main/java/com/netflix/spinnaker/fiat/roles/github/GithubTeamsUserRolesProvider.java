@@ -69,13 +69,35 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
 
   private LoadingCache<CacheKey, Boolean> teamMembershipCache;
 
+  private static final String ACTIVE = "active";
+
   @Override
   public void afterPropertiesSet() throws Exception {
     Assert.state(gitHubProperties.getOrganization() != null, "Supply an organization");
     Assert.state(gitHubProperties.getBaseUrl() != null, "Supply a base url");
+
+    this.initializeTeamMembershipCache();
   }
 
-  private static final String ACTIVE = "active";
+  private void initializeTeamMembershipCache() {
+    this.teamMembershipCache = CacheBuilder.newBuilder()
+        .maximumSize(1000)
+        .expireAfterWrite(this.gitHubProperties.getMembershipCacheTTLSeconds(), TimeUnit.SECONDS)
+        .build(
+            new CacheLoader<CacheKey, Boolean>() {
+              public Boolean load(CacheKey key) {
+                try {
+                  TeamMembership response = gitHubClient.isMemberOfTeam(key.getTeamId(), key.getUsername());
+                  return (response.getState().equals(GithubTeamsUserRolesProvider.ACTIVE));
+                } catch (RetrofitError e) {
+                  if (e.getResponse().getStatus() != 404) {
+                    handleNon404s(e);
+                  }
+                }
+                return false;
+              }
+            });
+  }
 
   @Override
   public List<Role> loadRoles(String username) {
@@ -162,36 +184,12 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
   }
 
   private boolean isMemberOfTeam(Team t, String username) {
-    if (this.teamMembershipCache == null) {
-      initializeTeamMembershipCache();
-    }
-
     try {
       return this.teamMembershipCache.get(new CacheKey(t.getId(), username));
     } catch (ExecutionException e) {
       log.error("Failed to read from cache when getting team membership", e);
     }
     return false;
-  }
-
-  private void initializeTeamMembershipCache() {
-    this.teamMembershipCache = CacheBuilder.newBuilder()
-      .maximumSize(1000)
-      .expireAfterWrite(this.gitHubProperties.getMembershipCacheTTLSeconds(), TimeUnit.SECONDS)
-      .build(
-        new CacheLoader<CacheKey, Boolean>() {
-          public Boolean load(CacheKey key) {
-            try {
-              TeamMembership response = gitHubClient.isMemberOfTeam(key.getTeamId(), key.getUsername());
-              return (response.getState().equals(GithubTeamsUserRolesProvider.ACTIVE));
-            } catch (RetrofitError e) {
-              if (e.getResponse().getStatus() != 404) {
-                handleNon404s(e);
-              }
-            }
-            return false;
-          }
-        });
   }
 
   private void handleNon404s(RetrofitError e) {
