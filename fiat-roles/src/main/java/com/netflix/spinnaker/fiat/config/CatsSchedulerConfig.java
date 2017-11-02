@@ -18,7 +18,7 @@ package com.netflix.spinnaker.fiat.config;
 
 import com.netflix.spinnaker.cats.agent.Agent;
 import com.netflix.spinnaker.cats.agent.ExecutionInstrumentation;
-import com.netflix.spinnaker.cats.redis.JedisSource;
+import com.netflix.spinnaker.cats.redis.RedisClientDelegate;
 import com.netflix.spinnaker.cats.redis.cluster.AgentIntervalProvider;
 import com.netflix.spinnaker.cats.redis.cluster.ClusteredAgentScheduler;
 import com.netflix.spinnaker.cats.redis.cluster.DefaultAgentIntervalProvider;
@@ -61,7 +61,8 @@ public class CatsSchedulerConfig {
 
   @Bean
   AgentIntervalProvider agentIntervalProvider() {
-    return new DefaultAgentIntervalProvider(Long.parseLong(syncDelayMs), 10000);
+    //interval provider with sync interval, retry 10s on error, 2x sync interval timeout
+    return new DefaultAgentIntervalProvider(Long.parseLong(syncDelayMs), 10000L, Long.parseLong(syncDelayMs) * 2);
   }
 
   @Bean
@@ -70,12 +71,12 @@ public class CatsSchedulerConfig {
   }
 
   @Bean
-  ClusteredAgentScheduler clusteredAgentScheduler(JedisSource jedisSource,
+  ClusteredAgentScheduler clusteredAgentScheduler(RedisClientDelegate redisClientDelegate,
                                                   NodeIdentity nodeIdentity,
                                                   AgentIntervalProvider intervalProvider,
                                                   NodeStatusProvider nodeStatusProvider,
                                                   ExecutionInstrumentation executionInstrumentation) {
-    scheduler = new ClusteredAgentScheduler(jedisSource, nodeIdentity, intervalProvider, nodeStatusProvider);
+    scheduler = new ClusteredAgentScheduler(redisClientDelegate, nodeIdentity, intervalProvider, nodeStatusProvider);
     scheduler.schedule(userRolesSyncer, userRolesSyncer.getAgentExecution(null), executionInstrumentation);
     return scheduler;
   }

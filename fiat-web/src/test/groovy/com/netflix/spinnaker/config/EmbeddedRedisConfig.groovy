@@ -17,14 +17,15 @@
 
 package com.netflix.spinnaker.config
 
-import com.netflix.spinnaker.cats.redis.JedisSource
+import com.netflix.spinnaker.cats.redis.JedisClientDelegate
+import com.netflix.spinnaker.cats.redis.RedisClientDelegate
 import com.netflix.spinnaker.kork.jedis.EmbeddedRedis
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Scope
 import redis.clients.jedis.Jedis
-import redis.clients.util.Pool
+import redis.clients.jedis.JedisPool
 
 @Configuration
 class EmbeddedRedisConfig {
@@ -40,14 +41,13 @@ class EmbeddedRedisConfig {
   }
 
   @Bean
-  Pool<Jedis> jedisPool() {
+  JedisPool jedisPool() {
     redisServer().pool
   }
 
   @Bean
-  JedisSource jedisSource() {
-    return {
-      jedisPool().getResource()
-    }
+  RedisClientDelegate redisClientDelegate(JedisPool jedisPool) {
+    return new JedisClientDelegate(jedisPool);
   }
+
 }
