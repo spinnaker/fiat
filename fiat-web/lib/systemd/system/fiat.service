@@ -1,0 +1,11 @@
+[Unit]
+Description=Spinnaker Fiat
+After=network.target
+[Service]
+ExecStart=/opt/fiat/bin/fiat 2>&1 /var/log/spinnaker/fiat/fiat.log
+WorkingDirectory=/opt/fiat/bin
+User=spinnaker
+Group=spinnaker
+Type=simple
+[Install]
+WantedBy=multi-user.target
