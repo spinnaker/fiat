@@ -22,6 +22,7 @@ import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.apache.commons.collections.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -58,7 +59,7 @@ public class DefaultServiceAccountProvider extends BaseProvider<ServiceAccount> 
     return getAll()
         .stream()
         .filter(svcAcct -> !svcAcct.getMemberOf().isEmpty())
-        .filter(svcAcct -> roleNames.containsAll(svcAcct.getMemberOf()) || isAdmin)
+        .filter(svcAcct -> CollectionUtils.intersection(roleNames, svcAcct.getMemberOf()).size() > 0 || isAdmin)
         .collect(Collectors.toSet());
   }
 

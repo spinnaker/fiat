@@ -61,8 +61,8 @@ class DefaultServiceAccountProviderSpec extends Specification {
     where:
     input           | isAdmin || expected
     []              | false   || []
-    ["a"]           | false   || [aAcct]
-    ["b"]           | false   || []
+    ["a"]           | false   || [aAcct, bAcct]
+    ["b"]           | false   || [bAcct]
     ["c"]           | false   || []
     ["a", "b"]      | false   || [aAcct, bAcct]
     ["a", "b", "c"] | false   || [aAcct, bAcct]
