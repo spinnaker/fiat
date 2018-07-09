@@ -105,7 +105,7 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
     isEnabled.set(isInService());
   }
 
-  @Scheduled(fixedDelay = 30000L)
+  @Scheduled(fixedDelayString = "${fiat.writeMode.syncDelayMs?:600000}")
   public void schedule() {
     if (syncDelayMs < 0 || !isEnabled.get()) {
       return;
