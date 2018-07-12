@@ -82,7 +82,7 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
   private LoadingCache<String, Set<String>> membersCache;
 
   private LoadingCache<String, List<Team>> teamsCache;
-  
+
   private LoadingCache<Long, Set<String>> teamMembershipCache;
 
   private static final String ACTIVE = "active";
@@ -98,8 +98,9 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
   }
 
   private void initializeMembersCache() {
+    // Note if multiple github orgs is ever supported the maximumSize will need to change
     this.membersCache = CacheBuilder.newBuilder()
-        .maximumSize(1)
+        .maximumSize(1) //This will only be a cache of one entry keyed by org name.
         .refreshAfterWrite(this.gitHubProperties.getMembershipCacheTTLSeconds(), TimeUnit.SECONDS)
         .build(new CacheLoader<String, Set<String>>() {
           public Set<String> load(String key) {
@@ -132,8 +133,9 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
   }
 
   private void initializeTeamsCache() {
+    // Note if multiple github orgs is ever supported the maximumSize will need to change
     this.teamsCache = CacheBuilder.newBuilder()
-        .maximumSize(1)
+        .maximumSize(1) // This will only be a cache of one entry keyed by org name.
         .refreshAfterWrite(this.gitHubProperties.getMembershipCacheTTLSeconds(), TimeUnit.SECONDS)
         .build(
             new CacheLoader<String, List<Team>>() {
@@ -170,7 +172,7 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     this.teamMembershipCache = CacheBuilder.newBuilder()
         .maximumSize(this.gitHubProperties.getMembershipCacheTeamsSize())
         .refreshAfterWrite(this.gitHubProperties.getMembershipCacheTTLSeconds(), TimeUnit.SECONDS)
-        .build(new CacheLoader<Long, Set<String>>() 
+        .build(new CacheLoader<Long, Set<String>>()
         {
           public Set<String> load(Long key) {
             Set<String> memberships = new HashSet<>();
