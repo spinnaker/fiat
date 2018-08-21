@@ -17,30 +17,42 @@
 package com.netflix.spinnaker.fiat.providers;
 
 import com.netflix.spinnaker.fiat.model.resources.Application;
+import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import retrofit.RetrofitError;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@Component
 public class DefaultApplicationProvider extends BaseProvider<Application> implements ResourceProvider<Application> {
 
   private final Front50Service front50Service;
-
   private final ClouddriverService clouddriverService;
 
-  @Autowired
-  public DefaultApplicationProvider(Front50Service front50Service, ClouddriverService clouddriverService) {
+  private final boolean allowAccessToUnknownApplications;
+
+  public DefaultApplicationProvider(Front50Service front50Service,
+                                    ClouddriverService clouddriverService,
+                                    boolean allowAccessToUnknownApplications) {
     super();
+
     this.front50Service = front50Service;
     this.clouddriverService = clouddriverService;
+    this.allowAccessToUnknownApplications = allowAccessToUnknownApplications;
+  }
+
+  @Override
+  public Set<Application> getAllRestricted(Set<Role> roles, boolean isAdmin) throws ProviderException {
+    return getAllApplications(roles, isAdmin, true);
+  }
+
+  @Override
+  public Set<Application> getAllUnrestricted() throws ProviderException {
+    return getAllApplications(Collections.emptySet(), false, false);
   }
 
   @Override
@@ -58,9 +70,36 @@ public class DefaultApplicationProvider extends BaseProvider<Application> implem
           .filter(app -> !appByName.containsKey(app.getName()))
           .forEach(app -> appByName.put(app.getName(), app));
 
+      if (allowAccessToUnknownApplications) {
+        // no need to include applications w/o explicit permissions if we're allowing access to unknown applications by default
+        return appByName
+            .values()
+            .stream()
+            .filter(a -> !a.getPermissions().isEmpty())
+            .collect(Collectors.toSet());
+      }
+
       return new HashSet<>(appByName.values());
     } catch (Exception e) {
       throw new ProviderException(this.getClass(), e.getCause());
     }
+  }
+
+  private Set<Application> getAllApplications(Set<Role> roles, boolean isAdmin, boolean isRestricted) {
+    if (allowAccessToUnknownApplications) {
+      /*
+       * By default, the `BaseProvider` parent methods will filter out any applications that the authenticated user does
+       * not have access to.
+       *
+       * This is incompatible with `allowAccessToUnknownApplications` which implicitly grants access to any unknown (or
+       * filtered) applications.
+       *
+       * In this case, it is appropriate to just return all applications and allow the subsequent authorization checks
+       * to determine whether read, write or nothing should be granted.
+       */
+      return getAll();
+    }
+
+    return isRestricted ? super.getAllRestricted(roles, isAdmin) : super.getAllUnrestricted();
   }
 }

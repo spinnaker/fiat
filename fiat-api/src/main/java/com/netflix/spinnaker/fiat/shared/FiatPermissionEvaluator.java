@@ -37,10 +37,15 @@ import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.backoff.BackOffExecution;
+import org.springframework.util.backoff.ExponentialBackOff;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,14 +64,73 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
 
   private final Id getPermissionCounterId;
 
+  private final RetryHandler retryHandler;
+
+
+  interface RetryHandler {
+    default <T> T retry(String description, Callable<T> callable) throws Exception {
+      return callable.call();
+    }
+
+    RetryHandler NOOP = new RetryHandler() {};
+  }
+
+  /**
+   * @see ExponentialBackOff
+   */
+  static class ExponentialBackoffRetryHandler implements RetryHandler {
+    private final long maxBackoff;
+    private final long initialBackoff;
+    private final double backoffMultiplier;
+
+    public ExponentialBackoffRetryHandler(long maxBackoff, long initialBackoff, double backoffMultiplier) {
+      this.maxBackoff = maxBackoff;
+      this.initialBackoff = initialBackoff;
+      this.backoffMultiplier = backoffMultiplier;
+    }
+
+    public <T> T retry(String description, Callable<T> callable) throws Exception {
+      ExponentialBackOff backOff = new ExponentialBackOff(initialBackoff, backoffMultiplier);
+      backOff.setMaxElapsedTime(maxBackoff);
+      BackOffExecution backOffExec = backOff.start();
+      while (true) {
+        try {
+          return callable.call();
+        } catch (Throwable e) {
+          long waitTime = backOffExec.nextBackOff();
+          if (waitTime == BackOffExecution.STOP) {
+            throw e;
+          }
+          log.warn(description + " failed. Retrying in " + waitTime + "ms", e);
+          TimeUnit.MILLISECONDS.sleep(waitTime);
+        }
+      }
+    }
+
+  }
+
   @Autowired
   public FiatPermissionEvaluator(Registry registry,
                                  FiatService fiatService,
                                  FiatClientConfigurationProperties configProps,
                                  FiatStatus fiatStatus) {
+    this(registry, fiatService, configProps, fiatStatus, buildRetryHandler(configProps));
+  }
+
+  private static RetryHandler buildRetryHandler(FiatClientConfigurationProperties fiatClientConfigurationProperties) {
+    FiatClientConfigurationProperties.RetryConfiguration retry = fiatClientConfigurationProperties.getRetry();
+    return new ExponentialBackoffRetryHandler(retry.getMaxBackoffMillis(), retry.getInitialBackoffMillis(), retry.getRetryMultiplier());
+  }
+
+  FiatPermissionEvaluator(Registry registry,
+                          FiatService fiatService,
+                          FiatClientConfigurationProperties configProps,
+                          FiatStatus fiatStatus,
+                          RetryHandler retryHandler) {
     this.registry = registry;
     this.fiatService = fiatService;
     this.fiatStatus = fiatStatus;
+    this.retryHandler = retryHandler;
 
     this.permissionsCache = CacheBuilder
         .newBuilder()
@@ -147,7 +211,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
         cacheHit.set(false);
         return AuthenticatedRequest.propagate(() -> {
           try {
-            return fiatService.getUserPermission(username);
+            return retryHandler.retry("getUserPermission for " + username, () -> fiatService.getUserPermission(username));
           } catch (Exception e) {
             if (!fiatStatus.isLegacyFallbackEnabled()) {
               throw e;
@@ -176,20 +240,22 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
       exception.set(e.getCause() != null ? e.getCause() : e);
     }
 
-    if (!successfulLookup.get()) {
-      log.error(
-          "Cannot get whole user permission for user {}, reason: {}",
-          username,
-          exception.get().getMessage()
-      );
-    }
-
     Id id = getPermissionCounterId
         .withTag("cached", cacheHit.get())
         .withTag("success", successfulLookup.get());
 
     if (!successfulLookup.get()) {
+      log.error(
+              "Cannot get whole user permission for user {}, reason: {}",
+              username,
+              exception.get().getMessage(),
+              exception
+      );
       id = id.withTag("legacyFallback", legacyFallback.get());
+    }
+
+    if (legacyFallback.get()) {
+      permissionsCache.invalidate(username);
     }
 
     registry.counter(id).increment();
@@ -217,16 +283,35 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
       return false;
     }
 
+    if (permission.isAdmin()) {
+      // grant access regardless of whether an explicit permission to the resource exists
+      return true;
+    }
+
     Function<Set<? extends Authorizable>, Boolean> containsAuth = resources ->
         resources
             .stream()
-            .anyMatch(view -> view.getName().equalsIgnoreCase(resourceName) &&
-                view.getAuthorizations().contains(authorization));
+            .anyMatch(view -> {
+              Set<Authorization> authorizations = Optional.ofNullable(
+                  view.getAuthorizations()
+              ).orElse(Collections.emptySet());
+
+              return view.getName().equalsIgnoreCase(resourceName) && authorizations.contains(authorization);
+            });
 
     switch (resourceType) {
       case ACCOUNT:
         return containsAuth.apply(permission.getAccounts());
       case APPLICATION:
+        boolean applicationHasPermissions = permission
+            .getApplications()
+            .stream().anyMatch(a -> a.getName().equalsIgnoreCase(resourceName));
+
+        if (!applicationHasPermissions && permission.isAllowAccessToUnknownApplications()) {
+          // allow access to any applications w/o explicit permissions
+          return true;
+        }
+
         return permission.isLegacyFallback() || containsAuth.apply(permission.getApplications());
       case SERVICE_ACCOUNT:
         return permission.getServiceAccounts()
@@ -237,6 +322,9 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     }
   }
 
+  /*
+   * Used in Front50 Batch APIs
+   */
   @SuppressWarnings("unused")
   public boolean isAdmin() {
     return true; // TODO(ttomsu): Chosen by fair dice roll. Guaranteed to be random.
