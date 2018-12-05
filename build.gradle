@@ -1,5 +1,6 @@
 /*
  * Copyright 2014 Netflix, Inc.
+ * Copyright (c) 2018, salesforce.com, inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,6 +78,18 @@ allprojects {
 }
 
 subprojects { project ->
+  configurations {
+    all {
+      resolutionStrategy {
+        eachDependency {
+          if (it.requested.group == 'ch.qos.logback') {
+            it.useVersion '1.2.3'
+          }
+        }
+      }
+    }
+  }
+
   dependencies {
     spinnaker.group('test')
 
