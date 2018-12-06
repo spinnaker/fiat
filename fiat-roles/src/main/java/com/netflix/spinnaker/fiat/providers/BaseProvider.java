@@ -28,6 +28,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -36,9 +37,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public abstract class BaseProvider<R extends Resource> implements ResourceProvider<R> {
 
-  private static final Integer CACHE_KEY = 0;
+  protected static final Integer CACHE_KEY = 0;
 
-  private Cache<Integer, Set<R>> cache = buildCache(20);
+  protected Cache<Integer, Set<R>> cache = buildCache(20);
 
   @Override
   @SuppressWarnings("unchecked")
@@ -74,6 +75,24 @@ public abstract class BaseProvider<R extends Resource> implements ResourceProvid
       }
       throw new ProviderException(this.getClass(), e.getCause());
     }
+  }
+
+  @Override
+  public Set<R> addItem(R item) {
+    Set<R> originalSet = getAll();
+    if (originalSet == null) {
+      log.error("The cache is empty. (This is ok if you do not have any items of type {} at all.)", item.getResourceType());
+      originalSet = new HashSet<>();
+    }
+    Set<R> mutableSet = new HashSet<>(originalSet);
+    if (mutableSet.contains(item)) {
+      log.info("We already have \"{}\" removing it as it might be stale.", item.getName());
+      mutableSet.remove(item);
+    }
+    log.info("Inserting item {} of type {} to cache", item.getName(), item.getResourceType());
+    mutableSet.add(item);
+    cache.put(CACHE_KEY, mutableSet);
+    return mutableSet;
   }
 
   @Autowired
