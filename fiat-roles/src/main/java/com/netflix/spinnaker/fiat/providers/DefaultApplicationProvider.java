@@ -20,6 +20,7 @@ import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class DefaultApplicationProvider extends BaseProvider<Application> implements ResourceProvider<Application> {
 
   private final Front50Service front50Service;
@@ -83,6 +85,24 @@ public class DefaultApplicationProvider extends BaseProvider<Application> implem
     } catch (Exception e) {
       throw new ProviderException(this.getClass(), e.getCause());
     }
+  }
+
+  @Override
+  public Set<Application> addItem(Application application) {
+    Set<Application> applicationSet = getAll();
+    if (applicationSet == null) {
+      log.error("The application cache is empty. (This is ok if you do not have any applications at all.)");
+      applicationSet = new HashSet<>(); // new HashSet if this is the first application that gets added to spinnaker
+    }
+    Set<Application> applicationSetMutable = new HashSet<>(applicationSet);
+    if (applicationSetMutable.contains(application)) {
+      log.info("We already have \"{}\" removing it as it might be stale.", application.getName());
+      applicationSetMutable.remove(application);
+    }
+    log.info("Inserting application {} to cache", application.getName());
+    applicationSetMutable.add(application);
+    cache.put(CACHE_KEY, applicationSetMutable);
+    return applicationSetMutable;
   }
 
   private Set<Application> getAllApplications(Set<Role> roles, boolean isAdmin, boolean isRestricted) {

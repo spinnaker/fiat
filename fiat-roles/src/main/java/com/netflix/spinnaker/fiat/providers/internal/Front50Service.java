@@ -25,6 +25,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import retrofit.RetrofitError;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,13 +69,26 @@ public class Front50Service implements HealthTrackable, InitializingBean {
           return applicationCache.get();
         },
         (Throwable cause) -> {
-          logFallback("application", cause);
+          logFallback("applications", cause);
           List<Application> applications = applicationCache.get();
           if (applications == null) {
             throw new HystrixBadRequestException("Front50 is unavailable", cause);
           }
           return applications;
         }).execute();
+  }
+
+  public Application getApplicationPermissions(String appName) {
+    try {
+      return front50Api.getApplicationPermissions(appName);
+    } catch (RetrofitError retrofitError) {
+      log.warn("Could not retrieve application {}, status code was {}",
+          appName,
+          retrofitError.getResponse().getStatus());
+    } catch (Exception e) {
+      log.error("Retrieving application {} failed in an unexpected way", e.getCause());
+    }
+    return null;
   }
 
   public List<ServiceAccount> getAllServiceAccounts() {
