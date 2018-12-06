@@ -36,9 +36,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public abstract class BaseProvider<R extends Resource> implements ResourceProvider<R> {
 
-  private static final Integer CACHE_KEY = 0;
+  protected static final Integer CACHE_KEY = 0;
 
-  private Cache<Integer, Set<R>> cache = buildCache(20);
+  protected Cache<Integer, Set<R>> cache = buildCache(20);
 
   @Override
   @SuppressWarnings("unchecked")
@@ -74,6 +74,11 @@ public abstract class BaseProvider<R extends Resource> implements ResourceProvid
       }
       throw new ProviderException(this.getClass(), e.getCause());
     }
+  }
+
+  @Override
+  public Set<R> addItem(R item) {
+    return getAll();
   }
 
   @Autowired
