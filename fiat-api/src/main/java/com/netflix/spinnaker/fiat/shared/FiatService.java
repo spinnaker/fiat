@@ -34,7 +34,7 @@ public interface FiatService {
 
   /**
    * @param applicationName The name of the application
-   * @return The full UserPermission of the user.
+   * @return A map with "status": "[success/failure]".
    */
   @PUT("/applications/{applicationName}")
   Map<String, String> createApplication(@Path("applicationName") String applicationName, @Body String ignored /* retrofit requires this */ );
