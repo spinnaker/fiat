@@ -92,7 +92,7 @@ public class DefaultApplicationProvider extends BaseProvider<Application> implem
     Set<Application> applicationSet = getAll();
     if (applicationSet == null) {
       log.error("The application cache is empty. (This is ok if you do not have any applications at all.)");
-      applicationSet = new HashSet<>(); // new HashSet if this is the first application that gets added to spinnaker
+      applicationSet = new HashSet<>();
     }
     Set<Application> applicationSetMutable = new HashSet<>(applicationSet);
     if (applicationSetMutable.contains(application)) {

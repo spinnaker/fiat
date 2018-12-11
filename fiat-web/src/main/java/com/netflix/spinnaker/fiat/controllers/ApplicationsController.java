@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.Collections;
 import java.util.Map;
 
@@ -45,21 +46,15 @@ public class ApplicationsController {
   }
 
   @RequestMapping(value = "/{applicationName:.+}", method = RequestMethod.PUT)
-  public ResponseEntity<Map<String, String>> updateApplication(@PathVariable String applicationName) {
+  public Map<String, String> updateApplication(@PathVariable String applicationName, HttpServletResponse response) {
     log.info("Updating application {}", applicationName);
     Application app = front50Service.getApplicationPermissions(applicationName.toLowerCase());
     if (app == null) {
-      return getResponseEntity("failure", HttpStatus.CONFLICT);
+      response.setStatus(HttpServletResponse.SC_CONFLICT);
+      return Collections.singletonMap("status", "failure");
     }
-    log.info("some info {}", app.getName());
     applicationProvider.addItem(app);
-    return getResponseEntity("success", HttpStatus.CREATED);
-
-  }
-
-  private ResponseEntity<Map<String,String>> getResponseEntity(String status, HttpStatus httpStatus) {
-    Map<String, String> body = Collections.singletonMap("status", status);
-    return new ResponseEntity(body, httpStatus);
+    return Collections.singletonMap("status", "success");
   }
 
 }

@@ -82,9 +82,9 @@ public class Front50Service implements HealthTrackable, InitializingBean {
     try {
       return front50Api.getApplicationPermissions(appName);
     } catch (RetrofitError retrofitError) {
-      log.warn("Could not retrieve application {}, status code was {}",
+      log.warn("Could not retrieve application {}, status code: {}, reason: {}",
           appName,
-          retrofitError.getResponse().getStatus());
+          retrofitError.getResponse().getStatus(), retrofitError.getResponse().getReason());
     } catch (Exception e) {
       log.error("Retrieving application {} failed in an unexpected way", e.getCause());
     }
