@@ -29,8 +29,6 @@ dependencies {
   compile spinnaker.dependency("korkHystrix")
   compile spinnaker.dependency("korkJedis")
 
-  compile "com.diffplug.durian:durian:3.4.0"
-
   testCompile spinnaker.dependency("korkJedisTest")
   testCompile "org.apache.commons:commons-collections4:4.1"
 }
