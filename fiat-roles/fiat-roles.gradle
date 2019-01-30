@@ -25,7 +25,6 @@ dependencies {
   compile spinnaker.dependency("bootWeb")
   compile spinnaker.dependency("googleApiClient")
   compile spinnaker.dependency("korkDynomite")
-  compile spinnaker.dependency("korkDynomite")
   compile spinnaker.dependency("korkHystrix")
   compile spinnaker.dependency("korkJedis")
 
