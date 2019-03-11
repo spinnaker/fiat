@@ -57,11 +57,11 @@ public class ResourcesConfig {
   @Setter
   private OkClient okClient;
 
-  @Value("${services.front50.baseUrl}")
+  @Value("${services.front50.base-url}")
   @Setter
   private String front50Endpoint;
 
-  @Value("${services.clouddriver.baseUrl}")
+  @Value("${services.clouddriver.base-url}")
   @Setter
   private String clouddriverEndpoint;
 
