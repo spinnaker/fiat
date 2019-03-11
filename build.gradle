@@ -34,7 +34,7 @@ allprojects {
   apply plugin: 'io.spring.dependency-management'
 
   ext {
-    spinnakerDependenciesVersion = '2.0.0-rc.15-springBoot2'
+    spinnakerDependenciesVersion = '2.0.0-rc.17-springBoot2'
     if (project.hasProperty('spinnakerDependenciesVersion')) {
       spinnakerDependenciesVersion = project.property('spinnakerDependenciesVersion')
     }
@@ -81,6 +81,10 @@ allprojects {
 subprojects { project ->
   dependencies {
     spinnaker.group('test')
+
+    runtime("org.springframework.boot:spring-boot-properties-migrator:${spinnaker.version("springBoot")}") {
+      exclude group: "com.vaadin.external.google", module: 'android-json'
+    }
 
     testCompile spinnaker.dependency('groovy')
   }
