@@ -14,8 +14,8 @@ import javax.validation.constraints.NotNull;
  * Helper class to map masters in properties file into a validated property map
  */
 @Configuration
-@ConditionalOnProperty(value = "auth.groupMembership.service", havingValue = "github")
-@ConfigurationProperties(prefix = "auth.groupMembership.github")
+@ConditionalOnProperty(value = "auth.group-membership.service", havingValue = "github")
+@ConfigurationProperties(prefix = "auth.group-membership.github")
 @Data
 public class GitHubProperties {
   @NotEmpty

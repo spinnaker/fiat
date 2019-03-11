@@ -182,7 +182,7 @@ class PermissionsSpec extends Specification {
   static class TestConfig {
   }
 
-  @ConfigurationProperties("testRoot")
+  @ConfigurationProperties("test-root")
   static class TestConfigProps {
     Permissions.Builder permissions
   }
