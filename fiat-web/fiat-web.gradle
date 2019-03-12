@@ -1,16 +1,15 @@
-apply plugin: 'org.springframework.boot'
-apply plugin: 'spinnaker.package'
+apply plugin: 'spinnaker.application'
 
 ext {
   springConfigLocation = System.getProperty('spring.config.location', "${System.getProperty('user.home')}/.spinnaker/")
   springProfiles = System.getProperty('spring.profiles.active', "test,local")
-  repackage = System.getProperty('springBoot.repackage', "false")
 }
 
-tasks.withType(org.springframework.boot.gradle.run.BootRunTask) {
+run {
   systemProperty('spring.config.location', project.springConfigLocation)
   systemProperty('spring.profiles.active', project.springProfiles)
 }
+mainClassName = 'com.netflix.spinnaker.fiat.Main'
 
 configurations.all {
   exclude group: 'javax.servlet', module: 'servlet-api'
@@ -29,14 +28,17 @@ dependencies {
   compile spinnaker.dependency("korkStackdriver")
   compile spinnaker.dependency("korkSwagger")
 
-  compile project(':fiat-file')
-  compile project(':fiat-github')
-  compile project(':fiat-google-groups')
-  compile project(':fiat-ldap')
+  compile project(':fiat-core')
+  compile project(':fiat-api')
+  compile project(':fiat-roles')
+
+  // Add each included authz provider as a runtime dependency
+  gradle.includedProviderProjects.each {
+    runtime project(it)
+  }
 
   testCompile spinnaker.dependency('korkJedisTest')
   testCompile "org.skyscreamer:jsonassert:1.3.0"
 }
 
 applicationName = 'fiat'
-tasks.bootRepackage.enabled = Boolean.valueOf(project.repackage)
