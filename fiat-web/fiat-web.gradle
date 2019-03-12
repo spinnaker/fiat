@@ -38,7 +38,6 @@ dependencies {
   }
 
   testCompile spinnaker.dependency('korkJedisTest')
-  testCompile "org.skyscreamer:jsonassert:1.3.0"
 }
 
 applicationName = 'fiat'
