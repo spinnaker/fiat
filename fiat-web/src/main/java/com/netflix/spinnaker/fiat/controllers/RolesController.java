@@ -22,6 +22,8 @@ import com.netflix.spinnaker.fiat.permissions.ExternalUser;
 import com.netflix.spinnaker.fiat.permissions.PermissionResolutionException;
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository;
 import com.netflix.spinnaker.fiat.permissions.PermissionsResolver;
+import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
+import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
 import com.netflix.spinnaker.fiat.roles.UserRolesSyncer;
 import lombok.NonNull;
 import lombok.Setter;
@@ -57,6 +59,14 @@ public class RolesController {
   @Autowired
   @Setter
   UserRolesSyncer syncer;
+
+  @Autowired
+  @Setter
+  ClouddriverService clouddriverService;
+
+  @Autowired
+  @Setter
+  Front50Service front50Service;
 
   @RequestMapping(value = "/{userId:.+}", method = RequestMethod.POST)
   public void putUserPermission(@PathVariable String userId) {
@@ -108,6 +118,8 @@ public class RolesController {
   @RequestMapping(value = "/sync", method = RequestMethod.POST)
   public long sync(HttpServletResponse response,
                    @RequestBody(required = false) List<String> specificRoles) throws IOException {
+    // TODO(dibyom): Move this to a better place e.g. in the Permissions resolver
+    refreshResources();
     if (specificRoles == null || specificRoles.isEmpty()) {
       log.info("Full role sync invoked by web request.");
       long count = syncer.syncAndReturn();
@@ -125,5 +137,12 @@ public class RolesController {
       return 0;
     }
     return syncer.updateUserPermissions(affectedUsers);
+  }
+
+  private void refreshResources() {
+    clouddriverService.refreshApplications();
+    clouddriverService.refreshAccounts();
+    front50Service.refreshApplications();
+    front50Service.refreshServiceAccounts();
   }
 }
