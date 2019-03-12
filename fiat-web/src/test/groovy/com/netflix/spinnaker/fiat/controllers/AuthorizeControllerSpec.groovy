@@ -81,7 +81,7 @@ class AuthorizeControllerSpec extends Specification {
   }
 
   def "should get user from repo via endpoint"() {
-    setup:
+    given:
     permissionsRepository.put(unrestrictedUser)
     permissionsRepository.put(roleAUser)
     permissionsRepository.put(roleBUser)
