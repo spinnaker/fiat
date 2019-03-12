@@ -17,13 +17,13 @@
 package com.netflix.spinnaker.fiat.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.netflix.spinnaker.config.HystrixSpectatorConfig;
 import com.netflix.spinnaker.fiat.providers.ProviderHealthTracker;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverApi;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Api;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
-import com.netflix.spinnaker.hystrix.spectator.HystrixSpectatorPublisher;
+import com.netflix.spinnaker.fiat.providers.internal.IgorApi;
+import com.netflix.spinnaker.fiat.providers.internal.IgorService;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +34,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Scope;
 import retrofit.Endpoints;
 import retrofit.RestAdapter;
@@ -64,6 +63,10 @@ public class ResourcesConfig {
   @Value("${services.clouddriver.baseUrl}")
   @Setter
   private String clouddriverEndpoint;
+
+  @Value("${services.igor.baseUrl}")
+  @Setter
+  private String igorEndpoint;
 
   @Bean
   Front50Api front50Api() {
@@ -97,6 +100,23 @@ public class ResourcesConfig {
   @Bean
   ClouddriverService clouddriverService(ClouddriverApi clouddriverApi) {
     return new ClouddriverService(clouddriverApi);
+  }
+
+  @Bean
+  IgorApi igorApi() {
+    return new RestAdapter.Builder()
+        .setEndpoint(Endpoints.newFixedEndpoint(igorEndpoint))
+        .setClient(okClient)
+        .setConverter(new JacksonConverter(objectMapper))
+        .setLogLevel(retrofitLogLevel)
+        .setLog(new Slf4jRetrofitLogger(IgorApi.class))
+        .build()
+        .create(IgorApi.class);
+  }
+
+  @Bean
+  IgorService igorService(IgorApi igorApi) {
+    return new IgorService(igorApi);
   }
 
   @Bean
