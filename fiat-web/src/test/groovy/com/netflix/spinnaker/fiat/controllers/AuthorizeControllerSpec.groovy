@@ -33,6 +33,8 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
+import redis.clients.jedis.Jedis
+import redis.clients.util.Pool
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Unroll
@@ -65,6 +67,9 @@ class AuthorizeControllerSpec extends Specification {
   TestUserRoleProviderConfig.TestUserRoleProvider userRoleProvider
 
   @Autowired
+  Pool<Jedis> jedisPool
+
+  @Autowired
   ObjectMapper objectMapper
 
   @Delegate
@@ -78,6 +83,8 @@ class AuthorizeControllerSpec extends Specification {
         .webAppContextSetup(this.wac)
         .defaultRequest(get("/").content().contentType("application/json"))
         .build();
+
+    jedisPool.resource.withCloseable { it.flushAll() }
   }
 
   def "should get user from repo via endpoint"() {
