@@ -110,17 +110,20 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
     if (syncDelayMs < 0 || !isEnabled.get()) {
       return;
     }
+    lockedSyncAndReturn();
+  }
 
+  public long lockedSyncAndReturn() {
     LockManager.LockOptions lockOptions = new LockManager.LockOptions()
         .withLockName("Fiat.UserRolesSyncer".toLowerCase())
         .withMaximumLockDuration(Duration.ofMillis(syncDelayMs + syncDelayTimeoutMs))
         .withSuccessInterval(Duration.ofMillis(syncDelayMs))
         .withFailureInterval(Duration.ofMillis(syncFailureDelayMs));
 
-    lockManager.acquireLock(lockOptions, this::syncAndReturn);
+    return lockManager.acquireLock(lockOptions, this::syncAndReturn).getOnLockAcquiredCallbackResult();
   }
 
-  public long syncAndReturn() {
+  private long syncAndReturn() {
     FixedBackOff backoff = new FixedBackOff();
     backoff.setInterval(retryIntervalMs);
     backoff.setMaxAttempts(Math.floorDiv(syncDelayTimeoutMs, retryIntervalMs) + 1);

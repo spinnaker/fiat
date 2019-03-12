@@ -110,7 +110,7 @@ public class RolesController {
                    @RequestBody(required = false) List<String> specificRoles) throws IOException {
     if (specificRoles == null || specificRoles.isEmpty()) {
       log.info("Full role sync invoked by web request.");
-      long count = syncer.syncAndReturn();
+      long count = syncer.lockedSyncAndReturn();
       if (count == 0) {
         response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                            "Error occurred syncing permissions. See Fiat Logs.");
