@@ -162,6 +162,7 @@ class UserRolesSyncerSpec extends Specification {
   def "should only schedule sync when in-service"() {
     given:
     def lockManager = Mock(LockManager)
+    def lockManagerResponse = Mock(LockManager.AcquireLockResponse)
     def userRolesSyncer = new UserRolesSyncer(
         Optional.ofNullable(discoveryClient),
         lockManager,
@@ -176,11 +177,12 @@ class UserRolesSyncerSpec extends Specification {
     )
 
     when:
+    lockManagerResponse.getOnLockAcquiredCallbackResult() >> 42L
     userRolesSyncer.onApplicationEvent(null)
     userRolesSyncer.schedule()
 
     then:
-    (shouldAcquireLock ? 1 : 0) * lockManager.acquireLock(_, _)
+    (shouldAcquireLock ? 1 : 0) * lockManager.acquireLock(_, _) >> lockManagerResponse
 
     where:
     discoveryClient                                || shouldAcquireLock
