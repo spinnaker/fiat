@@ -31,6 +31,7 @@ import com.netflix.spinnaker.fiat.providers.internal.Front50Service
 import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.result.MockMvcResultHandlers
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
 import redis.clients.jedis.Jedis
@@ -98,9 +99,10 @@ class AuthorizeControllerSpec extends Specification {
     def expected = objectMapper.writeValueAsString(unrestrictedUser.view)
 
     then:
-    mockMvc.perform(get("/authorize/anonymous"))
-           .andExpect(status().isOk())
-           .andExpect(content().json(expected))
+    def result = mockMvc.perform(get("/authorize/anonymous"))
+
+    result.andDo(MockMvcResultHandlers.print())
+    result.andExpect(status().isOk()).andExpect(content().json(expected))
 
     when:
     expected = objectMapper.writeValueAsString(roleAUser.merge(unrestrictedUser).view)
