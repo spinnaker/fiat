@@ -1,9 +1,7 @@
 package com.netflix.spinnaker.config;
 
 import com.netflix.spinnaker.fiat.Main;
-import com.netflix.spinnaker.fiat.config.RedisConfig;
 import com.netflix.spinnaker.fiat.config.ResourcesConfig;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -21,7 +19,7 @@ import java.lang.annotation.Target;
 @TestPropertySource("/fiat.properties")
 @DirtiesContext
 @ContextConfiguration(classes = {
-    RedisConfig.class,
+//    RedisConfig.class,
     TestUserRoleProviderConfig.class,
     ResourcesConfig.class,
     Main.class}
