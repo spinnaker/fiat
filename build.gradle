@@ -62,7 +62,6 @@ allprojects {
 
   test {
     testLogging {
-      showStandardStreams = true
       exceptionFormat = 'full'
     }
     minHeapSize = "512m"

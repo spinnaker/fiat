@@ -19,7 +19,6 @@ import java.lang.annotation.Target;
 @TestPropertySource("/fiat.properties")
 @DirtiesContext
 @ContextConfiguration(classes = {
-//    RedisConfig.class,
     TestUserRoleProviderConfig.class,
     ResourcesConfig.class,
     Main.class}
