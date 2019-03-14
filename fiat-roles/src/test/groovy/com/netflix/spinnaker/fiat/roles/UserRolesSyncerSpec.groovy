@@ -139,7 +139,7 @@ class UserRolesSyncerSpec extends Specification {
     ]
 
     when:
-    syncer.syncAndReturn()
+    syncer.syncAndReturn([])
 
     then:
     permissionsResolver.resolve(_ as List) >> ["user1"         : user1,
