@@ -65,7 +65,7 @@ public class ResourcesConfig {
   @Setter
   private String clouddriverEndpoint;
 
-  @Value("${services.igor.baseUrl}")
+  @Value("${services.igor.base-url}")
   @Setter
   private String igorEndpoint;
 
