@@ -82,7 +82,9 @@ subprojects { project ->
   dependencies {
     spinnaker.group('test')
 
-    runtime("org.springframework.boot:spring-boot-properties-migrator:${spinnaker.version("springBoot")}") 
+    runtime("org.springframework.boot:spring-boot-properties-migrator:${spinnaker.version("springBoot")}") {
+      exclude group: "com.vaadin.external.google", module: 'android-json'
+    }
 
     testCompile spinnaker.dependency('groovy')
   }
