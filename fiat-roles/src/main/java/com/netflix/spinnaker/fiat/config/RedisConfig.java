@@ -1,22 +1,21 @@
 package com.netflix.spinnaker.fiat.config;
 
+import com.netflix.spectator.api.Registry;
+import com.netflix.spectator.api.patterns.PolledMeter;
 import com.netflix.spinnaker.kork.jedis.JedisClientDelegate;
 import com.netflix.spinnaker.kork.jedis.RedisClientDelegate;
+import com.netflix.spinnaker.kork.jedis.telemetry.InstrumentedJedisPool;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.actuate.health.Health;
-import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import redis.clients.jedis.*;
 
-import java.lang.reflect.Field;
 import java.net.URI;
 
 @Slf4j
@@ -36,8 +35,19 @@ public class RedisConfig {
   @Bean
   public JedisPool jedisPool(@Value("${redis.connection:redis://localhost:6379}") String connection,
                              @Value("${redis.timeout:2000}") int timeout,
+                             Registry registry,
                              GenericObjectPoolConfig redisPoolConfig) {
-    return createPool(redisPoolConfig, connection, timeout);
+    final JedisPool jedisPool = createPool(registry, redisPoolConfig, connection, timeout);
+    if (jedisPool instanceof InstrumentedJedisPool) {
+      final GenericObjectPool pool = ((InstrumentedJedisPool) jedisPool).getInternalPoolReference();
+      PolledMeter.using(registry).withName("jedis.pool.maxIdle").monitorValue(pool, GenericObjectPool::getMaxIdle);
+      PolledMeter.using(registry).withName("jedis.pool.minIdle").monitorValue(pool, GenericObjectPool::getMinIdle);
+      PolledMeter.using(registry).withName("jedis.pool.numActive").monitorValue(pool, GenericObjectPool::getNumActive);
+      PolledMeter.using(registry).withName("jedis.pool.numIdle").monitorValue(pool, GenericObjectPool::getNumIdle);
+      PolledMeter.using(registry).withName("jedis.pool.numWaiters").monitorValue(pool, GenericObjectPool::getNumWaiters);
+    }
+
+    return jedisPool;
   }
 
   @Bean
@@ -45,7 +55,8 @@ public class RedisConfig {
     return new JedisClientDelegate(jedisPool);
   }
 
-  private static JedisPool createPool(GenericObjectPoolConfig redisPoolConfig,
+  private static JedisPool createPool(Registry registry,
+                                      GenericObjectPoolConfig redisPoolConfig,
                                       String connection,
                                       int timeout) {
     URI redisConnection = URI.create(connection);
@@ -64,10 +75,8 @@ public class RedisConfig {
       password = redisConnection.getUserInfo().split(":", 2)[1];
     }
 
-    if (redisPoolConfig == null) {
-      redisPoolConfig = new GenericObjectPoolConfig();
-    }
-
-    return new JedisPool(redisPoolConfig, host, port, timeout, password, database, null);
+    redisPoolConfig = redisPoolConfig != null ? redisPoolConfig : new GenericObjectPoolConfig();
+    JedisPool pool = new JedisPool(redisPoolConfig, host, port, timeout, password, database, null);
+    return new InstrumentedJedisPool(registry, pool, "unnamed");
   }
 }
