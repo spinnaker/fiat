@@ -350,6 +350,15 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     return true; // TODO(ttomsu): Chosen by fair dice roll. Guaranteed to be random.
   }
 
+
+  public boolean isAdmin(Authentication authentication) {
+    if (!fiatStatus.isEnabled()) {
+      return true;
+    }
+
+    return getPermission(getUsername(authentication)).isAdmin();
+  }
+
   public class AuthorizationFailure {
     private final Authorization authorization;
     private final ResourceType resourceType;

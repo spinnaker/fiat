@@ -251,6 +251,26 @@ class FiatPermissionEvaluatorSpec extends Specification {
     resourceType << ResourceType.values()*.toString()
   }
 
+  def "should support isAdmin check for a user"() {
+    when:
+    1 * fiatService.getUserPermission("testUser") >> {
+      return new UserPermission.View()
+          .setApplications(Collections.emptySet())
+          .setAdmin(true)
+    }
+    then:
+    evaluator.isAdmin(authentication)
+
+    when:
+    1 * fiatService.getUserPermission("testUser") >> {
+      return new UserPermission.View()
+          .setApplications(Collections.emptySet())
+          .setAdmin(false)
+    }
+    then:
+    !evaluator.isAdmin(authentication)
+  }
+
   private static FiatClientConfigurationProperties buildConfigurationProperties() {
     FiatClientConfigurationProperties configurationProperties = new FiatClientConfigurationProperties();
     configurationProperties.enabled = true
