@@ -355,8 +355,8 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     if (!fiatStatus.isEnabled()) {
       return true;
     }
-
-    return getPermission(getUsername(authentication)).isAdmin();
+    UserPermission.View permission = getPermission(getUsername(authentication));
+    return permission != null && permission.isAdmin();
   }
 
   public class AuthorizationFailure {

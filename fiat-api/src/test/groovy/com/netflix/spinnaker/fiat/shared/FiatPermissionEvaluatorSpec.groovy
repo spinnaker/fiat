@@ -252,23 +252,20 @@ class FiatPermissionEvaluatorSpec extends Specification {
   }
 
   def "should support isAdmin check for a user"() {
-    when:
+    given:
     1 * fiatService.getUserPermission("testUser") >> {
       return new UserPermission.View()
           .setApplications(Collections.emptySet())
-          .setAdmin(true)
+          .setAdmin(isAdmin)
     }
-    then:
-    evaluator.isAdmin(authentication)
 
-    when:
-    1 * fiatService.getUserPermission("testUser") >> {
-      return new UserPermission.View()
-          .setApplications(Collections.emptySet())
-          .setAdmin(false)
-    }
-    then:
-    !evaluator.isAdmin(authentication)
+    expect:
+    evaluator.isAdmin(authentication) == expectedIsAdmin
+
+    where:
+    isAdmin || expectedIsAdmin
+    false   || false
+    true    || true
   }
 
   private static FiatClientConfigurationProperties buildConfigurationProperties() {
