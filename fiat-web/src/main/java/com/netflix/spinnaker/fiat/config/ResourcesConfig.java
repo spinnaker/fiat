@@ -105,7 +105,7 @@ public class ResourcesConfig {
 
   @Bean
   @ConditionalOnProperty("services.igor.enabled")
-  IgorApi igorApi() {
+  IgorApi igorApi(@Value("${services.igor.baseUrl}") String igorEndpoint) {
     return new RestAdapter.Builder()
         .setEndpoint(Endpoints.newFixedEndpoint(igorEndpoint))
         .setClient(okClient)

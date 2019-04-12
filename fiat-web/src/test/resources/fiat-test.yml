@@ -1,0 +1,8 @@
+services:
+  clouddriver:
+    baseUrl: 'http://localhost:7003'
+  front50:
+    baseUrl: 'http://localhost:8080'
+  igor:
+    enabled: false
+    baseUrl: null
