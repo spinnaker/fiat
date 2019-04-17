@@ -47,6 +47,13 @@ allprojects {
       jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=7103'
     }
   }
+
+  //workaround nebula oss default 1.7 opinion..
+  plugins.withType(JavaBasePlugin) {
+    JavaPluginConvention convention = project.convention.getPlugin(JavaPluginConvention)
+      convention.sourceCompatibility = JavaVersion.VERSION_1_8
+      convention.targetCompatibility = JavaVersion.VERSION_1_8
+  }
 }
 
 subprojects { project ->

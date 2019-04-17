@@ -18,18 +18,14 @@ package com.netflix.spinnaker.fiat.shared;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.config.OkHttpClientConfiguration;
-import com.netflix.spinnaker.okhttp.OkHttpMetricsInterceptor;
 import com.netflix.spinnaker.okhttp.SpinnakerRequestInterceptor;
+import com.netflix.spinnaker.retrofit.Slf4jRetrofitLogger;
 import com.squareup.okhttp.OkHttpClient;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -42,7 +38,6 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.web.context.SecurityContextPersistenceFilter;
 import retrofit.Endpoints;
 import retrofit.RestAdapter;
-import retrofit.client.Client;
 import retrofit.client.OkClient;
 import retrofit.converter.JacksonConverter;
 
@@ -60,8 +55,7 @@ public class FiatAuthenticationConfig {
 
   @Bean
   @ConditionalOnMissingBean(FiatService.class) // Allows for override
-  public FiatService fiatService(Registry registry,
-                                 FiatClientConfigurationProperties fiatConfigurationProperties,
+  public FiatService fiatService(FiatClientConfigurationProperties fiatConfigurationProperties,
                                  SpinnakerRequestInterceptor interceptor,
                                  OkHttpClientConfiguration okHttpClientConfiguration) {
     // New role providers break deserialization if this is not enabled.
@@ -108,23 +102,6 @@ public class FiatAuthenticationConfig {
         http
             .csrf().disable()
             .addFilterAfter(new FiatAuthenticationFilter(fiatStatus), SecurityContextPersistenceFilter.class);
-    }
-  }
-
-  private static class Slf4jRetrofitLogger implements RestAdapter.Log {
-    private final Logger logger;
-
-    Slf4jRetrofitLogger(Class type) {
-      this(LoggerFactory.getLogger(type));
-    }
-
-    Slf4jRetrofitLogger(Logger logger) {
-      this.logger = logger;
-    }
-
-    @Override
-    public void log(String message) {
-      logger.info(message);
     }
   }
 }

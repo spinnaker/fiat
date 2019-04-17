@@ -15,31 +15,22 @@
  */
 
 dependencies {
-  compile project(":fiat-core")
+  implementation project(":fiat-core")
 
-  compileOnly "org.springframework.boot:spring-boot-starter-web"
-  compileOnly "com.netflix.frigga:frigga"
-  compileOnly "com.netflix.spinnaker.kork:kork-security"
-  compileOnly "com.netflix.spinnaker.kork:kork-web"
-  compileOnly "com.netflix.spinnaker.kork:kork-core"
-  compileOnly "com.squareup.okhttp:okhttp"
-  compileOnly "com.squareup.okhttp:okhttp-urlconnection"
-  compileOnly "com.squareup.okhttp:okhttp-apache"
-  compileOnly "com.squareup.retrofit:retrofit"
-  compileOnly "com.squareup.retrofit:converter-jackson"
-  compileOnly "com.netflix.spectator:spectator-api"
-
-  implementation "com.github.ben-manes.caffeine:guava"
-  implementation "org.springframework.security:spring-security-config"
+  implementation "org.springframework:spring-aop"
+  implementation "org.springframework:spring-web"
   implementation "org.springframework.security:spring-security-core"
   implementation "org.springframework.security:spring-security-web"
+  implementation "com.netflix.spectator:spectator-api"
+  implementation "com.netflix.spinnaker.kork:kork-core"
+  implementation "com.netflix.spinnaker.kork:kork-security"
+  implementation "com.netflix.spinnaker.kork:kork-web"
+  implementation "com.squareup.retrofit:retrofit"
+  implementation "com.squareup.retrofit:converter-jackson"
 
-  testImplementation "com.squareup.retrofit:retrofit"
-  testImplementation "com.squareup.okhttp:okhttp"
-  testImplementation "com.netflix.frigga:frigga"
-  testImplementation "com.netflix.spinnaker.kork:kork-security"
-  testImplementation "com.netflix.spinnaker.kork:kork-core"
-  testImplementation "com.netflix.spectator:spectator-api"
+  compileOnly "javax.servlet:javax.servlet-api"
+
+  implementation "com.github.ben-manes.caffeine:caffeine"
+
   testImplementation "org.slf4j:slf4j-api"
-  testImplementation "org.springframework.boot:spring-boot-autoconfigure"
 }

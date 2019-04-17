@@ -2,7 +2,6 @@
 # This script will build the project.
 
 GRADLE="./gradlew -I gradle/init-publish.gradle"
-export GRADLE_OPTS="-Xmx1g -Xms1g"
 
 if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
   echo -e "Assemble Pull Request #$TRAVIS_PULL_REQUEST => Branch [$TRAVIS_BRANCH]"

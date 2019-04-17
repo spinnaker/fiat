@@ -16,13 +16,7 @@
 
 dependencies {
   implementation project(":fiat-roles")
-  implementation project(":fiat-api")
-
-  compileOnly "com.squareup.retrofit:retrofit"
-  compileOnly "com.squareup.okhttp:okhttp"
-  compileOnly "com.squareup.okhttp:okhttp-urlconnection"
-  compileOnly "com.squareup.okhttp:okhttp-apache"
-  compileOnly "com.squareup.retrofit:converter-jackson"
+  implementation project(":fiat-core")
 
   implementation "org.apache.commons:commons-lang3"
   implementation "org.springframework.boot:spring-boot-autoconfigure"

@@ -36,7 +36,10 @@ class PermissionsSpec extends Specification {
   @Autowired
   TestConfigProps testConfigProps
 
-  ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.INDENT_OUTPUT, true)
+  ObjectMapper mapper =
+    new ObjectMapper()
+      .enable(SerializationFeature.INDENT_OUTPUT)
+      .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
 
   String permissionJson = '''{
   "READ" : [ "foo" ],
