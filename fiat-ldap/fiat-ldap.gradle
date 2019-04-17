@@ -15,17 +15,16 @@
  */
 
 dependencies {
-  compile project(":fiat-roles")
+  implementation project(":fiat-roles")
+  implementation project(":fiat-api")
 
-  compileOnly spinnaker.dependency("retrofit")
-  compileOnly spinnaker.dependency("okHttp")
-  compileOnly spinnaker.dependency("okHttpUrlconnection")
-  compileOnly spinnaker.dependency("okHttpApache")
-  compileOnly spinnaker.dependency("retrofitJackson")
+  compileOnly "com.squareup.retrofit:retrofit"
+  compileOnly "com.squareup.okhttp:okhttp"
+  compileOnly "com.squareup.okhttp:okhttp-urlconnection"
+  compileOnly "com.squareup.okhttp:okhttp-apache"
+  compileOnly "com.squareup.retrofit:converter-jackson"
 
-  compileOnly spinnaker.dependency("lombok")
-
-  compile "org.springframework.security:spring-security-ldap:${spinnaker.version('springSecurity')}"
-
-  spinnaker.group("spockBase")
+  implementation "org.apache.commons:commons-lang3"
+  implementation "org.springframework.boot:spring-boot-autoconfigure"
+  implementation "org.springframework.security:spring-security-ldap"
 }
