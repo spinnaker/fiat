@@ -1,21 +1,17 @@
 dependencies {
 
-  compileOnly spinnaker.dependency("retrofit")
-  compileOnly spinnaker.dependency("okHttp")
-  compileOnly spinnaker.dependency("okHttpUrlconnection")
-  compileOnly spinnaker.dependency("okHttpApache")
-  compileOnly spinnaker.dependency("retrofitJackson")
+  compileOnly "com.squareup.retrofit:retrofit"
+  compileOnly "com.squareup.okhttp:okhttp"
+  compileOnly "com.squareup.okhttp:okhttp-urlconnection"                                            
+  compileOnly "com.squareup.okhttp:okhttp-apache"
+  compileOnly "com.squareup.retrofit:converter-jackson"
 
-  compileOnly spinnaker.dependency("lombok")
+  implementation "org.apache.commons:commons-lang3"
+  implementation "org.slf4j:slf4j-api"
+  implementation "com.github.ben-manes.caffeine:guava"
 
-  compile spinnaker.dependency("commonsLang")
-  compile spinnaker.dependency("slf4jApi")
-  compile spinnaker.dependency("guava")
-
-  testCompile spinnaker.dependency("spockSpring")
-  testCompile spinnaker.dependency("commonsIo")
-  testCompile spinnaker.dependency("retrofitJackson")
-  spinnaker.group("test")
-  testCompile spinnaker.dependency("bootAutoConfigure")
-  testCompile spinnaker.dependency("bootActuator")
+  testImplementation "commons-io:commons-io"
+  testImplementation "com.squareup.retrofit:converter-jackson"
+  testImplementation "org.springframework.boot:spring-boot-autoconfigure"
+  testImplementation "org.springframework.boot:spring-boot-starter-actuator"
 }
