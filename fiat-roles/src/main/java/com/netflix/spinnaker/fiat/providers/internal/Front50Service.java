@@ -25,6 +25,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,13 +50,7 @@ public class Front50Service implements HealthTrackable, InitializingBean {
 
   @Override
   public void afterPropertiesSet() throws Exception {
-    try {
-      // Initialize caches (also indicates service is healthy)
-      getAllApplicationPermissions();
-      getAllServiceAccounts();
-    } catch (Exception e) {
-      log.warn("Cache prime failed: ", e);
-    }
+    refreshCache();
   }
 
   public List<Application> getAllApplicationPermissions() {
@@ -99,5 +94,16 @@ public class Front50Service implements HealthTrackable, InitializingBean {
   private static void logFallback(String resource, Throwable cause) {
     String message = cause != null ? "Cause: " + cause.getMessage() : "";
     log.info("Falling back to {} cache. {}", resource, message);
+  }
+
+  @Scheduled(fixedDelayString = "${fiat.front50RefreshMs:30000}")
+  private void refreshCache() {
+    try {
+      // Initialize caches (also indicates service is healthy)
+      getAllApplicationPermissions();
+      getAllServiceAccounts();
+    } catch (Exception e) {
+      log.warn("Cache prime failed: ", e);
+    }
   }
 }
