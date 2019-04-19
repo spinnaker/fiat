@@ -31,7 +31,6 @@ dependencies {
   implementation "com.netflix.spinnaker.kork:kork-swagger"
 
   implementation project(':fiat-core')
-  implementation project(':fiat-api')
   implementation project(':fiat-roles')
 
   // Add each included authz provider as a runtime dependency
