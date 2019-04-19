@@ -15,6 +15,9 @@
  */
 
 buildscript {
+  ext {
+    korkVersion = "4.1.0-rc.4-springBoot2"
+  }
   repositories {
     jcenter()
     maven { url "https://spinnaker.bintray.com/gradle" }
@@ -58,11 +61,11 @@ allprojects {
 
 subprojects { project ->
   dependencies {
-    implementation platform("com.netflix.spinnaker.kork:kork-bom:4.1.0-rc.3-springBoot2")
+    implementation platform("com.netflix.spinnaker.kork:kork-bom:$korkVersion")
     compileOnly "org.projectlombok:lombok"
-    annotationProcessor platform("com.netflix.spinnaker.kork:kork-bom:4.1.0-rc.3-springBoot2")
+    annotationProcessor platform("com.netflix.spinnaker.kork:kork-bom:$korkVersion")
     annotationProcessor "org.projectlombok:lombok"
-    testAnnotationProcessor platform("com.netflix.spinnaker.kork:kork-bom:4.1.0-rc.3-springBoot2")
+    testAnnotationProcessor platform("com.netflix.spinnaker.kork:kork-bom:$korkVersion")
     testAnnotationProcessor "org.projectlombok:lombok"
 
     implementation "org.springframework.boot:spring-boot-properties-migrator"

@@ -30,7 +30,7 @@ dependencies {
   implementation "com.netflix.spinnaker.kork:kork-hystrix"
   implementation "com.netflix.spinnaker.kork:kork-jedis"
   implementation "redis.clients:jedis"
-  implementation "com.google.api-client:google-api-client:1.28.0"
+  implementation "com.google.api-client:google-api-client"
 
   testImplementation "com.netflix.spinnaker.kork:kork-jedis-test"
   testImplementation "org.apache.commons:commons-collections4:4.1"
