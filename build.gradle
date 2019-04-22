@@ -16,7 +16,7 @@
 
 buildscript {
   ext {
-    korkVersion = "4.1.0-rc.4-springBoot2"
+    korkVersion = "4.1.0-rc.5-springBoot2"
   }
   repositories {
     jcenter()
