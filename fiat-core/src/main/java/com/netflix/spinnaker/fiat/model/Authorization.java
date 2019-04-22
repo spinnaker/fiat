@@ -23,7 +23,8 @@ import java.util.Set;
 
 public enum Authorization {
   READ,
-  WRITE;
+  WRITE,
+  EXECUTE;
 
   public static Set<Authorization> ALL = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(values())));
 }

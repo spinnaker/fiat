@@ -95,8 +95,7 @@ public class Permissions {
                .collect(Collectors.toSet());
   }
 
-  //VisibleForTesting
-  protected List<String> get(Authorization a) {
+  public List<String> get(Authorization a) {
     return permissions.get(a);
   }
 
