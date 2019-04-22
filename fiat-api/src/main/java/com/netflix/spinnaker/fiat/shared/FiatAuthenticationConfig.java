@@ -42,6 +42,8 @@ import retrofit.RestAdapter;
 import retrofit.client.OkClient;
 import retrofit.converter.JacksonConverter;
 
+import java.util.concurrent.TimeUnit;
+
 @Slf4j
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
@@ -65,6 +67,14 @@ public class FiatAuthenticationConfig {
     objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     OkHttpClient okHttpClient = okHttpClientConfiguration.create();
+
+    if (fiatConfigurationProperties.getConnectTimeoutMs() != null) {
+      okHttpClient.setConnectTimeout(fiatConfigurationProperties.getConnectTimeoutMs(), TimeUnit.MILLISECONDS);
+    }
+
+    if (fiatConfigurationProperties.getReadTimeoutMs() != null) {
+      okHttpClient.setConnectTimeout(fiatConfigurationProperties.getReadTimeoutMs(), TimeUnit.MILLISECONDS);
+    }
 
     return new RestAdapter.Builder()
         .setEndpoint(Endpoints.newFixedEndpoint(fiatConfigurationProperties.getBaseUrl()))

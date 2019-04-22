@@ -36,6 +36,10 @@ public class FiatClientConfigurationProperties {
 
   private boolean refreshable = true;
 
+  private Integer connectTimeoutMs;
+
+  private Integer readTimeoutMs;
+
   @NestedConfigurationProperty
   private PermissionsCache cache = new PermissionsCache();
 
@@ -70,7 +74,7 @@ public class FiatClientConfigurationProperties {
         return maxBackoffMillis;
       }
 
-      return dynamicConfigService.getConfig(Long.class, "fiat.retry.maxBackoffMills", maxBackoffMillis);
+      return dynamicConfigService.getConfig(Long.class, "fiat.retry.maxBackoffMillis", maxBackoffMillis);
     }
 
     public long getInitialBackoffMillis() {
