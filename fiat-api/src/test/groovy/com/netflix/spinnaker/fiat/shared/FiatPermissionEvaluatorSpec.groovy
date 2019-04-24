@@ -143,7 +143,51 @@ class FiatPermissionEvaluatorSpec extends Specification {
     then:
     1 * fiatService.getUserPermission("testUser") >> upv
     hasPermission
+
+    when:
+    upv.setApplications([new Application.View().setName(resource).setAuthorizations([] as Set)] as Set)
+    hasPermission = evaluator.hasPermission(authentication, resource, 'APPLICATION', 'EXECUTE')
+
+    then:
+    1 * fiatService.getUserPermission("testUser") >> upv
+    !hasPermission
+
+    when:
+    upv.setApplications([new Application.View().setName(resource)
+                             .setAuthorizations([Authorization.EXECUTE] as Set)] as Set)
+    hasPermission = evaluator.hasPermission(authentication, resource, 'APPLICATION', 'EXECUTE')
+
+    then:
+    1 * fiatService.getUserPermission("testUser") >> upv
+    0 * fiatStatus.isExecuteFallbackToWrite()
+    hasPermission
   }
+
+  @Unroll
+  def "should support configurable fallback authorizations when EXECUTE is missing"() {
+    setup:
+    String resource = "readable"
+
+    UserPermission.View upv = new UserPermission.View()
+    upv.setApplications([new Application.View().setName(resource)
+                             .setAuthorizations([Authorization.valueOf(userAuthz)] as Set)] as Set)
+
+    when:
+    def hasPermission = evaluator.hasPermission(authentication, resource, 'APPLICATION', 'EXECUTE')
+
+    then:
+    1 * fiatService.getUserPermission("testUser") >> upv
+    1 * fiatStatus.isExecuteFallbackToWrite() >> fallbackToWrite
+    hasPermission == expectedHasPermission
+
+    where:
+    fallbackToWrite || userAuthz || expectedHasPermission
+    false           || 'READ'    || true
+    false           || 'WRITE'   || false
+    true            || 'READ'    || false
+    true            || 'WRITE'   || true
+  }
+
 
   @Unroll
   def "should retry fiat requests"() {
@@ -257,6 +301,7 @@ class FiatPermissionEvaluatorSpec extends Specification {
     resourceType << ResourceType.values()*.toString()
   }
 
+  @Unroll
   def "should support isAdmin check for a user"() {
     given:
     1 * fiatService.getUserPermission("testUser") >> {

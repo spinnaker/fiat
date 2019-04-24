@@ -34,6 +34,8 @@ public class FiatClientConfigurationProperties {
 
   private boolean legacyFallback = false;
 
+  private boolean executeFallbackToWrite = false;
+
   private boolean refreshable = true;
 
   private Integer connectTimeoutMs;

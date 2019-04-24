@@ -35,19 +35,24 @@ public class FiatStatus {
 
   private final AtomicBoolean enabled;
   private final AtomicBoolean legacyFallbackEnabled;
+  private final AtomicBoolean executeFallbackToWrite;
 
   @Autowired
   public FiatStatus(Registry registry,
-                    DynamicConfigService dynamicConfigService,
-                    FiatClientConfigurationProperties fiatClientConfigurationProperties) {
+      DynamicConfigService dynamicConfigService,
+      FiatClientConfigurationProperties fiatClientConfigurationProperties) {
     this.dynamicConfigService = dynamicConfigService;
     this.fiatClientConfigurationProperties = fiatClientConfigurationProperties;
 
     this.enabled = new AtomicBoolean(fiatClientConfigurationProperties.isEnabled());
-    this.legacyFallbackEnabled = new AtomicBoolean(fiatClientConfigurationProperties.isLegacyFallback());
+    this.legacyFallbackEnabled = new AtomicBoolean(
+        fiatClientConfigurationProperties.isLegacyFallback());
+    this.executeFallbackToWrite = new AtomicBoolean(
+        fiatClientConfigurationProperties.isExecuteFallbackToWrite());
 
     registry.gauge("fiat.enabled", enabled, value -> enabled.get() ? 1 : 0);
-    registry.gauge("fiat.legacyFallback.enabled", legacyFallbackEnabled, value -> legacyFallbackEnabled.get() ? 1 : 0);
+    registry.gauge("fiat.legacyFallback.enabled", legacyFallbackEnabled,
+        value -> legacyFallbackEnabled.get() ? 1 : 0);
   }
 
   public boolean isEnabled() {
@@ -58,6 +63,10 @@ public class FiatStatus {
     return legacyFallbackEnabled.get();
   }
 
+  public boolean isExecuteFallbackToWrite() {
+    return executeFallbackToWrite.get();
+  }
+
   @Scheduled(fixedDelay = 30000L)
   void refreshStatus() {
     try {
@@ -65,10 +74,14 @@ public class FiatStatus {
         return;
       }
 
-      enabled.set(dynamicConfigService.isEnabled("fiat", fiatClientConfigurationProperties.isEnabled()));
+      enabled.set(
+          dynamicConfigService.isEnabled("fiat", fiatClientConfigurationProperties.isEnabled()));
       legacyFallbackEnabled.set(
-          dynamicConfigService.isEnabled("fiat.legacyFallback", fiatClientConfigurationProperties.isLegacyFallback())
+          dynamicConfigService.isEnabled("fiat.legacyFallback",
+              fiatClientConfigurationProperties.isLegacyFallback())
       );
+      executeFallbackToWrite.set(dynamicConfigService.isEnabled("fiat.executeFallbackToWrite",
+          fiatClientConfigurationProperties.isExecuteFallbackToWrite()));
     } catch (Exception e) {
       log.warn("Unable to refresh fiat status, reason: {}", e.getMessage());
     }

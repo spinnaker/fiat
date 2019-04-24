@@ -303,11 +303,26 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
         resources
             .stream()
             .anyMatch(view -> {
+              if (!view.getName().equalsIgnoreCase(resourceName)) {
+                return false;
+              }
+
               Set<Authorization> authorizations = Optional.ofNullable(
                   view.getAuthorizations()
               ).orElse(Collections.emptySet());
 
-              return view.getName().equalsIgnoreCase(resourceName) && authorizations.contains(authorization);
+              if (authorizations.contains(authorization)) {
+                return true;
+              }
+
+              // Fallback for legacy applications created before EXECUTE permissions were a thing.
+              // For backwards compatibility, allow users with READ authz access, with a flag to
+              // switch the behavior to allow only WRITE users access.
+              if (Authorization.EXECUTE == authorization) {
+                Authorization fallback = fiatStatus.isExecuteFallbackToWrite() ? Authorization.WRITE : Authorization.READ;
+                return authorizations.contains(fallback);
+              }
+              return false;
             });
 
     switch (resourceType) {
