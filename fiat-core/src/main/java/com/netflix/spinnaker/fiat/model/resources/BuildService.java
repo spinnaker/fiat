@@ -1,11 +1,12 @@
 /*
- * Copyright 2016 Google, Inc.
+ * Copyright 2019 Schibsted ASA.
  *
- * Licensed under the Apache License, Version 2.0 (the "License")
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
+ *
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +17,6 @@
 
 package com.netflix.spinnaker.fiat.model.resources;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -26,31 +26,32 @@ import java.util.Set;
 
 @Data
 @EqualsAndHashCode(callSuper = false)
-public class Account extends BaseAccessControlled implements Viewable {
-  final ResourceType resourceType = ResourceType.ACCOUNT;
+public class BuildService implements Resource.AccessControlled, Viewable {
+
+  private final ResourceType resourceType = ResourceType.BUILD_SERVICE;
 
   private String name;
-  private String cloudProvider;
   private Permissions permissions = Permissions.EMPTY;
 
-  @JsonIgnore
-  public View getView(Set<Role> userRoles, boolean isAdmin) {
+  @Override
+  public BaseView getView(Set<Role> userRoles, boolean isAdmin) {
     return new View(this, userRoles, isAdmin);
   }
 
   @Data
   @EqualsAndHashCode(callSuper = false)
   @NoArgsConstructor
-  public static class View extends BaseView implements Authorizable {
-    String name;
+  public static class View extends Viewable.BaseView implements Authorizable {
+
+    private String name;
     Set<Authorization> authorizations;
 
-    public View(Account account, Set<Role> userRoles, boolean isAdmin) {
-      this.name = account.name;
+    public View(BuildService buildService, Set<Role> userRoles, boolean isAdmin) {
+      this.name = buildService.name;
       if (isAdmin) {
         this.authorizations = Authorization.ALL;
       } else {
-        this.authorizations = account.permissions.getAuthorizations(userRoles);
+        this.authorizations = buildService.permissions.getAuthorizations(userRoles);
       }
     }
   }

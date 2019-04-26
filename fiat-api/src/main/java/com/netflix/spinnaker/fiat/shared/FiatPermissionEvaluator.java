@@ -17,9 +17,8 @@
 
 package com.netflix.spinnaker.fiat.shared;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.util.concurrent.UncheckedExecutionException;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.netflix.spectator.api.Id;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.fiat.model.Authorization;
@@ -46,7 +45,6 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -80,19 +78,18 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
    * @see ExponentialBackOff
    */
   static class ExponentialBackoffRetryHandler implements RetryHandler {
-    private final long maxBackoff;
-    private final long initialBackoff;
-    private final double backoffMultiplier;
+    private final FiatClientConfigurationProperties.RetryConfiguration retryConfiguration;
 
-    public ExponentialBackoffRetryHandler(long maxBackoff, long initialBackoff, double backoffMultiplier) {
-      this.maxBackoff = maxBackoff;
-      this.initialBackoff = initialBackoff;
-      this.backoffMultiplier = backoffMultiplier;
+    public ExponentialBackoffRetryHandler(FiatClientConfigurationProperties.RetryConfiguration retryConfiguration) {
+      this.retryConfiguration = retryConfiguration;
     }
 
     public <T> T retry(String description, Callable<T> callable) throws Exception {
-      ExponentialBackOff backOff = new ExponentialBackOff(initialBackoff, backoffMultiplier);
-      backOff.setMaxElapsedTime(maxBackoff);
+      ExponentialBackOff backOff = new ExponentialBackOff(
+          retryConfiguration.getInitialBackoffMillis(),
+          retryConfiguration.getRetryMultiplier()
+      );
+      backOff.setMaxElapsedTime(retryConfiguration.getMaxBackoffMillis());
       BackOffExecution backOffExec = backOff.start();
       while (true) {
         try {
@@ -107,7 +104,6 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
         }
       }
     }
-
   }
 
   @Autowired
@@ -119,8 +115,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
   }
 
   private static RetryHandler buildRetryHandler(FiatClientConfigurationProperties fiatClientConfigurationProperties) {
-    FiatClientConfigurationProperties.RetryConfiguration retry = fiatClientConfigurationProperties.getRetry();
-    return new ExponentialBackoffRetryHandler(retry.getMaxBackoffMillis(), retry.getInitialBackoffMillis(), retry.getRetryMultiplier());
+    return new ExponentialBackoffRetryHandler(fiatClientConfigurationProperties.getRetry());
   }
 
   FiatPermissionEvaluator(Registry registry,
@@ -133,7 +128,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     this.fiatStatus = fiatStatus;
     this.retryHandler = retryHandler;
 
-    this.permissionsCache = CacheBuilder
+    this.permissionsCache = Caffeine
         .newBuilder()
         .maximumSize(configProps.getCache().getMaxEntries())
         .expireAfterWrite(configProps.getCache().getExpiresAfterWriteSeconds(), TimeUnit.SECONDS)
@@ -150,8 +145,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     return false;
   }
 
-  @Override
-  public boolean hasPermission(Authentication authentication,
+  public boolean hasPermission(String username,
                                Serializable resourceName,
                                String resourceType,
                                Object authorization) {
@@ -175,7 +169,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
       resourceName = resourceName.toString();
     }
 
-    UserPermission.View permission = getPermission(getUsername(authentication));
+    UserPermission.View permission = getPermission(username);
     boolean hasPermission = permissionContains(permission, resourceName.toString(), r, a);
 
     authorizationFailure.set(
@@ -183,6 +177,14 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     );
 
     return hasPermission;
+  }
+
+  @Override
+  public boolean hasPermission(Authentication authentication,
+                               Serializable resourceName,
+                               String resourceType,
+                               Object authorization) {
+    return hasPermission(getUsername(authentication), resourceName, resourceType, authorization);
   }
 
   public void invalidatePermission(String username) {
@@ -201,35 +203,41 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     AtomicReference<Throwable> exception = new AtomicReference<>();
 
     try {
-      view = permissionsCache.get(username, () -> {
+      view = permissionsCache.get(username, (loadUserName) -> {
         cacheHit.set(false);
-        return AuthenticatedRequest.propagate(() -> {
-          try {
-            return retryHandler.retry("getUserPermission for " + username, () -> fiatService.getUserPermission(username));
-          } catch (Exception e) {
-            if (!fiatStatus.isLegacyFallbackEnabled()) {
-              throw e;
+        try {
+          return AuthenticatedRequest.propagate(() -> {
+            try {
+              return retryHandler.retry("getUserPermission for " + loadUserName, () -> fiatService.getUserPermission(loadUserName));
+            } catch (Exception e) {
+              if (!fiatStatus.isLegacyFallbackEnabled()) {
+                throw e;
+              }
+
+              legacyFallback.set(true);
+              successfulLookup.set(false);
+              exception.set(e);
+
+              // this fallback permission will be temporarily cached in the permissions cache
+              return new UserPermission.View(
+                  new UserPermission()
+                      .setId(AuthenticatedRequest.getSpinnakerUser().orElse("anonymous"))
+                      .setAccounts(
+                          Arrays
+                              .stream(AuthenticatedRequest.getSpinnakerAccounts().orElse("").split(","))
+                              .map(a -> new Account().setName(a))
+                              .collect(Collectors.toSet())
+                      )
+              ).setLegacyFallback(true).setAllowAccessToUnknownApplications(true);
             }
-
-            legacyFallback.set(true);
-            successfulLookup.set(false);
-            exception.set(e);
-
-            // this fallback permission will be temporarily cached in the permissions cache
-            return new UserPermission.View(
-                new UserPermission()
-                    .setId(AuthenticatedRequest.getSpinnakerUser().orElse("anonymous"))
-                    .setAccounts(
-                        Arrays
-                            .stream(AuthenticatedRequest.getSpinnakerAccounts().orElse("").split(","))
-                            .map(a -> new Account().setName(a))
-                            .collect(Collectors.toSet())
-                    )
-            ).setLegacyFallback(true);
-          }
-        }).call();
+          }).call();
+        } catch (RuntimeException re) {
+          throw re;
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
       });
-    } catch (ExecutionException | UncheckedExecutionException e) {
+    } catch (Exception e) {
       successfulLookup.set(false);
       exception.set(e.getCause() != null ? e.getCause() : e);
     }
@@ -246,10 +254,6 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
               exception
       );
       id = id.withTag("legacyFallback", legacyFallback.get());
-    }
-
-    if (legacyFallback.get()) {
-      permissionsCache.invalidate(username);
     }
 
     registry.counter(id).increment();
@@ -328,6 +332,8 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
         return permission.getServiceAccounts()
             .stream()
             .anyMatch(view -> view.getName().equalsIgnoreCase(resourceName));
+      case BUILD_SERVICE:
+        return permission.isLegacyFallback() || containsAuth.apply(permission.getBuildServices());
       default:
         return false;
     }
@@ -341,7 +347,16 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     return true; // TODO(ttomsu): Chosen by fair dice roll. Guaranteed to be random.
   }
 
-  public class AuthorizationFailure {
+
+  public boolean isAdmin(Authentication authentication) {
+    if (!fiatStatus.isEnabled()) {
+      return true;
+    }
+    UserPermission.View permission = getPermission(getUsername(authentication));
+    return permission != null && permission.isAdmin();
+  }
+
+  public static class AuthorizationFailure {
     private final Authorization authorization;
     private final ResourceType resourceType;
     private final String resourceName;

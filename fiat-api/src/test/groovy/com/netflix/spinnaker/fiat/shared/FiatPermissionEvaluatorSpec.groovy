@@ -103,57 +103,35 @@ class FiatPermissionEvaluatorSpec extends Specification {
                                                .setAuthorizations([Authorization.READ] as Set)] as Set)
     upv.setServiceAccounts([new ServiceAccount.View().setName(svcAcct)
                                                      .setMemberOf(["foo"])] as Set)
+    fiatService.getUserPermission("testUser") >> upv
 
-    when:
-    def hasPermission = evaluator.hasPermission(authentication,
-                                                resource,
-                                                'APPLICATION',
-                                                'READ')
+    expect:
+    evaluator.hasPermission(authentication, resource, 'APPLICATION', 'READ')
 
-    then:
-    1 * fiatService.getUserPermission("testUser") >> upv
-    hasPermission
+    // Missing authorization:
+    !evaluator.hasPermission(authentication, resource, 'APPLICATION', 'WRITE')
 
-    when:
-    hasPermission = evaluator.hasPermission(authentication,
-                                            resource,
-                                            'APPLICATION',
-                                            'WRITE') // Missing authorization
+    // Missing resource
+    !evaluator.hasPermission(authentication, resource, 'SERVICE_ACCOUNT', 'WRITE')
 
-    then:
-    1 * fiatService.getUserPermission("testUser") >> upv
-    !hasPermission
-
-    when:
-    hasPermission = evaluator.hasPermission(authentication,
-                                            resource, // Missing resource
-                                            'SERVICE_ACCOUNT',
-                                            'WRITE')
-
-    then:
-    1 * fiatService.getUserPermission("testUser") >> upv
-    !hasPermission
-
-    when:
-    hasPermission = evaluator.hasPermission(authentication,
-                                            svcAcct,
-                                            'SERVICE_ACCOUNT',
-                                            'WRITE')
-
-    then:
-    1 * fiatService.getUserPermission("testUser") >> upv
-    hasPermission
+    evaluator.hasPermission(authentication, svcAcct, 'SERVICE_ACCOUNT', 'WRITE')
   }
 
   @Unroll
   def "should retry fiat requests"() {
     given:
+    def retryConfiguration = new FiatClientConfigurationProperties.RetryConfiguration()
+    retryConfiguration.setMaxBackoffMillis(10)
+    retryConfiguration.setInitialBackoffMillis(15)
+    retryConfiguration.setRetryMultiplier(1.5)
+
+    and:
     FiatPermissionEvaluator evaluator = new FiatPermissionEvaluator(
             registry,
             fiatService,
             buildConfigurationProperties(),
             fiatStatus,
-            new FiatPermissionEvaluator.ExponentialBackoffRetryHandler(10, 15, 1)
+            new FiatPermissionEvaluator.ExponentialBackoffRetryHandler(retryConfiguration)
     )
 
     when:
@@ -235,9 +213,9 @@ class FiatPermissionEvaluatorSpec extends Specification {
   }
 
   @Unroll
-  def "should allow an admin to access all resource types"() {
+  def "should allow an admin to access #resourceType"() {
     given:
-    2 * fiatService.getUserPermission("testUser") >> {
+    fiatService.getUserPermission("testUser") >> {
       return new UserPermission.View()
           .setApplications(Collections.emptySet())
           .setAdmin(true)
@@ -251,8 +229,25 @@ class FiatPermissionEvaluatorSpec extends Specification {
     resourceType << ResourceType.values()*.toString()
   }
 
+  def "should support isAdmin check for a user"() {
+    given:
+    1 * fiatService.getUserPermission("testUser") >> {
+      return new UserPermission.View()
+          .setApplications(Collections.emptySet())
+          .setAdmin(isAdmin)
+    }
+
+    expect:
+    evaluator.isAdmin(authentication) == expectedIsAdmin
+
+    where:
+    isAdmin || expectedIsAdmin
+    false   || false
+    true    || true
+  }
+
   private static FiatClientConfigurationProperties buildConfigurationProperties() {
-    FiatClientConfigurationProperties configurationProperties = new FiatClientConfigurationProperties();
+    FiatClientConfigurationProperties configurationProperties = new FiatClientConfigurationProperties()
     configurationProperties.enabled = true
     configurationProperties.cache.maxEntries = 0
 

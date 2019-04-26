@@ -18,6 +18,8 @@ package com.netflix.spinnaker.fiat.roles;
 
 import com.netflix.appinfo.InstanceInfo;
 import com.netflix.discovery.DiscoveryClient;
+import com.netflix.spectator.api.Gauge;
+import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.fiat.config.ResourceProvidersHealthIndicator;
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig;
 import com.netflix.spinnaker.fiat.model.UserPermission;
@@ -31,7 +33,6 @@ import com.netflix.spinnaker.fiat.providers.ProviderException;
 import com.netflix.spinnaker.fiat.providers.ResourceProvider;
 import com.netflix.spinnaker.kork.eureka.RemoteStatusChangedEvent;
 import com.netflix.spinnaker.kork.lock.LockManager;
-import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,11 +51,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-@ConditionalOnExpression("${fiat.writeMode.enabled:true}")
+@ConditionalOnExpression("${fiat.write-mode.enabled:true}")
 public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedEvent> {
   private final Optional<DiscoveryClient> discoveryClient;
 
@@ -71,17 +73,20 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
 
   private final AtomicBoolean isEnabled;
 
+  private final Gauge userRolesSyncCount;
+
   @Autowired
   public UserRolesSyncer(Optional<DiscoveryClient> discoveryClient,
+                         Registry registry,
                          LockManager lockManager,
                          PermissionsRepository permissionsRepository,
                          PermissionsResolver permissionsResolver,
                          ResourceProvider<ServiceAccount> serviceAccountProvider,
                          ResourceProvidersHealthIndicator healthIndicator,
-                         @Value("${fiat.writeMode.retryIntervalMs:10000}") long retryIntervalMs,
-                         @Value("${fiat.writeMode.syncDelayMs:600000}") long syncDelayMs,
-                         @Value("${fiat.writeMode.syncFailureDelayMs:600000}") long syncFailureDelayMs,
-                         @Value("${fiat.writeMode.syncDelayTimeoutMs:30000}") long syncDelayTimeoutMs) {
+                         @Value("${fiat.write-mode.retry-interval-ms:10000}") long retryIntervalMs,
+                         @Value("${fiat.write-mode.sync-delay-ms:600000}") long syncDelayMs,
+                         @Value("${fiat.write-mode.sync-failure-delay-ms:600000}") long syncFailureDelayMs,
+                         @Value("${fiat.write-mode.sync-delay-timeout-ms:30000}") long syncDelayTimeoutMs) {
     this.discoveryClient = discoveryClient;
 
     this.lockManager = lockManager;
@@ -99,6 +104,8 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
         // default to enabled iff discovery is not available
         !discoveryClient.isPresent()
     );
+
+    this.userRolesSyncCount = registry.gauge("fiat.userRoles.syncCount");
   }
 
   @Override
@@ -109,6 +116,7 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
   @Scheduled(fixedDelay = 30000L)
   public void schedule() {
     if (syncDelayMs < 0 || !isEnabled.get()) {
+      log.warn("User roles syncing is disabled (syncDelayMs: {}, isEnabled: {})", syncDelayMs, isEnabled.get());
       return;
     }
 
@@ -118,7 +126,14 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
         .withSuccessInterval(Duration.ofMillis(syncDelayMs))
         .withFailureInterval(Duration.ofMillis(syncFailureDelayMs));
 
-    lockManager.acquireLock(lockOptions, () -> this.syncAndReturn(new ArrayList<>()));
+    lockManager.acquireLock(lockOptions, () -> {
+      try {
+        userRolesSyncCount.set(this.syncAndReturn(new ArrayList<>()));
+      } catch (Exception e) {
+        log.error("User roles synchronization failed", e);
+        userRolesSyncCount.set(-1);
+      }
+    });
   }
 
   public long syncAndReturn(List<String> roles) {

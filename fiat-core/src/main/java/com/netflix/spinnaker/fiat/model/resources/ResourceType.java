@@ -16,14 +16,14 @@
 
 package com.netflix.spinnaker.fiat.model.resources;
 
-import lombok.NonNull;
-import org.apache.commons.lang3.StringUtils;
+import javax.annotation.Nonnull;
 
 public enum ResourceType {
   ACCOUNT(Account.class),
   APPLICATION(Application.class),
   SERVICE_ACCOUNT(ServiceAccount.class), // Fiat service account.
-  ROLE(Role.class);
+  ROLE(Role.class),
+  BUILD_SERVICE(BuildService.class);
 
   public Class<? extends Resource> modelClass;
 
@@ -32,11 +32,9 @@ public enum ResourceType {
   }
 
   // TODO(ttomsu): This is Redis-specific, so it probably shouldn't go here.
-  public static ResourceType parse(@NonNull String pluralOrKey) {
-    if (pluralOrKey.contains(":")) {
-      pluralOrKey = StringUtils.substringAfterLast(pluralOrKey, ":");
-    }
-    String singular = StringUtils.removeEnd(pluralOrKey, "s");
+  public static ResourceType parse(@Nonnull String pluralOrKey) {
+    pluralOrKey = pluralOrKey.substring(pluralOrKey.lastIndexOf(':') + 1);
+    String singular = pluralOrKey.endsWith("s") ? pluralOrKey.substring(0, pluralOrKey.length() - 1) : pluralOrKey;
     return ResourceType.valueOf(singular.toUpperCase());
   }
 

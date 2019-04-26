@@ -32,11 +32,15 @@ class PermissionsSpec extends Specification {
 
   private static final Authorization R = Authorization.READ
   private static final Authorization W = Authorization.WRITE
+  private static final Authorization E = Authorization.EXECUTE
 
   @Autowired
   TestConfigProps testConfigProps
 
-  ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.INDENT_OUTPUT, true)
+  ObjectMapper mapper =
+    new ObjectMapper()
+      .enable(SerializationFeature.INDENT_OUTPUT)
+      .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
 
   String permissionJson = '''{
   "READ" : [ "foo" ],
@@ -149,7 +153,7 @@ class PermissionsSpec extends Specification {
     Permissions p = new Permissions.Builder().build()
 
     expect:
-    p.getAuthorizations([]) == [R, W] as Set
+    p.getAuthorizations([]) == [R, W, E] as Set
 
     when:
     p = Permissions.factory([(R): ["bar"], (W): ["bar"]])
@@ -182,7 +186,7 @@ class PermissionsSpec extends Specification {
   static class TestConfig {
   }
 
-  @ConfigurationProperties("testRoot")
+  @ConfigurationProperties("test-root")
   static class TestConfigProps {
     Permissions.Builder permissions
   }
