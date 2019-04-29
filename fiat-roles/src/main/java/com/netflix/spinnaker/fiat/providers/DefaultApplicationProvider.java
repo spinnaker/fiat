@@ -122,17 +122,22 @@ public class DefaultApplicationProvider extends BaseProvider<Application> implem
    */
   private void ensureExecutePermission(@NonNull Application application) {
     Permissions permissions = application.getPermissions();
-    if(permissions == null || !permissions.isRestricted()) {
+    
+    if (permissions == null || !permissions.isRestricted()) {
       return;
     }
+    
     Map<Authorization, List<String>> authorizations = Arrays
         .stream(Authorization.values())
-        .collect(Collectors.toMap(Function.identity(),
-            a -> Optional.ofNullable(permissions.get(a)).orElse(new ArrayList<>())));
+        .collect(Collectors.toMap(
+          Function.identity(),
+          a -> Optional.ofNullable(permissions.get(a)).orElse(new ArrayList<>())
+        ));
 
     if (authorizations.get(Authorization.EXECUTE).isEmpty()) {
       authorizations.put(Authorization.EXECUTE, authorizations.get(this.executeFallback));
     }
+    
     application.setPermissions(Permissions.Builder.factory(authorizations).build());
   }
 }
