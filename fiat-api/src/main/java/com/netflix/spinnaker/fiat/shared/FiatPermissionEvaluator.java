@@ -220,16 +220,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
             exception.set(e);
 
             // this fallback permission will be temporarily cached in the permissions cache
-            return new UserPermission.View(
-                new UserPermission()
-                    .setId(AuthenticatedRequest.getSpinnakerUser().orElse("anonymous"))
-                    .setAccounts(
-                        Arrays
-                            .stream(AuthenticatedRequest.getSpinnakerAccounts().orElse("").split(","))
-                            .map(a -> new Account().setName(a))
-                            .collect(Collectors.toSet())
-                    )
-            ).setLegacyFallback(true).setAllowAccessToUnknownApplications(true);
+            return buildFallbackView();
           }
         }).call();
       });
@@ -243,25 +234,27 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
         .withTag("success", successfulLookup.get());
 
     if (!successfulLookup.get()) {
-      String fallbackAccounts = "empty";
-      if (view != null && view.getAccounts() != null) {
-        fallbackAccounts = view
-            .getAccounts()
-            .stream()
-            .map(Account.View::getName)
-            .collect(Collectors.joining(","));
-      }
-
       log.error(
               "Cannot get whole user permission for user {}, reason: {} (fallbackAccounts: {})",
               username,
               exception.get().getMessage(),
-              fallbackAccounts
+              getAccountsForView(view)
       );
       id = id.withTag("legacyFallback", legacyFallback.get());
     }
 
     registry.counter(id).increment();
+
+    if (view != null && view.isLegacyFallback() && view.getAccounts().isEmpty()) {
+      // rebuild a potentially stale (could have come from the cache) legacy fallback
+      view = buildFallbackView();
+
+      log.debug(
+          "Rebuilt legacy fallback user permission for {} (fallbackAccounts: {})",
+          username,
+          getAccountsForView(view)
+      );
+    }
 
     return view;
   }
@@ -342,6 +335,34 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
       default:
         return false;
     }
+  }
+
+  private UserPermission.View buildFallbackView() {
+    return new UserPermission.View(
+        new UserPermission()
+            .setId(AuthenticatedRequest.getSpinnakerUser().orElse("anonymous"))
+            .setAccounts(
+                Arrays
+                    .stream(AuthenticatedRequest.getSpinnakerAccounts().orElse("").split(","))
+                    .filter(a -> a != null && !a.isEmpty())
+                    .map(a -> new Account().setName(a))
+                    .collect(Collectors.toSet())
+            )
+    ).setLegacyFallback(true).setAllowAccessToUnknownApplications(true);
+  }
+
+  private String getAccountsForView(UserPermission.View view) {
+    String fallbackAccounts = "''";
+
+    if (view != null && view.getAccounts() != null && !view.getAccounts().isEmpty()) {
+      fallbackAccounts = view
+          .getAccounts()
+          .stream()
+          .map(Account.View::getName)
+          .collect(Collectors.joining(","));
+    }
+
+    return fallbackAccounts;
   }
 
   /*
