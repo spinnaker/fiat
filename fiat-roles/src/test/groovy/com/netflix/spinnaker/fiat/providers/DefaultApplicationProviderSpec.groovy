@@ -28,7 +28,7 @@ import spock.lang.Subject
 import spock.lang.Unroll
 
 class DefaultApplicationProviderSpec extends Specification {
-  private static final Authorization R= Authorization.READ
+  private static final Authorization R = Authorization.READ
   private static final Authorization W = Authorization.WRITE
   private static final Authorization E = Authorization.EXECUTE
 
