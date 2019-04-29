@@ -91,6 +91,7 @@ public class DefaultApplicationProvider extends BaseProvider<Application> implem
 
       // Fallback authorization for legacy applications that are missing EXECUTE permissions
       appByName.values().forEach(this::ensureExecutePermission);
+      
       return new HashSet<>(appByName.values());
     } catch (Exception e) {
       throw new ProviderException(this.getClass(), e);
