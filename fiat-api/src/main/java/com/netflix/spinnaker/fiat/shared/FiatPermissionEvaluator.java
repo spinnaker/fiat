@@ -243,11 +243,20 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
         .withTag("success", successfulLookup.get());
 
     if (!successfulLookup.get()) {
+      String fallbackAccounts = "empty";
+      if (view != null && view.getAccounts() != null) {
+        fallbackAccounts = view
+            .getAccounts()
+            .stream()
+            .map(Account.View::getName)
+            .collect(Collectors.joining(","));
+      }
+
       log.error(
-              "Cannot get whole user permission for user {}, reason: {}",
+              "Cannot get whole user permission for user {}, reason: {} (fallbackAccounts: {})",
               username,
               exception.get().getMessage(),
-              exception
+              fallbackAccounts
       );
       id = id.withTag("legacyFallback", legacyFallback.get());
     }
