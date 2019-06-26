@@ -22,7 +22,8 @@ dependencies {
   implementation "com.squareup.okhttp:okhttp"
   implementation "com.squareup.okhttp:okhttp-urlconnection"
   implementation "com.squareup.okhttp:okhttp-apache"
-
+  
+  implementation "net.logstash.logback:logstash-logback-encoder"
   implementation "org.springframework.boot:spring-boot-starter-actuator"
   implementation "org.springframework.boot:spring-boot-starter-web"
   implementation "com.netflix.spinnaker.kork:kork-core"
