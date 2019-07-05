@@ -196,6 +196,9 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
       Serializable resourceName,
       String resourceType,
       Object authorization) {
+    if (!fiatStatus.isEnabled()) {
+      return true;
+    }
     return hasPermission(getUsername(authentication), resourceName, resourceType, authorization);
   }
 
@@ -300,7 +303,9 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
 
   private String getUsername(Authentication authentication) {
     String username = "anonymous";
-    if (authentication.isAuthenticated() && authentication.getPrincipal() != null) {
+    if (authentication != null
+        && authentication.isAuthenticated()
+        && authentication.getPrincipal() != null) {
       Object principal = authentication.getPrincipal();
       if (principal instanceof User) {
         username = ((User) principal).getUsername();
