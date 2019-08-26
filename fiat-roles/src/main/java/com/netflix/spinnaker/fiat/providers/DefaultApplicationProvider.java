@@ -32,6 +32,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.NonNull;
 
 public class DefaultApplicationProvider extends BaseProvider<Application>
@@ -94,10 +95,50 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
       // Fallback authorization for legacy applications that are missing EXECUTE permissions
       applications.forEach(this::ensureExecutePermission);
 
+      // extract permissions from prefixes, and filter them out
+      applications = extractPermissionsFromPrefixEntries(applications);
+
       return applications;
     } catch (Exception e) {
       throw new ProviderException(this.getClass(), e);
     }
+  }
+
+  /**
+   * Accept a set of application entries that contains prefix entries and actual-application
+   * entries. Then, for each application entry, find the prefix entries that match it, and combine
+   * all their permissions inside the application entry.
+   *
+   * <p>Finally, return only actual application entries.
+   *
+   * <p>The combining process happens by adding together all groups belonging to the application and
+   * all prefixes that match it. For example, if we have: "*": { "WRITE": ["group1"] }, "cool*": {
+   * "WRITE": ["group2"] }, "cool_api": { "WRITE": ["group3"] } Then application "cool_api" will
+   * have all three groups in its `WRITE` authorization
+   */
+  private Set<Application> extractPermissionsFromPrefixEntries(Set<Application> applications) {
+    Set<Application> prefixEntries = new HashSet<>();
+    Set<Application> applicationEntries = new HashSet<>();
+
+    // split entries into prefix entries and actual application entries
+    applications.forEach(
+        entry -> (entry.isPrefix() ? prefixEntries : applicationEntries).add(entry));
+
+    for (Application application : applicationEntries) {
+      Stream<Application> matchingPerfixesStream =
+          prefixEntries.stream()
+              .filter(entry -> application.getName().startsWith(entry.getPrefix()));
+
+      Set<Permissions> allApplicationPermissions =
+          Stream.concat(matchingPerfixesStream, Stream.of(application))
+              .map(Application::getPermissions)
+              .collect(Collectors.toSet());
+
+      application.setPermissions(
+          Permissions.Builder.combineFactory(allApplicationPermissions).build());
+    }
+
+    return applicationEntries;
   }
 
   private Set<Application> getAllApplications(

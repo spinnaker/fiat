@@ -48,12 +48,21 @@ public class Permissions {
    */
   @JsonCreator
   public static Permissions factory(Map<Authorization, List<String>> data) {
-    return new Builder().set(data).build();
+    return Builder.factory(data).build();
+  }
+
+  /**
+   * Specifically here for Jackson deserialization. Sends data through the {@link Builder} in order
+   * to sanitize the input data (just in case).
+   */
+  @JsonCreator
+  public static Permissions combineFactory(Set<Permissions> data) {
+    return Builder.combineFactory(data).build();
   }
 
   /** Here specifically for Jackson serialization. */
   @JsonValue
-  private Map<Authorization, List<String>> getPermissions() {
+  public Map<Authorization, List<String>> getPermissions() {
     return permissions;
   }
 
@@ -108,6 +117,28 @@ public class Permissions {
     @JsonCreator
     public static Builder factory(Map<Authorization, List<String>> data) {
       return new Builder().set(data);
+    }
+
+    /** Return a builder whose permissions are the sum of the permissions provided in data */
+    @JsonCreator
+    public static Builder combineFactory(Set<Permissions> data) {
+      Map<Authorization, List<String>> combinedResult = new HashMap<>();
+
+      for (Authorization authorization : Authorization.values()) {
+        List<String> combinedGroups =
+            data.stream()
+                .map(
+                    entry ->
+                        entry.get(
+                            authorization)) // get the lists of the current authorization we are
+                // processing
+                .flatMap(List::stream) // combine the lists into one list
+                .distinct() // remove duplicates
+                .collect(Collectors.toList());
+
+        combinedResult.put(authorization, combinedGroups);
+      }
+      return new Builder().set(combinedResult);
     }
 
     public Builder set(Map<Authorization, List<String>> p) {

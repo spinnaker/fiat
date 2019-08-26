@@ -31,6 +31,29 @@ public class Application extends BaseAccessControlled implements Viewable {
   private String name;
   private Permissions permissions = Permissions.EMPTY;
 
+  /*
+  Determines whether this entry is a specific application, or a prefix that spans multiple applications.
+  For example: `abcdefg` is an application name, while `abcde*` is a prefix that covers any application whose name
+  starts with `abcde`.
+   */
+  @JsonIgnore
+  public boolean isPrefix() {
+    return name.endsWith("*");
+  }
+
+  @JsonIgnore
+  public String getPrefix() throws UnsupportedOperationException {
+    if (!isPrefix()) {
+      throw new UnsupportedOperationException(
+          String.format("Application permission entry %S is not a prefix", name));
+    }
+    return name.substring(0, name.length() - 1);
+  }
+
+  public boolean prefixMatches(String name) {
+    return name.startsWith(getPrefix());
+  }
+
   @JsonIgnore
   public View getView(Set<Role> userRoles, boolean isAdmin) {
     return new View(this, userRoles, isAdmin);
