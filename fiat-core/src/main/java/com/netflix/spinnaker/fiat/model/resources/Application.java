@@ -50,10 +50,6 @@ public class Application extends BaseAccessControlled implements Viewable {
     return name.substring(0, name.length() - 1);
   }
 
-  public boolean prefixMatches(String name) {
-    return name.startsWith(getPrefix());
-  }
-
   @JsonIgnore
   public View getView(Set<Role> userRoles, boolean isAdmin) {
     return new View(this, userRoles, isAdmin);

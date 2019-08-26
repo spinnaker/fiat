@@ -24,7 +24,9 @@ import java.util.Set;
 public enum Authorization {
   READ,
   WRITE,
-  EXECUTE;
+  EXECUTE,
+  CREATE,
+  DELETE;
 
   public static Set<Authorization> ALL =
       Collections.unmodifiableSet(new HashSet<>(Arrays.asList(values())));
