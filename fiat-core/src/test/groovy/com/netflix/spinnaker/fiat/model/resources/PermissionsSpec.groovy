@@ -27,6 +27,8 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.test.context.ContextConfiguration
 import spock.lang.Specification
 
+import java.util.stream.Collectors
+
 @ContextConfiguration(classes = TestConfig, initializers = YamlFileApplicationContextInitializer)
 class PermissionsSpec extends Specification {
 
@@ -181,6 +183,21 @@ class PermissionsSpec extends Specification {
     then:
     p.get(R) == ["foo"]
     p.get(W) == ["bar"]
+  }
+
+  def "test combine factory"() {
+    when:
+    Permissions p = Permissions.Builder.combineFactory([
+      Permissions.Builder.factory([(R): ["group1", "group2"]]).build(),
+      Permissions.Builder.factory([(R): ["group2"]]).build(), // introduce repitition
+      Permissions.Builder.factory([(R): ["group3"], (W): ["group1"]]).build(),  // introduce multiple authorizations
+      Permissions.Builder.factory([(R): []]).build(), // introduce empty lists
+      Permissions.Builder.factory([(W): ["group5"]]).build()
+    ].stream().collect(Collectors.toSet())).build();
+
+    then:
+    p.get(R) as Set == ["group1", "group2", "group3"] as Set
+    p.get(W) as Set == ["group1", "group5"] as Set
   }
 
   @Configuration

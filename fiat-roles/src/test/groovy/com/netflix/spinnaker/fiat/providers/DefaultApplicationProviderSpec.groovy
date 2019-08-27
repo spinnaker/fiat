@@ -31,6 +31,8 @@ class DefaultApplicationProviderSpec extends Specification {
   private static final Authorization R = Authorization.READ
   private static final Authorization W = Authorization.WRITE
   private static final Authorization E = Authorization.EXECUTE
+  private static final Authorization C = Authorization.CREATE
+  private static final Authorization D = Authorization.DELETE
 
   ClouddriverService clouddriverService = Mock(ClouddriverService)
   Front50Service front50Service = Mock(Front50Service)
@@ -82,6 +84,59 @@ class DefaultApplicationProviderSpec extends Specification {
     true                             | "bad_role" || ["app1"]
 
     action = allowAccessToUnknownApplications ? "exclude" : "include"
+  }
+
+  def "should add prefix permissions to permissions found from application entries"() {
+    setup:
+    Front50Service front50Service = Mock(Front50Service) {
+      getAllApplicationPermissions() >> [
+        new Application().setName("*")
+          .setPermissions(Permissions.Builder.factory([(C): ["power_group"], (D): ["power_group"], (W): ["power_group"], (E): ["power_group"]]).build()),
+        new Application().setName("unicorn*")
+          .setPermissions(Permissions.Builder.factory([(W): ["unicorn_team"], (E): ["unicorn_team"]]).build()),
+        new Application().setName("unicorn_api"),
+        new Application().setName("new_app_with_permissions")
+          .setPermissions(Permissions.Builder.factory([(E): ["new_team"], (R): ["new_team"]]).build())
+      ]
+
+    }
+    ClouddriverService clouddriverService = Mock(ClouddriverService) {
+      getApplications() >> [
+        new Application().setName("unicorn_api"),
+        new Application().setName("new_app_with_permissions")
+      ]
+    }
+
+    provider = new DefaultApplicationProvider(front50Service, clouddriverService, allowAccessToUnknownApplications, Authorization.READ)
+
+    when:
+    def allApplications = provider.loadAll()
+
+    then:
+    // only actual app entries are kept
+    allApplications*.getName() as Set == ["unicorn_api", "new_app_with_permissions"] as Set
+
+    then:
+    // permissions resulting from prefixes are added to unknown app
+    unicorn_app = allApplications.find {app -> app.getName() == "unicorn_api"}
+    unicorn_app.getPermissions().get(C) as Set == ["power_group"] as Set
+    unicorn_app.getPermissions().get(D) as Set == ["power_group"] as Set
+    unicorn_app.getPermissions().get(W) as Set == ["power_group", "unicorn_team"] as Set
+    unicorn_app.getPermissions().get(E) as Set == ["power_group", "unicorn_team"] as Set
+
+    then:
+    // permissions resulting from prefixes are added to known app
+    def new_app_with_permissions = allApplications.find {app -> app.getName() == "new_app_with_permissions"}
+    new_app_with_permissions.getPermissions().get(C) as Set == ["power_group"] as Set
+    new_app_with_permissions.getPermissions().get(D) as Set == ["power_group"] as Set
+    new_app_with_permissions.getPermissions().get(W) as Set == ["power_group"] as Set
+    new_app_with_permissions.getPermissions().get(E) as Set == ["power_group", "new_team"] as Set
+    new_app_with_permissions.getPermissions().get(R) as Set == ["new_team"] as Set
+
+    where:
+    // allow access to unknown application becomes meaningless when we have a `*` entry, because there are no more
+    // unknown applications
+    allowAccessToUnknownApplications << [true, false]
   }
 
   @Unroll

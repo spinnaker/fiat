@@ -36,6 +36,7 @@ public class Permissions {
 
   public static Permissions EMPTY = new Permissions.Builder().build();
 
+  // TODO: replace list by set
   private final Map<Authorization, List<String>> permissions;
 
   private Permissions(Map<Authorization, List<String>> p) {
@@ -132,6 +133,7 @@ public class Permissions {
                         entry.get(
                             authorization)) // get the lists of the current authorization we are
                 // processing
+                .filter(Objects::nonNull) // remove nulls
                 .flatMap(List::stream) // combine the lists into one list
                 .distinct() // remove duplicates
                 .collect(Collectors.toList());

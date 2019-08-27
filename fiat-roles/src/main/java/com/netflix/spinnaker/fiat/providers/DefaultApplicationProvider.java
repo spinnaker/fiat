@@ -81,22 +81,20 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
 
       Set<Application> applications;
 
+      // extract permissions from prefixes, and filter them out
+      applications = extractPermissionsFromPrefixEntries(new HashSet<>(appByName.values()));
+
       if (allowAccessToUnknownApplications) {
         // no need to include applications w/o explicit permissions if we're allowing access to
         // unknown applications by default
         applications =
-            appByName.values().stream()
+            applications.stream()
                 .filter(a -> !a.getPermissions().isEmpty())
                 .collect(Collectors.toSet());
-      } else {
-        applications = new HashSet<>(appByName.values());
       }
 
       // Fallback authorization for legacy applications that are missing EXECUTE permissions
       applications.forEach(this::ensureExecutePermission);
-
-      // extract permissions from prefixes, and filter them out
-      applications = extractPermissionsFromPrefixEntries(applications);
 
       return applications;
     } catch (Exception e) {
@@ -124,13 +122,22 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
     applications.forEach(
         entry -> (entry.isPrefix() ? prefixEntries : applicationEntries).add(entry));
 
+    if (prefixEntries.isEmpty()) {
+      return applicationEntries;
+    }
+
     for (Application application : applicationEntries) {
-      Stream<Application> matchingPerfixesStream =
+      Set<Application> matchingPerfixes =
           prefixEntries.stream()
-              .filter(entry -> application.getName().startsWith(entry.getPrefix()));
+              .filter(entry -> application.getName().startsWith(entry.getPrefix()))
+              .collect(Collectors.toSet());
+
+      if (matchingPerfixes.isEmpty()) {
+        continue;
+      }
 
       Set<Permissions> allApplicationPermissions =
-          Stream.concat(matchingPerfixesStream, Stream.of(application))
+          Stream.concat(matchingPerfixes.stream(), Stream.of(application))
               .map(Application::getPermissions)
               .collect(Collectors.toSet());
 

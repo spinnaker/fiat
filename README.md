@@ -33,6 +33,9 @@ Application permissions are calculated in an additive way when multiple entries 
 
 Then application `abcdefgh` will have `WRITE` permission for groups `group1`, `group2` and `group3`
 
+#### Note about application prefixes and unknown applications:
+In fiat, you could add a configuration specifying that you want to "allow access to unknown applications". However, note that this will be overridden if you provide a prefix entry `*`, because this covers all applications, meaning that there are no more unknown applications
+
 ### Service Accounts
 Fiat Service Accounts are groups that act as a user during automated triggers (say, from a GitHub push or Jenkins build). Authorization is built in by making the service account a member of a group specified in `requiredGroupMembership`.
 
