@@ -110,7 +110,9 @@ class DefaultApplicationProviderSpec extends Specification {
     provider = new DefaultApplicationProvider(front50Service, clouddriverService, allowAccessToUnknownApplications, Authorization.READ)
 
     when:
-    def allApplications = provider.loadAll()
+    def allApplications = provider.getAll()
+    def unicorn_app = allApplications.find {app -> app.getName() == "unicorn_api"}
+    def new_app_with_permissions = allApplications.find {app -> app.getName() == "new_app_with_permissions"}
 
     then:
     // only actual app entries are kept
@@ -118,7 +120,6 @@ class DefaultApplicationProviderSpec extends Specification {
 
     then:
     // permissions resulting from prefixes are added to unknown app
-    unicorn_app = allApplications.find {app -> app.getName() == "unicorn_api"}
     unicorn_app.getPermissions().get(C) as Set == ["power_group"] as Set
     unicorn_app.getPermissions().get(D) as Set == ["power_group"] as Set
     unicorn_app.getPermissions().get(W) as Set == ["power_group", "unicorn_team"] as Set
@@ -126,7 +127,6 @@ class DefaultApplicationProviderSpec extends Specification {
 
     then:
     // permissions resulting from prefixes are added to known app
-    def new_app_with_permissions = allApplications.find {app -> app.getName() == "new_app_with_permissions"}
     new_app_with_permissions.getPermissions().get(C) as Set == ["power_group"] as Set
     new_app_with_permissions.getPermissions().get(D) as Set == ["power_group"] as Set
     new_app_with_permissions.getPermissions().get(W) as Set == ["power_group"] as Set
@@ -161,9 +161,9 @@ class DefaultApplicationProviderSpec extends Specification {
     where:
     givenPermissions           | allowAccessToUnknownApplications || expectedPermissions
     [:]                        | false                            || [:]
-    [(R): ['r']]               | false                            || [(R): ['r'], (W): [], (E): ['r']]
-    [(R): ['r'], (E): ['foo']] | false                            || [(R): ['r'], (W): [], (E): ['foo']]
-    [(R): ['r']]               | true                             || [(R): ['r'], (W): [], (E): ['r']]
+    [(R): ['r']]               | false                            || [(R): ['r'], (W): [], (E): ['r'], (D): [], (C): []]
+    [(R): ['r'], (E): ['foo']] | false                            || [(R): ['r'], (W): [], (E): ['foo'], (D): [], (C): []]
+    [(R): ['r']]               | true                             || [(R): ['r'], (W): [], (E): ['r'], (D): [], (C): []]
   }
 
   @Unroll
@@ -185,7 +185,7 @@ class DefaultApplicationProviderSpec extends Specification {
 
     where:
     fallback    || givenPermissions         || expectedPermissions
-    R           || [(R): ['r']]             || [(R): ['r'], (W): [], (E): ['r']]
-    W           || [(R): ['r'], (W): ['w']] || [(R): ['r'], (W): ['w'], (E): ['w']]
+    R           || [(R): ['r']]             || [(R): ['r'], (W): [], (E): ['r'], (D): [], (C): []]
+    W           || [(R): ['r'], (W): ['w']] || [(R): ['r'], (W): ['w'], (E): ['w'], (D): [], (C): []]
   }
 }
