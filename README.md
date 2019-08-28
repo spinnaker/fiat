@@ -24,16 +24,20 @@ It exposes a RESTful interface for querying the access permissions for a particu
 Accounts are setup within Clouddriver and queried by Fiat for its configured `requiredGroupMembership` restrictions.
 
 ### Applications
-Applications are the combination of config metadata pulled from Front50 and server group names (e.g., application-stack-details). Application permissions sit beside application configuration in S3/Google Cloud Storage, and can contain permissions for single applications, or for a group of applications expressed as a prefix. For example, prefix `abc*` covers all applications whose name starts with `abc`.
+Applications are the combination of config metadata pulled from Front50 and server group names (e.g., application-stack-details). Application permissions sit beside application configuration in S3/Google Cloud Storage.
 
-Application permissions are calculated in an additive way when multiple entries cover the same application. For example, if we have three entries:
+#### Application Prefixes
+In addition to storing application-level permissions, fiat stores application-prefix level permissions in Front50. Prefix permissions cover all applications whose names starts with the prefix. For example, prefix `abc*` covers all applications whose name starts with `abc`.
+
+Application permissions are calculated in an additive way when multiple entries cover the same application. For example, if we have two prefix entries:
 - `*`: That sets the `WRITE` permission to `group1` for all applications
 - `abc*`: That sets the `WRITE` permission to `group2` for applications starting with `abc`
+And one application entry:
 - `abcdefgh`: That sets the `WRITE` permission to `group3` for application `abcdefgh`
 
 Then application `abcdefgh` will have `WRITE` permission for groups `group1`, `group2` and `group3`
 
-#### Note about application prefixes and unknown applications:
+##### Note about application prefixes and unknown applications:
 In fiat, you could add a configuration specifying that you want to "allow access to unknown applications". However, note that this will be overridden if you provide a prefix entry `*`, because this covers all applications, meaning that there are no more unknown applications
 
 ### Service Accounts
