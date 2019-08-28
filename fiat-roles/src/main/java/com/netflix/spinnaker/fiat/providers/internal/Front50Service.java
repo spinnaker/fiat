@@ -81,7 +81,7 @@ public class Front50Service implements HealthTrackable, InitializingBean {
               return applicationPrefixCache.get();
             },
             (Throwable cause) -> {
-              logFallback("application_prefix", cause);
+              logFallback("applicationPrefix", cause);
               List<ApplicationPrefix> applicationPrefixes = applicationPrefixCache.get();
               if (applicationPrefixes == null) {
                 throw new HystrixBadRequestException("Front50 is unavailable", cause);
