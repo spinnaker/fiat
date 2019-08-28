@@ -32,6 +32,7 @@ In addition to storing application-level permissions, fiat stores application-pr
 Application permissions are calculated in an additive way when multiple entries cover the same application. For example, if we have two prefix entries:
 - `*`: That sets the `WRITE` permission to `group1` for all applications
 - `abc*`: That sets the `WRITE` permission to `group2` for applications starting with `abc`
+
 And one application entry:
 - `abcdefgh`: That sets the `WRITE` permission to `group3` for application `abcdefgh`
 
