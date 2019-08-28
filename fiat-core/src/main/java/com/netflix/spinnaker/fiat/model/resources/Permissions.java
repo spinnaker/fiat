@@ -63,7 +63,7 @@ public class Permissions {
 
   /** Here specifically for Jackson serialization. */
   @JsonValue
-  public Map<Authorization, List<String>> getPermissions() {
+  private Map<Authorization, List<String>> getPermissions() {
     return permissions;
   }
 
@@ -128,14 +128,10 @@ public class Permissions {
       for (Authorization authorization : Authorization.values()) {
         List<String> combinedGroups =
             data.stream()
-                .map(
-                    entry ->
-                        entry.get(
-                            authorization)) // get the lists of the current authorization we are
-                // processing
-                .filter(Objects::nonNull) // remove nulls
+                .map(entry -> entry.get(authorization))
+                .filter(Objects::nonNull)
                 .flatMap(List::stream) // combine the lists into one list
-                .distinct() // remove duplicates
+                .distinct()
                 .collect(Collectors.toList());
 
         combinedResult.put(authorization, combinedGroups);

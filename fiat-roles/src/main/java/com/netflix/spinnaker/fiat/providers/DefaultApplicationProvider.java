@@ -115,18 +115,18 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
 
     List<ApplicationPrefix> prefixes = front50Service.getAllApplicationPrefixPermissions();
 
-    if (prefixes.isEmpty()) {
+    if (prefixes == null || prefixes.isEmpty()) {
       return applications;
     }
 
     for (Application application : applications) {
-      Set<Permissions> matchingPerfixPermissions =
+      Set<Permissions> matchingPrefixPermissions =
           prefixes.stream()
               .filter(entry -> application.getName().startsWith(entry.getPrefix()))
               .map(entry -> entry.getPermissions())
               .collect(Collectors.toSet());
 
-      if (matchingPerfixPermissions.isEmpty()) {
+      if (matchingPrefixPermissions.isEmpty()) {
         continue;
       }
 
@@ -134,7 +134,7 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
           Permissions.Builder.combineFactory(
                   Stream.concat(
                           Stream.of(application.getPermissions()),
-                          matchingPerfixPermissions.stream())
+                          matchingPrefixPermissions.stream())
                       .collect(Collectors.toSet()))
               .build());
     }
