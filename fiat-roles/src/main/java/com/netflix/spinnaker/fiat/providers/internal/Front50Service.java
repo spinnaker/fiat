@@ -39,6 +39,7 @@ public class Front50Service implements HealthTrackable, InitializingBean {
   @Autowired @Getter private ProviderHealthTracker healthTracker;
 
   private AtomicReference<List<Application>> applicationCache = new AtomicReference<>();
+  private AtomicReference<List<ApplicationPrefix>> applicationPrefixCache = new AtomicReference<>();
   private AtomicReference<List<ServiceAccount>> serviceAccountCache = new AtomicReference<>();
 
   public Front50Service(Front50Api front50Api) {
@@ -66,6 +67,26 @@ public class Front50Service implements HealthTrackable, InitializingBean {
                 throw new HystrixBadRequestException("Front50 is unavailable", cause);
               }
               return applications;
+            })
+        .execute();
+  }
+
+  public List<ApplicationPrefix> getAllApplicationPrefixPermissions() {
+    return new SimpleJava8HystrixCommand<>(
+            GROUP_KEY,
+            "getAllApplicationPrefixPermissions",
+            () -> {
+              applicationPrefixCache.set(front50Api.getAllApplicationPrefixPermissions());
+              healthTracker.success();
+              return applicationPrefixCache.get();
+            },
+            (Throwable cause) -> {
+              logFallback("application_prefix", cause);
+              List<ApplicationPrefix> applicationPrefixes = applicationPrefixCache.get();
+              if (applicationPrefixes == null) {
+                throw new HystrixBadRequestException("Front50 is unavailable", cause);
+              }
+              return applicationPrefixes;
             })
         .execute();
   }
@@ -100,6 +121,7 @@ public class Front50Service implements HealthTrackable, InitializingBean {
     try {
       // Initialize caches (also indicates service is healthy)
       getAllApplicationPermissions();
+      getAllApplicationPrefixPermissions();
       getAllServiceAccounts();
     } catch (Exception e) {
       log.warn("Cache prime failed: ", e);

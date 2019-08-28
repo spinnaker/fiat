@@ -20,6 +20,7 @@ import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Role;
+import com.netflix.spinnaker.fiat.providers.internal.ApplicationPrefix;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
 import java.util.ArrayList;
@@ -79,10 +80,9 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
           .filter(app -> !appByName.containsKey(app.getName()))
           .forEach(app -> appByName.put(app.getName(), app));
 
-      Set<Application> applications;
+      Set<Application> applications = new HashSet<>(appByName.values());
 
-      // extract permissions from prefixes, and filter them out
-      applications = extractPermissionsFromPrefixEntries(new HashSet<>(appByName.values()));
+      applications = addPrefixPermissions(applications);
 
       if (allowAccessToUnknownApplications) {
         // no need to include applications w/o explicit permissions if we're allowing access to
@@ -103,49 +103,43 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
   }
 
   /**
-   * Accept a set of application entries that contains prefix entries and actual-application
-   * entries. Then, for each application entry, find the prefix entries that match it, and combine
-   * all their permissions inside the application entry.
-   *
-   * <p>Finally, return only actual application entries.
+   * Accept a set of applications. Then, for each application, find the prefix entries that match
+   * it, combine all their permissions inside the application, and return the set of applications
    *
    * <p>The combining process happens by adding together all groups belonging to the application and
    * all prefixes that match it. For example, if we have: "*": { "WRITE": ["group1"] }, "cool*": {
    * "WRITE": ["group2"] }, "cool_api": { "WRITE": ["group3"] } Then application "cool_api" will
    * have all three groups in its `WRITE` authorization
    */
-  private Set<Application> extractPermissionsFromPrefixEntries(Set<Application> applications) {
-    Set<Application> prefixEntries = new HashSet<>();
-    Set<Application> applicationEntries = new HashSet<>();
+  private Set<Application> addPrefixPermissions(Set<Application> applications) {
 
-    // split entries into prefix entries and actual application entries
-    applications.forEach(
-        entry -> (entry.isPrefix() ? prefixEntries : applicationEntries).add(entry));
+    List<ApplicationPrefix> prefixes = front50Service.getAllApplicationPrefixPermissions();
 
-    if (prefixEntries.isEmpty()) {
-      return applicationEntries;
+    if (prefixes.isEmpty()) {
+      return applications;
     }
 
-    for (Application application : applicationEntries) {
-      Set<Application> matchingPerfixes =
-          prefixEntries.stream()
+    for (Application application : applications) {
+      Set<Permissions> matchingPerfixPermissions =
+          prefixes.stream()
               .filter(entry -> application.getName().startsWith(entry.getPrefix()))
+              .map(entry -> entry.getPermissions())
               .collect(Collectors.toSet());
 
-      if (matchingPerfixes.isEmpty()) {
+      if (matchingPerfixPermissions.isEmpty()) {
         continue;
       }
 
-      Set<Permissions> allApplicationPermissions =
-          Stream.concat(matchingPerfixes.stream(), Stream.of(application))
-              .map(Application::getPermissions)
-              .collect(Collectors.toSet());
-
       application.setPermissions(
-          Permissions.Builder.combineFactory(allApplicationPermissions).build());
+          Permissions.Builder.combineFactory(
+                  Stream.concat(
+                          Stream.of(application.getPermissions()),
+                          matchingPerfixPermissions.stream())
+                      .collect(Collectors.toSet()))
+              .build());
     }
 
-    return applicationEntries;
+    return applications;
   }
 
   private Set<Application> getAllApplications(

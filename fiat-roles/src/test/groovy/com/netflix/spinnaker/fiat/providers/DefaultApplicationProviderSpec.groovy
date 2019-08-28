@@ -20,6 +20,7 @@ import com.netflix.spinnaker.fiat.model.Authorization
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.model.resources.Permissions
 import com.netflix.spinnaker.fiat.model.resources.Role
+import com.netflix.spinnaker.fiat.providers.internal.ApplicationPrefix
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service
 import org.apache.commons.collections4.CollectionUtils
@@ -89,16 +90,17 @@ class DefaultApplicationProviderSpec extends Specification {
   def "should add prefix permissions to permissions found from application entries"() {
     setup:
     Front50Service front50Service = Mock(Front50Service) {
-      getAllApplicationPermissions() >> [
-        new Application().setName("*")
+      getAllApplicationPrefixPermissions() >> [
+        new ApplicationPrefix().setFullPrefix("*")
           .setPermissions(Permissions.Builder.factory([(C): ["power_group"], (D): ["power_group"], (W): ["power_group"], (E): ["power_group"]]).build()),
-        new Application().setName("unicorn*")
+        new ApplicationPrefix().setFullPrefix("unicorn*")
           .setPermissions(Permissions.Builder.factory([(W): ["unicorn_team"], (E): ["unicorn_team"]]).build()),
+      ]
+      getAllApplicationPermissions() >> [
         new Application().setName("unicorn_api"),
         new Application().setName("new_app_with_permissions")
           .setPermissions(Permissions.Builder.factory([(E): ["new_team"], (R): ["new_team"]]).build())
       ]
-
     }
     ClouddriverService clouddriverService = Mock(ClouddriverService) {
       getApplications() >> [
