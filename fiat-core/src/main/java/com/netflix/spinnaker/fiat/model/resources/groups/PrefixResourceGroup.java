@@ -14,21 +14,27 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.providers.internal;
+package com.netflix.spinnaker.fiat.model.resources.groups;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
+import com.netflix.spinnaker.fiat.model.resources.Resource;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 @Data
-@EqualsAndHashCode
-public class ApplicationPrefix {
-  private String fullPrefix;
+public class PrefixResourceGroup implements ResourceGroup {
+
+  private String expression;
+
   private Permissions permissions = Permissions.EMPTY;
 
-  @JsonIgnore
-  public String getPrefix() {
-    return fullPrefix.substring(0, fullPrefix.length() - 1);
+  public PrefixResourceGroup setExpression(String expression) {
+    assert expression.endsWith("*");
+    this.expression = expression;
+    return this;
+  }
+
+  @Override
+  public boolean contains(Resource.AccessControlled resource) {
+    return resource.getName().startsWith(expression.substring(0, expression.length() - 1));
   }
 }

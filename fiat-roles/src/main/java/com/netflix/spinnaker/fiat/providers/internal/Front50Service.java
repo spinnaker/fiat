@@ -19,6 +19,7 @@ package com.netflix.spinnaker.fiat.providers.internal;
 import com.netflix.hystrix.exception.HystrixBadRequestException;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount;
+import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import com.netflix.spinnaker.fiat.providers.HealthTrackable;
 import com.netflix.spinnaker.fiat.providers.ProviderHealthTracker;
 import java.util.List;
@@ -39,7 +40,7 @@ public class Front50Service implements HealthTrackable, InitializingBean {
   @Autowired @Getter private ProviderHealthTracker healthTracker;
 
   private AtomicReference<List<Application>> applicationCache = new AtomicReference<>();
-  private AtomicReference<List<ApplicationPrefix>> applicationPrefixCache = new AtomicReference<>();
+  private AtomicReference<List<ResourceGroup>> applicationGroupCache = new AtomicReference<>();
   private AtomicReference<List<ServiceAccount>> serviceAccountCache = new AtomicReference<>();
 
   public Front50Service(Front50Api front50Api) {
@@ -71,22 +72,22 @@ public class Front50Service implements HealthTrackable, InitializingBean {
         .execute();
   }
 
-  public List<ApplicationPrefix> getAllApplicationPrefixPermissions() {
+  public List<ResourceGroup> getAllApplicationGroupPermissions() {
     return new SimpleJava8HystrixCommand<>(
             GROUP_KEY,
-            "getAllApplicationPrefixPermissions",
+            "getAllApplicationGroupPermissions",
             () -> {
-              applicationPrefixCache.set(front50Api.getAllApplicationPrefixPermissions());
+              applicationGroupCache.set(front50Api.getAllApplicationGroupPermissions());
               healthTracker.success();
-              return applicationPrefixCache.get();
+              return applicationGroupCache.get();
             },
             (Throwable cause) -> {
-              logFallback("applicationPrefix", cause);
-              List<ApplicationPrefix> applicationPrefixes = applicationPrefixCache.get();
-              if (applicationPrefixes == null) {
+              logFallback("applicationGroup", cause);
+              List<ResourceGroup> applicationGroups = applicationGroupCache.get();
+              if (applicationGroups == null) {
                 throw new HystrixBadRequestException("Front50 is unavailable", cause);
               }
-              return applicationPrefixes;
+              return applicationGroups;
             })
         .execute();
   }
@@ -121,7 +122,7 @@ public class Front50Service implements HealthTrackable, InitializingBean {
     try {
       // Initialize caches (also indicates service is healthy)
       getAllApplicationPermissions();
-      getAllApplicationPrefixPermissions();
+      getAllApplicationGroupPermissions();
       getAllServiceAccounts();
     } catch (Exception e) {
       log.warn("Cache prime failed: ", e);

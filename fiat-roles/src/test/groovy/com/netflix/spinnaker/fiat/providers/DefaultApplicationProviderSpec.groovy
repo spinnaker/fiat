@@ -20,7 +20,8 @@ import com.netflix.spinnaker.fiat.model.Authorization
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.model.resources.Permissions
 import com.netflix.spinnaker.fiat.model.resources.Role
-import com.netflix.spinnaker.fiat.providers.internal.ApplicationPrefix
+import com.netflix.spinnaker.fiat.model.resources.groups.AdditiveGroupResolutionStrategy
+import com.netflix.spinnaker.fiat.model.resources.groups.PrefixResourceGroup
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service
 import org.apache.commons.collections4.CollectionUtils
@@ -87,25 +88,27 @@ class DefaultApplicationProviderSpec extends Specification {
     action = allowAccessToUnknownApplications ? "exclude" : "include"
   }
 
-  def "should add prefix permissions to permissions found from application entries"() {
+  @Unroll
+  def "should add prefix permissions to permissions found from application entries when we have additive group resolution"() {
     setup:
+    def strategy = new AdditiveGroupResolutionStrategy()
     Front50Service front50Service = Mock(Front50Service) {
-      getAllApplicationPrefixPermissions() >> [
-        new ApplicationPrefix().setFullPrefix("*")
+      getAllApplicationGroupPermissions() >> [
+        new PrefixResourceGroup().setExpression("*")
           .setPermissions(Permissions.Builder.factory([(C): ["power_group"], (D): ["power_group"], (W): ["power_group"], (E): ["power_group"]]).build()),
-        new ApplicationPrefix().setFullPrefix("unicorn*")
+        new PrefixResourceGroup().setExpression("unicorn*")
           .setPermissions(Permissions.Builder.factory([(W): ["unicorn_team"], (E): ["unicorn_team"]]).build()),
       ]
       getAllApplicationPermissions() >> [
-        new Application().setName("unicorn_api"),
-        new Application().setName("new_app_with_permissions")
+        new Application().setName("unicorn_api").setGroupResolutionStrategy(strategy),
+        new Application().setName("new_app_with_permissions").setGroupResolutionStrategy(strategy)
           .setPermissions(Permissions.Builder.factory([(E): ["new_team"], (R): ["new_team"]]).build())
       ]
     }
     ClouddriverService clouddriverService = Mock(ClouddriverService) {
       getApplications() >> [
-        new Application().setName("unicorn_api"),
-        new Application().setName("new_app_with_permissions")
+        new Application().setName("unicorn_api").setGroupResolutionStrategy(strategy),
+        new Application().setName("new_app_with_permissions").setGroupResolutionStrategy(strategy)
       ]
     }
 

@@ -18,6 +18,7 @@ package com.netflix.spinnaker.fiat.providers.internal;
 
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount;
+import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import java.util.List;
 import retrofit.http.GET;
 
@@ -25,8 +26,8 @@ public interface Front50Api {
   @GET("/permissions/applications")
   List<Application> getAllApplicationPermissions();
 
-  @GET("/permissions/applicationPrefixes")
-  List<ApplicationPrefix> getAllApplicationPrefixPermissions();
+  @GET("/permissions/applicationGroups")
+  List<ResourceGroup> getAllApplicationGroupPermissions();
 
   @GET("/serviceAccounts")
   List<ServiceAccount> getAllServiceAccounts();

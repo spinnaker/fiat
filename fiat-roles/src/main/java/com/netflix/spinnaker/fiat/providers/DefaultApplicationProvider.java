@@ -20,7 +20,7 @@ import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Role;
-import com.netflix.spinnaker.fiat.providers.internal.ApplicationPrefix;
+import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
 import java.util.ArrayList;
@@ -33,7 +33,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.NonNull;
 
 public class DefaultApplicationProvider extends BaseProvider<Application>
@@ -82,7 +81,12 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
 
       Set<Application> applications = new HashSet<>(appByName.values());
 
-      applications = addPrefixPermissions(applications);
+      Set<ResourceGroup> applicationGroups =
+          new HashSet<>(
+              Optional.ofNullable(front50Service.getAllApplicationGroupPermissions())
+                  .orElse(new ArrayList<>()));
+      applications.forEach(
+          application -> application.extractPermissionsFromGroups(applicationGroups));
 
       if (allowAccessToUnknownApplications) {
         // no need to include applications w/o explicit permissions if we're allowing access to
@@ -100,46 +104,6 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
     } catch (Exception e) {
       throw new ProviderException(this.getClass(), e);
     }
-  }
-
-  /**
-   * Accept a set of applications. Then, for each application, find the prefix entries that match
-   * it, combine all their permissions inside the application, and return the set of applications
-   *
-   * <p>The combining process happens by adding together all groups belonging to the application and
-   * all prefixes that match it. For example, if we have: "*": { "WRITE": ["group1"] }, "cool*": {
-   * "WRITE": ["group2"] }, "cool_api": { "WRITE": ["group3"] } Then application "cool_api" will
-   * have all three groups in its `WRITE` authorization
-   */
-  private Set<Application> addPrefixPermissions(Set<Application> applications) {
-
-    List<ApplicationPrefix> prefixes = front50Service.getAllApplicationPrefixPermissions();
-
-    if (prefixes == null || prefixes.isEmpty()) {
-      return applications;
-    }
-
-    for (Application application : applications) {
-      Set<Permissions> matchingPrefixPermissions =
-          prefixes.stream()
-              .filter(entry -> application.getName().startsWith(entry.getPrefix()))
-              .map(entry -> entry.getPermissions())
-              .collect(Collectors.toSet());
-
-      if (matchingPrefixPermissions.isEmpty()) {
-        continue;
-      }
-
-      application.setPermissions(
-          Permissions.Builder.combineFactory(
-                  Stream.concat(
-                          Stream.of(application.getPermissions()),
-                          matchingPrefixPermissions.stream())
-                      .collect(Collectors.toSet()))
-              .build());
-    }
-
-    return applications;
   }
 
   private Set<Application> getAllApplications(
