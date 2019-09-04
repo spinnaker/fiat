@@ -26,23 +26,24 @@ Accounts are setup within Clouddriver and queried by Fiat for its configured `re
 ### Applications
 Applications are the combination of config metadata pulled from Front50 and server group names (e.g., application-stack-details). Application permissions sit beside application configuration in S3/Google Cloud Storage.
 
-#### Application Prefixes
-In addition to storing application-level permissions, fiat stores application-prefix level permissions in Front50. Prefix permissions cover all applications whose names starts with the prefix. For example, prefix `abc*` covers all applications whose name starts with `abc`.
-
-Application permissions are calculated in an additive way when multiple entries cover the same application. For example, if we have two prefix entries:
-- `*`: That sets the `WRITE` permission to `group1` for all applications
-- `abc*`: That sets the `WRITE` permission to `group2` for applications starting with `abc`
-
-And one application entry:
-- `abcdefgh`: That sets the `WRITE` permission to `group3` for application `abcdefgh`
-
-Then application `abcdefgh` will have `WRITE` permission for groups `group1`, `group2` and `group3`
-
-##### Note about application prefixes and unknown applications:
-In fiat, you could add a configuration specifying that you want to "allow access to unknown applications". However, note that this will be overridden if you provide a prefix entry `*`, because this covers all applications, meaning that there are no more unknown applications
-
 ### Service Accounts
 Fiat Service Accounts are groups that act as a user during automated triggers (say, from a GitHub push or Jenkins build). Authorization is built in by making the service account a member of a group specified in `requiredGroupMembership`.
+
+---
+
+### Resource Group Permissions
+In addition to storing resource-level permissions, fiat stores resource-group-level permissions in Front50. Group permissions cover all resource that comply to a certain restriction specified by the group. For example, we might have a group permission that covers all applications whose names starts with the prefix `abc*`.
+
+When speaking about group permissions, there are three things to consider:
+1. The resource type that the group applies to: Currently, we allow storing resource groups for all resource types, but only process those belonging to applications.
+2. The group type: This specifies the way in which a resource group determines whether a resource belongs to it or not. The only type we currently have is prefix group type, which determines whether a resource belongs to the group depending on whether the name of the resource starts with the group prefix.
+3. The group resolution strategy: This specifies how we handle the case when one resource belongs to multiple groups. The only current implementation is an "additive" strategy, which adds all the permissions for the groups that contain the resource.
+    
+    For example, if we are using prefix groups, and have two groups:
+    - `*`: That sets the `WRITE` permission to user group `group1` for all applications
+    - `abc*`: That sets the `WRITE` permission to user group `group2` for applications starting with `abc`
+    
+    And we have permissions for application `abcdefgh` that sets the `WRITE` permission to user group `group3`. Then application `abcdefgh` will have `WRITE` permission for user groups `group1`, `group2` and `group3`
 
 ---
 
