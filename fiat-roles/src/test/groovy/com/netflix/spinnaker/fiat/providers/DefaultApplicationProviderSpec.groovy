@@ -19,6 +19,7 @@ package com.netflix.spinnaker.fiat.providers
 import com.netflix.spinnaker.fiat.model.Authorization
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.model.resources.Permissions
+import com.netflix.spinnaker.fiat.model.resources.ResourceType
 import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.model.resources.groups.AdditiveGroupResolutionStrategy
 import com.netflix.spinnaker.fiat.model.resources.groups.PrefixResourceGroup
@@ -93,7 +94,7 @@ class DefaultApplicationProviderSpec extends Specification {
     setup:
     def strategy = new AdditiveGroupResolutionStrategy()
     Front50Service front50Service = Mock(Front50Service) {
-      getAllApplicationGroupPermissions() >> [
+      getAllGroupPermissions(ResourceType.APPLICATION) >> [
         new PrefixResourceGroup().setExpression("*")
           .setPermissions(Permissions.Builder.factory([(C): ["power_group"], (D): ["power_group"], (W): ["power_group"], (E): ["power_group"]]).build()),
         new PrefixResourceGroup().setExpression("unicorn*")

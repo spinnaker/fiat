@@ -128,7 +128,8 @@ public class Front50Service implements HealthTrackable, InitializingBean {
     try {
       // Initialize caches (also indicates service is healthy)
       getAllApplicationPermissions();
-      getAllApplicationGroupPermissions();
+      // Currently we are only using group permissions for applications
+      getAllGroupPermissions(ResourceType.APPLICATION);
       getAllServiceAccounts();
     } catch (Exception e) {
       log.warn("Cache prime failed: ", e);
