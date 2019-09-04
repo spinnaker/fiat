@@ -19,6 +19,7 @@ package com.netflix.spinnaker.fiat.providers;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
+import com.netflix.spinnaker.fiat.model.resources.ResourceType;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
@@ -83,7 +84,7 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
 
       Set<ResourceGroup> applicationGroups =
           new HashSet<>(
-              Optional.ofNullable(front50Service.getAllApplicationGroupPermissions())
+              Optional.ofNullable(front50Service.getAllGroupPermissions(ResourceType.APPLICATION))
                   .orElse(new ArrayList<>()));
       applications.forEach(
           application -> application.extractPermissionsFromGroups(applicationGroups));

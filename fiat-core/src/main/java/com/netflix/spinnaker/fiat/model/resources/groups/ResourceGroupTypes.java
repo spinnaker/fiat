@@ -16,13 +16,6 @@
 
 package com.netflix.spinnaker.fiat.model.resources.groups;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
-import com.netflix.spinnaker.fiat.model.resources.Resource;
-
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "resourceGroupType")
-public interface ResourceGroup {
-  public boolean contains(Resource.AccessControlled resource);
-
-  public Permissions getPermissions();
+public final class ResourceGroupTypes {
+  public static final String PREFIX = "prefix";
 }

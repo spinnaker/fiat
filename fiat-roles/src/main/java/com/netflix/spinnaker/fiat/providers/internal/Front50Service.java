@@ -18,11 +18,14 @@ package com.netflix.spinnaker.fiat.providers.internal;
 
 import com.netflix.hystrix.exception.HystrixBadRequestException;
 import com.netflix.spinnaker.fiat.model.resources.Application;
+import com.netflix.spinnaker.fiat.model.resources.ResourceType;
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount;
 import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import com.netflix.spinnaker.fiat.providers.HealthTrackable;
 import com.netflix.spinnaker.fiat.providers.ProviderHealthTracker;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +43,8 @@ public class Front50Service implements HealthTrackable, InitializingBean {
   @Autowired @Getter private ProviderHealthTracker healthTracker;
 
   private AtomicReference<List<Application>> applicationCache = new AtomicReference<>();
-  private AtomicReference<List<ResourceGroup>> applicationGroupCache = new AtomicReference<>();
+  private Map<ResourceType, AtomicReference<List<ResourceGroup>>> groupCache =
+      new EnumMap<>(ResourceType.class);
   private AtomicReference<List<ServiceAccount>> serviceAccountCache = new AtomicReference<>();
 
   public Front50Service(Front50Api front50Api) {
@@ -72,22 +76,24 @@ public class Front50Service implements HealthTrackable, InitializingBean {
         .execute();
   }
 
-  public List<ResourceGroup> getAllApplicationGroupPermissions() {
+  public List<ResourceGroup> getAllGroupPermissions(ResourceType resourceType) {
     return new SimpleJava8HystrixCommand<>(
             GROUP_KEY,
-            "getAllApplicationGroupPermissions",
+            "getAllGroupPermissionsFor " + resourceType,
             () -> {
-              applicationGroupCache.set(front50Api.getAllApplicationGroupPermissions());
+              groupCache
+                  .computeIfAbsent(resourceType, ignored -> new AtomicReference<>())
+                  .set(front50Api.getAllGroupPermissions(resourceType));
               healthTracker.success();
-              return applicationGroupCache.get();
+              return groupCache.get(resourceType).get();
             },
             (Throwable cause) -> {
-              logFallback("applicationGroup", cause);
-              List<ResourceGroup> applicationGroups = applicationGroupCache.get();
-              if (applicationGroups == null) {
+              logFallback("group for " + resourceType, cause);
+              List<ResourceGroup> groups = groupCache.get(resourceType).get();
+              if (groups == null) {
                 throw new HystrixBadRequestException("Front50 is unavailable", cause);
               }
-              return applicationGroups;
+              return groups;
             })
         .execute();
   }
