@@ -34,6 +34,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.NonNull;
 
 public class DefaultApplicationProvider extends BaseProvider<Application>
@@ -83,9 +84,11 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
       Set<Application> applications = new HashSet<>(appByName.values());
 
       Set<ResourceGroup> applicationGroups =
-          new HashSet<>(
-              Optional.ofNullable(front50Service.getAllGroupPermissions(ResourceType.APPLICATION))
-                  .orElse(new ArrayList<>()));
+          Optional.ofNullable(front50Service.getAllGroupPermissions(ResourceType.APPLICATION))
+              .map(List::stream)
+              .orElseGet(Stream::empty)
+              .collect(Collectors.toSet());
+
       applications.forEach(
           application -> application.extractPermissionsFromGroups(applicationGroups));
 

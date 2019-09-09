@@ -27,7 +27,7 @@ public interface Front50Api {
   @GET("/permissions/applications")
   List<Application> getAllApplicationPermissions();
 
-  @GET("/permissions/groups/resourceType/{resourceType}")
+  @GET("/permissions/groups?resourceType={resourceType}")
   List<ResourceGroup> getAllGroupPermissions(ResourceType resourceType);
 
   @GET("/serviceAccounts")

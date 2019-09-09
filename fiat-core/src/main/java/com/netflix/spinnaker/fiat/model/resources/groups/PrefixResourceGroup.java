@@ -30,7 +30,10 @@ public class PrefixResourceGroup implements ResourceGroup {
   private Permissions permissions = Permissions.EMPTY;
 
   public PrefixResourceGroup setExpression(String expression) {
-    assert expression.endsWith("*");
+    if (!expression.endsWith("*")) {
+      throw new IllegalArgumentException(
+          String.format("The argument '%s's is invalid, it needs to end with *", expression));
+    }
     this.expression = expression;
     return this;
   }

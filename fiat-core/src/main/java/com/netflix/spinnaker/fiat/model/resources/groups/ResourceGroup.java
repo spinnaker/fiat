@@ -22,7 +22,7 @@ import com.netflix.spinnaker.fiat.model.resources.Resource;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "resourceGroupType")
 public interface ResourceGroup {
-  public boolean contains(Resource.AccessControlled resource);
+  boolean contains(Resource.AccessControlled resource);
 
-  public Permissions getPermissions();
+  Permissions getPermissions();
 }
