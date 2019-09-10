@@ -7,6 +7,8 @@ import com.netflix.spinnaker.fiat.permissions.ExternalUser;
 import com.netflix.spinnaker.fiat.providers.DefaultApplicationProvider;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
+import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.AdditiveGroupResolutionStrategy;
+import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.GroupResolutionStrategy;
 import com.netflix.spinnaker.fiat.roles.UserRolesProvider;
 import com.netflix.spinnaker.filters.AuthenticatedRequestFilter;
 import com.netflix.spinnaker.kork.web.interceptors.MetricsInterceptor;
@@ -68,13 +70,20 @@ public class FiatConfig extends WebMvcConfigurerAdapter {
   }
 
   @Bean
+  GroupResolutionStrategy applicationGroupResolutionStrategy() {
+    return new AdditiveGroupResolutionStrategy();
+  }
+
+  @Bean
   DefaultApplicationProvider applicationProvider(
       Front50Service front50Service,
       ClouddriverService clouddriverService,
+      GroupResolutionStrategy applicationGroupResolutionStrategy,
       FiatServerConfigurationProperties properties) {
     return new DefaultApplicationProvider(
         front50Service,
         clouddriverService,
+        applicationGroupResolutionStrategy,
         properties.isAllowAccessToUnknownApplications(),
         properties.getExecuteFallback());
   }

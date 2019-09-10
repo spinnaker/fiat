@@ -17,38 +17,14 @@
 package com.netflix.spinnaker.fiat.model.resources;
 
 import com.netflix.spinnaker.fiat.model.Authorization;
-import com.netflix.spinnaker.fiat.model.resources.groups.GroupResolutionStrategy;
-import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 abstract class BaseAccessControlled<R extends BaseAccessControlled>
     implements Resource.AccessControlled {
 
   abstract R setPermissions(Permissions p);
-
-  @Autowired @Setter private GroupResolutionStrategy groupResolutionStrategy;
-
-  public void extractPermissionsFromGroups(Set<ResourceGroup> groups) {
-
-    if (groups == null || groups.isEmpty()) {
-      return;
-    }
-
-    Set<ResourceGroup> matchingGroups =
-        groups.stream().filter(entry -> entry.contains(this)).collect(Collectors.toSet());
-
-    if (matchingGroups.isEmpty()) {
-      return;
-    }
-
-    setPermissions(groupResolutionStrategy.resolve(matchingGroups, this));
-  }
 
   /**
    * Legacy holdover where setting `requiredGroupMembership` implied both read and write

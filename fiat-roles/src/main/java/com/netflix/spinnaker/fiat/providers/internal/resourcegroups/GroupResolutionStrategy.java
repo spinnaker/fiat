@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model.resources.groups;
+package com.netflix.spinnaker.fiat.providers.internal.resourcegroups;
 
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
+import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import java.util.Set;
 
 public interface GroupResolutionStrategy {
-  Permissions resolve(Set<ResourceGroup> matchingGroups, Resource.AccessControlled resource);
+  Permissions resolve(Set<ResourceGroup> groups, Resource.AccessControlled resource);
 }

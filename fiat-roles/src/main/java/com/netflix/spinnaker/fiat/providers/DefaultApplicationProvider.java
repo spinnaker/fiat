@@ -24,6 +24,7 @@ import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
+import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.GroupResolutionStrategy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +43,7 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
 
   private final Front50Service front50Service;
   private final ClouddriverService clouddriverService;
+  private final GroupResolutionStrategy groupResolutionStrategy;
 
   private final boolean allowAccessToUnknownApplications;
   private final Authorization executeFallback;
@@ -49,12 +51,14 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
   public DefaultApplicationProvider(
       Front50Service front50Service,
       ClouddriverService clouddriverService,
+      GroupResolutionStrategy groupResolutionStrategy,
       boolean allowAccessToUnknownApplications,
       Authorization executeFallback) {
     super();
 
     this.front50Service = front50Service;
     this.clouddriverService = clouddriverService;
+    this.groupResolutionStrategy = groupResolutionStrategy;
     this.allowAccessToUnknownApplications = allowAccessToUnknownApplications;
     this.executeFallback = executeFallback;
   }
@@ -90,7 +94,9 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
               .collect(Collectors.toSet());
 
       applications.forEach(
-          application -> application.extractPermissionsFromGroups(applicationGroups));
+          application ->
+              application.setPermissions(
+                  groupResolutionStrategy.resolve(applicationGroups, application)));
 
       if (allowAccessToUnknownApplications) {
         // no need to include applications w/o explicit permissions if we're allowing access to

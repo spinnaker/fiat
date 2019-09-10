@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model.resources.groups;
+package com.netflix.spinnaker.fiat.providers.internal.resourcegroups;
 
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
+import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,9 +32,9 @@ import org.springframework.stereotype.Component;
  * groups in its `WRITE` authorization
  */
 @Component
-public class AdditiveGroupResolutionStrategy implements GroupResolutionStrategy {
+public class AdditiveGroupResolutionStrategy extends BaseGroupResolutionStrategy {
   @Override
-  public Permissions resolve(
+  protected Permissions resolveMatchingGroups(
       Set<ResourceGroup> matchingGroups, Resource.AccessControlled resource) {
     return Permissions.Builder.combineFactory(
             Stream.concat(
