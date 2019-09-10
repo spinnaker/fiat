@@ -16,11 +16,14 @@
 
 package com.netflix.spinnaker.fiat.model.resources.groups;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "resourceGroupType")
+@JsonSubTypes(
+    @JsonSubTypes.Type(value = PrefixResourceGroup.class, name = ResourceGroupTypes.PREFIX))
 public interface ResourceGroup {
   boolean contains(Resource.AccessControlled resource);
 

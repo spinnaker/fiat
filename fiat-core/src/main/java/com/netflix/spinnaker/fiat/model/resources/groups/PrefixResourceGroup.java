@@ -16,13 +16,11 @@
 
 package com.netflix.spinnaker.fiat.model.resources.groups;
 
-import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import lombok.Data;
 
 @Data
-@JsonTypeName(ResourceGroupTypes.PREFIX)
 public class PrefixResourceGroup implements ResourceGroup {
 
   private String expression;
