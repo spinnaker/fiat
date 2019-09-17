@@ -18,7 +18,9 @@ package com.netflix.spinnaker.fiat.providers;
 
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -29,9 +31,14 @@ public class DefaultAccountProvider extends BaseProvider<Account>
 
   private final ClouddriverService clouddriverService;
 
-  @Autowired
   public DefaultAccountProvider(ClouddriverService clouddriverService) {
-    super();
+    this(clouddriverService, Collections.emptyList());
+  }
+
+  @Autowired
+  public DefaultAccountProvider(
+      ClouddriverService clouddriverService, List<ResourceInterceptor> resourceInterceptors) {
+    super(resourceInterceptors);
     this.clouddriverService = clouddriverService;
   }
 

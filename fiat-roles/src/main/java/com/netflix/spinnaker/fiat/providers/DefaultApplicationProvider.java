@@ -48,7 +48,21 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
       ClouddriverService clouddriverService,
       boolean allowAccessToUnknownApplications,
       Authorization executeFallback) {
-    super();
+    this(
+        front50Service,
+        clouddriverService,
+        allowAccessToUnknownApplications,
+        executeFallback,
+        Collections.emptyList());
+  }
+
+  public DefaultApplicationProvider(
+      Front50Service front50Service,
+      ClouddriverService clouddriverService,
+      boolean allowAccessToUnknownApplications,
+      Authorization executeFallback,
+      List<ResourceInterceptor> resourceInterceptors) {
+    super(resourceInterceptors);
 
     this.front50Service = front50Service;
     this.clouddriverService = clouddriverService;

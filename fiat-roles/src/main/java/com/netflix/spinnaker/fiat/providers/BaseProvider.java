@@ -23,6 +23,9 @@ import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.netflix.spinnaker.fiat.config.ProviderCacheConfig;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import com.netflix.spinnaker.fiat.model.resources.Role;
+import java.lang.reflect.ParameterizedType;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +40,35 @@ public abstract class BaseProvider<R extends Resource> implements ResourceProvid
   private static final Integer CACHE_KEY = 0;
 
   private Cache<Integer, Set<R>> cache = buildCache(20);
+
+  private final List<ResourceInterceptor> resourceInterceptors;
+
+  public BaseProvider() {
+    this(Collections.emptyList());
+  }
+
+  public BaseProvider(List<ResourceInterceptor> resourceInterceptors) {
+    Class<R> resourceType = resolveResourceType(getClass());
+    this.resourceInterceptors =
+        resourceInterceptors == null
+            ? Collections.emptyList()
+            : resourceInterceptors.stream()
+                .filter(ri -> ri.supports(resourceType))
+                .collect(Collectors.toList());
+  }
+
+  // VisibleForTesting
+  List<ResourceInterceptor> inspectResourceInterceptors() {
+    return Collections.unmodifiableList(resourceInterceptors);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <R extends Resource> Class<R> resolveResourceType(
+      Class<? extends BaseProvider> clazz) {
+    ParameterizedType type = (ParameterizedType) clazz.getGenericSuperclass();
+    Class<R> resourceType = (Class<R>) type.getActualTypeArguments()[0];
+    return resourceType;
+  }
 
   @Override
   @SuppressWarnings("unchecked")
@@ -65,7 +97,7 @@ public abstract class BaseProvider<R extends Resource> implements ResourceProvid
   @Override
   public Set<R> getAll() throws ProviderException {
     try {
-      return ImmutableSet.copyOf(cache.get(CACHE_KEY, this::loadAll));
+      return ImmutableSet.copyOf(cache.get(CACHE_KEY, this::populateCache));
     } catch (ExecutionException | UncheckedExecutionException e) {
       if (e.getCause() instanceof ProviderException) {
         throw (ProviderException) e.getCause();
@@ -88,6 +120,14 @@ public abstract class BaseProvider<R extends Resource> implements ResourceProvid
 
   public void clearCache() {
     cache.invalidate(CACHE_KEY);
+  }
+
+  protected Set<R> populateCache() throws ProviderException {
+    Set<R> base = loadAll();
+    for (ResourceInterceptor ri : resourceInterceptors) {
+      base = ri.intercept(base);
+    }
+    return base;
   }
 
   protected abstract Set<R> loadAll() throws ProviderException;

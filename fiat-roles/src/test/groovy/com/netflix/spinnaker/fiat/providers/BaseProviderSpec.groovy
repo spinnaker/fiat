@@ -38,15 +38,15 @@ class BaseProviderSpec extends Specification {
 
   def setup() {
     noReqGroups = new TestResource()
-        .setName("noReqGroups")
+      .setName("noReqGroups")
     reqGroup1 = new TestResource()
-        .setName("reqGroup1")
-        .setPermissions(new Permissions.Builder().add(R, "group1").build())
+      .setName("reqGroup1")
+      .setPermissions(new Permissions.Builder().add(R, "group1").build())
     reqGroup1and2 = new TestResource()
-        .setName("reqGroup1and2")
-        .setPermissions(new Permissions.Builder().add(R, "group1")
-                                                 .add(W, "group2")
-                                                 .build())
+      .setName("reqGroup1and2")
+      .setPermissions(new Permissions.Builder().add(R, "group1")
+        .add(W, "group2")
+        .build())
   }
 
   def "should get all unrestricted"() {
@@ -54,7 +54,7 @@ class BaseProviderSpec extends Specification {
     @Subject provider = new TestResourceProvider()
 
     when:
-    provider.all = [noReqGroups]
+    provider.testData = [noReqGroups]
     def result = provider.getAllUnrestricted()
 
     then:
@@ -63,7 +63,8 @@ class BaseProviderSpec extends Specification {
     result.first() == expected
 
     when:
-    provider.all = [reqGroup1]
+    provider.testData = [reqGroup1]
+    provider.clearCache()
     result = provider.getAllUnrestricted()
 
     then:
@@ -75,14 +76,15 @@ class BaseProviderSpec extends Specification {
     @Subject provider = new TestResourceProvider()
 
     when:
-    provider.all = [noReqGroups]
+    provider.testData = [noReqGroups]
     def result = provider.getAllRestricted([new Role("group1")] as Set, false)
 
     then:
     result.isEmpty()
 
     when:
-    provider.all = [reqGroup1]
+    provider.testData = [reqGroup1]
+    provider.clearCache()
     result = provider.getAllRestricted([new Role("group1")] as Set, false)
 
     then:
@@ -90,7 +92,8 @@ class BaseProviderSpec extends Specification {
     result.first() == reqGroup1
 
     when:
-    provider.all = [reqGroup1and2]
+    provider.testData = [reqGroup1and2]
+    provider.clearCache()
     result = provider.getAllRestricted([new Role("group1")] as Set, false)
 
     then:
@@ -111,12 +114,68 @@ class BaseProviderSpec extends Specification {
     thrown IllegalArgumentException
   }
 
+  def "should retain only relevant ResourceInterceptors"() {
+    expect:
+    new TestResourceProvider(providedInterceptors).inspectResourceInterceptors()*.class == expectedInterceptors
+
+    where:
+
+    providedInterceptors                                               || expectedInterceptors
+    null                                                               || []
+    []                                                                 || []
+    [new NoopResourceInterceptor()]                                    || []
+    [new NoopResourceInterceptor(), new ReadOnlyResourceInterceptor()] || [ReadOnlyResourceInterceptor]
+    [new ReadOnlyResourceInterceptor()]                                || [ReadOnlyResourceInterceptor]
+  }
+
+  def "should apply resource interceptors when loading cache data"() {
+    given:
+    def provider = new TestResourceProvider([new ReadOnlyResourceInterceptor()])
+    provider.testData = [reqGroup1and2]
+
+    when:
+    Set<TestResource> resources = provider.getAll()
+
+    then:
+    resources.size() == 1
+    resources[0].name == "reqGroup1and2"
+    resources[0].permissions.getAuthorizations(["group1", "group2"]) == [Authorization.READ] as Set
+    !resources[0].permissions.get(Authorization.WRITE)
+    !resources[0].permissions.get(Authorization.EXECUTE)
+  }
+
+  class ReadOnlyResourceInterceptor implements ResourceInterceptor {
+    @Override
+    boolean supports(Class<? extends Resource> type) {
+      return type == TestResource
+    }
+
+    @Override
+    <R extends Resource> Set<R> intercept(Set<R> original) {
+      original.each { TestResource resource ->
+        if (!resource.permissions.isEmpty()) {
+          resource.permissions = new Permissions.Builder().add(Authorization.READ, resource.permissions.get(Authorization.READ)).build()
+        }
+      }
+      return original
+    }
+  }
+
   class TestResourceProvider extends BaseProvider<TestResource> {
-    Set<TestResource> all = new HashSet<>()
+
+    TestResourceProvider() {
+      this(Collections.emptyList());
+    }
+
+    TestResourceProvider(List<ResourceInterceptor> resourceInterceptors) {
+      super(resourceInterceptors)
+    }
+
+    Set<TestResource> testData = new HashSet<>()
 
     @Override
     protected Set<TestResource> loadAll() throws ProviderException {
-      return all
+      return testData
     }
   }
 

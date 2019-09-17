@@ -19,7 +19,9 @@ package com.netflix.spinnaker.fiat.providers;
 
 import com.netflix.spinnaker.fiat.model.resources.BuildService;
 import com.netflix.spinnaker.fiat.providers.internal.IgorService;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -32,9 +34,14 @@ public class DefaultBuildServiceProvider extends BaseProvider<BuildService>
 
   private final IgorService igorService;
 
-  @Autowired
   public DefaultBuildServiceProvider(IgorService igorService) {
-    super();
+    this(igorService, Collections.emptyList());
+  }
+
+  @Autowired
+  public DefaultBuildServiceProvider(
+      IgorService igorService, List<ResourceInterceptor> resourceInterceptors) {
+    super(resourceInterceptors);
     this.igorService = igorService;
   }
 

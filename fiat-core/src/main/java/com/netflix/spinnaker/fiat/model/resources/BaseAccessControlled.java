@@ -24,8 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 abstract class BaseAccessControlled<R extends BaseAccessControlled>
     implements Resource.AccessControlled {
 
-  abstract R setPermissions(Permissions p);
-
   /**
    * Legacy holdover where setting `requiredGroupMembership` implied both read and write
    * permissions.

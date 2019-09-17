@@ -26,7 +26,8 @@ public interface Resource {
 
   /** Represents Resources that have restrictions on permissions. */
   interface AccessControlled extends Resource {
-
     Permissions getPermissions();
+
+    <T extends AccessControlled> T setPermissions(Permissions permissions);
   }
 }
