@@ -27,19 +27,41 @@ public abstract class BaseGroupResolutionStrategy implements GroupResolutionStra
   protected abstract Permissions resolveMatchingGroups(
       Set<ResourceGroup> matchingGroups, Resource.AccessControlled resource);
 
+  protected abstract Permissions resolveMatchingGroupsNoIncludeResourcePermissions(
+      Set<ResourceGroup> matchingGroups, Resource.AccessControlled resource);
+
   public Permissions resolve(Set<ResourceGroup> groups, Resource.AccessControlled resource) {
 
     if (groups == null || groups.isEmpty()) {
       return resource.getPermissions();
     }
 
-    Set<ResourceGroup> matchingGroups =
-        groups.stream().filter(entry -> entry.contains(resource)).collect(Collectors.toSet());
+    Set<ResourceGroup> matchingGroups = findMatchingGroups(groups, resource);
 
     if (matchingGroups.isEmpty()) {
       return resource.getPermissions();
     }
 
     return resolveMatchingGroups(matchingGroups, resource);
+  }
+
+  public Permissions resolveNoIncludeResourcePermissions(
+      Set<ResourceGroup> groups, Resource.AccessControlled resource) {
+    if (groups == null || groups.isEmpty()) {
+      return Permissions.EMPTY;
+    }
+
+    Set<ResourceGroup> matchingGroups = findMatchingGroups(groups, resource);
+
+    if (matchingGroups.isEmpty()) {
+      return Permissions.EMPTY;
+    }
+
+    return resolveMatchingGroupsNoIncludeResourcePermissions(matchingGroups, resource);
+  }
+
+  private Set<ResourceGroup> findMatchingGroups(
+      Set<ResourceGroup> groups, Resource.AccessControlled resource) {
+    return groups.stream().filter(entry -> entry.contains(resource)).collect(Collectors.toSet());
   }
 }

@@ -38,6 +38,9 @@ public class PrefixResourceGroup implements ResourceGroup {
 
   @Override
   public boolean contains(Resource.AccessControlled resource) {
-    return resource.getName().startsWith(expression.substring(0, expression.length() - 1));
+    return resource
+        .getName()
+        .toLowerCase()
+        .startsWith(expression.substring(0, expression.length() - 1).toLowerCase());
   }
 }

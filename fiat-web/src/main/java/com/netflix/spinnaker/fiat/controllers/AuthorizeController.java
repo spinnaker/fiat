@@ -22,20 +22,17 @@ import com.netflix.spinnaker.fiat.config.FiatServerConfigurationProperties;
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.UserPermission;
-import com.netflix.spinnaker.fiat.model.resources.Account;
-import com.netflix.spinnaker.fiat.model.resources.Application;
-import com.netflix.spinnaker.fiat.model.resources.ResourceType;
-import com.netflix.spinnaker.fiat.model.resources.Role;
-import com.netflix.spinnaker.fiat.model.resources.ServiceAccount;
+import com.netflix.spinnaker.fiat.model.resources.*;
+import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository;
+import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
+import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.GroupResolutionStrategy;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import io.swagger.annotations.ApiOperation;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +49,8 @@ public class AuthorizeController {
   private final Registry registry;
   private final PermissionsRepository permissionsRepository;
   private final FiatServerConfigurationProperties configProps;
+  private final Front50Service front50Service;
+  private final GroupResolutionStrategy groupResolutionStrategy;
 
   private final Id getUserPermissionCounterId;
 
@@ -59,10 +58,14 @@ public class AuthorizeController {
   public AuthorizeController(
       Registry registry,
       PermissionsRepository permissionsRepository,
-      FiatServerConfigurationProperties configProps) {
+      FiatServerConfigurationProperties configProps,
+      Front50Service front50Service,
+      GroupResolutionStrategy groupResolutionStrategy) {
     this.registry = registry;
     this.permissionsRepository = permissionsRepository;
     this.configProps = configProps;
+    this.front50Service = front50Service;
+    this.groupResolutionStrategy = groupResolutionStrategy;
 
     this.getUserPermissionCounterId = registry.createId("fiat.getUserPermission");
   }
@@ -169,7 +172,14 @@ public class AuthorizeController {
           authorizations = getUserAccount(userId, resourceName).getAuthorizations();
           break;
         case APPLICATION:
-          authorizations = getUserApplication(userId, resourceName).getAuthorizations();
+          if (a == Authorization.CREATE) {
+            // Creation is handled independently, because it deals with a non-existing resource. So
+            // it bases
+            // the decision solely on resource groups
+            authorizations = getAuthorizationsForNonExistentResource(userId, r, resourceName);
+          } else {
+            authorizations = getUserApplication(userId, resourceName).getAuthorizations();
+          }
           break;
         default:
           response.sendError(
@@ -187,6 +197,36 @@ public class AuthorizeController {
     }
 
     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+  }
+
+  /**
+   * For non-existent resources (like resources about to be created), the authorizations are
+   * inferred from their matching resource groups
+   */
+  private Set<Authorization> getAuthorizationsForNonExistentResource(
+      String userId, ResourceType resourceType, String resourceName) {
+    if (resourceType != ResourceType.APPLICATION) {
+      // Currently, this code only works for applications
+      return Authorization.ALL;
+    }
+
+    Set<ResourceGroup> groups =
+        Optional.ofNullable(front50Service.getAllGroupPermissions(resourceType))
+            .map(List::stream)
+            .orElseGet(Stream::empty)
+            .collect(Collectors.toSet());
+
+    Application tempApplication = new Application();
+    tempApplication.setName(resourceName);
+
+    Permissions matchingGroupPermissions =
+        groupResolutionStrategy.resolveNoIncludeResourcePermissions(groups, tempApplication);
+
+    List<String> userRoles =
+        getUserPermission(userId).getRoles().stream()
+            .map(Role.View::getName)
+            .collect(Collectors.toList());
+    return matchingGroupPermissions.getAuthorizations(userRoles);
   }
 
   private Optional<UserPermission> getUserPermissionOrDefault(String userId) {

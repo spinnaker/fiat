@@ -22,5 +22,13 @@ import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import java.util.Set;
 
 public interface GroupResolutionStrategy {
+  /**
+   * Resolve the permissions of the resource taking group permissions and resource permissions into
+   * account
+   */
   Permissions resolve(Set<ResourceGroup> groups, Resource.AccessControlled resource);
+
+  /** Resolve the permissions of the resource taking only group permissions into account */
+  Permissions resolveNoIncludeResourcePermissions(
+      Set<ResourceGroup> groups, Resource.AccessControlled resource);
 }

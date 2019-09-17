@@ -22,9 +22,7 @@ import com.netflix.spectator.api.Id;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.UserPermission;
-import com.netflix.spinnaker.fiat.model.resources.Account;
-import com.netflix.spinnaker.fiat.model.resources.Authorizable;
-import com.netflix.spinnaker.fiat.model.resources.ResourceType;
+import com.netflix.spinnaker.fiat.model.resources.*;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import com.netflix.spinnaker.security.User;
 import java.io.Serializable;
@@ -38,6 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.StringUtils;
@@ -48,6 +47,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.BackOffExecution;
 import org.springframework.util.backoff.ExponentialBackOff;
+import retrofit.client.Response;
 
 @Component
 @Slf4j
@@ -171,8 +171,14 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
       resourceName = resourceName.toString();
     }
 
-    UserPermission.View permission = getPermission(username);
-    boolean hasPermission = permissionContains(permission, resourceName.toString(), r, a);
+    UserPermission.View permission = null;
+    boolean hasPermission;
+    if (a == Authorization.CREATE) {
+      hasPermission = canCreate(username, resourceType, resourceName.toString());
+    } else {
+      permission = getPermission(username);
+      hasPermission = permissionContains(permission, resourceName.toString(), r, a);
+    }
 
     authorizationFailure.set(
         hasPermission ? null : new AuthorizationFailure(a, r, resourceName.toString()));
@@ -204,6 +210,36 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
 
   public void invalidatePermission(String username) {
     permissionsCache.invalidate(username);
+  }
+
+  private boolean canCreate(String username, String resourceType, String resourceName) {
+    boolean canCreate = false;
+
+    try {
+      Response response =
+          AuthenticatedRequest.propagate(
+                  () -> {
+                    return retryHandler.retry(
+                        String.format(
+                            "hasAuthorization for user %s on resource %s of type %s with authorization CREATE",
+                            username, resourceName, resourceType),
+                        () ->
+                            fiatService.hasAuthorization(
+                                username, resourceType, resourceName, "CREATE"));
+                  })
+              .call();
+      if (response.getStatus() == HttpServletResponse.SC_OK) {
+        canCreate = true;
+      }
+    } catch (Exception e) {
+      log.error(
+          "Failed to get hasAuthorization for user {} on resource {} of type {} for authorization CREATE",
+          username,
+          resourceName,
+          resourceType);
+    }
+
+    return canCreate;
   }
 
   public UserPermission.View getPermission(String username) {

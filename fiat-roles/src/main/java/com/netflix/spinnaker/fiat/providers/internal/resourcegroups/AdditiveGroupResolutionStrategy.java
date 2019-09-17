@@ -43,4 +43,12 @@ public class AdditiveGroupResolutionStrategy extends BaseGroupResolutionStrategy
                 .collect(Collectors.toSet()))
         .build();
   }
+
+  @Override
+  protected Permissions resolveMatchingGroupsNoIncludeResourcePermissions(
+      Set<ResourceGroup> matchingGroups, Resource.AccessControlled resource) {
+    return Permissions.Builder.combineFactory(
+            matchingGroups.stream().map(ResourceGroup::getPermissions).collect(Collectors.toSet()))
+        .build();
+  }
 }

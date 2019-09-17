@@ -28,10 +28,13 @@ import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
 import com.netflix.spinnaker.security.AuthenticatedRequest
 import org.slf4j.MDC
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken
+import retrofit.client.Response
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Unroll
+
+import javax.servlet.http.HttpServletResponse
 
 class FiatPermissionEvaluatorSpec extends Specification {
   FiatService fiatService = Mock(FiatService)
@@ -244,6 +247,20 @@ class FiatPermissionEvaluatorSpec extends Specification {
     isAdmin || expectedIsAdmin
     false   || false
     true    || true
+  }
+
+  @Unroll
+  def "should call hasAuthorization when asked whether user has CREATE permission"() {
+    given:
+    1 * fiatService.hasAuthorization("testUser", "APPLICATION", "my_resource", "CREATE") >> new Response("", canCreate, "", [], null)
+
+    expect:
+    evaluator.hasPermission("testUser", "my_resource", "APPLICATION", "CREATE") == expectedOutput
+
+    where:
+    canCreate                        || expectedOutput
+    HttpServletResponse.SC_OK        || true
+    HttpServletResponse.SC_NOT_FOUND || false
   }
 
   private static FiatClientConfigurationProperties buildConfigurationProperties() {
