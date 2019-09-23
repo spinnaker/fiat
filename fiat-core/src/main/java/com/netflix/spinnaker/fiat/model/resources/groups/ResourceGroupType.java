@@ -16,6 +16,6 @@
 
 package com.netflix.spinnaker.fiat.model.resources.groups;
 
-public final class ResourceGroupTypes {
-  public static final String PREFIX = "prefix";
+public enum ResourceGroupType {
+  Prefix
 }

@@ -16,6 +16,7 @@
 
 package com.netflix.spinnaker.fiat.providers;
 
+import com.netflix.spinnaker.fiat.config.FiatResourceGroupConfig;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
@@ -24,7 +25,6 @@ import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
-import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.GroupResolutionStrategy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,7 +35,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.NonNull;
 
 public class DefaultApplicationProvider extends BaseProvider<Application>
@@ -43,7 +42,7 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
 
   private final Front50Service front50Service;
   private final ClouddriverService clouddriverService;
-  private final GroupResolutionStrategy groupResolutionStrategy;
+  private final FiatResourceGroupConfig resourceGroupConfig;
 
   private final boolean allowAccessToUnknownApplications;
   private final Authorization executeFallback;
@@ -51,14 +50,14 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
   public DefaultApplicationProvider(
       Front50Service front50Service,
       ClouddriverService clouddriverService,
-      GroupResolutionStrategy groupResolutionStrategy,
+      FiatResourceGroupConfig resourceGroupConfig,
       boolean allowAccessToUnknownApplications,
       Authorization executeFallback) {
     super();
 
     this.front50Service = front50Service;
     this.clouddriverService = clouddriverService;
-    this.groupResolutionStrategy = groupResolutionStrategy;
+    this.resourceGroupConfig = resourceGroupConfig;
     this.allowAccessToUnknownApplications = allowAccessToUnknownApplications;
     this.executeFallback = executeFallback;
   }
@@ -88,15 +87,14 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
       Set<Application> applications = new HashSet<>(appByName.values());
 
       Set<ResourceGroup> applicationGroups =
-          Optional.ofNullable(front50Service.getAllGroupPermissions(ResourceType.APPLICATION))
-              .map(List::stream)
-              .orElseGet(Stream::empty)
-              .collect(Collectors.toSet());
+          resourceGroupConfig.getResourceGroupsForResourceType(ResourceType.APPLICATION);
 
       applications.forEach(
           application ->
               application.setPermissions(
-                  groupResolutionStrategy.resolve(applicationGroups, application)));
+                  resourceGroupConfig
+                      .getGroupResolutionStrategy()
+                      .resolve(applicationGroups, application)));
 
       if (allowAccessToUnknownApplications) {
         // no need to include applications w/o explicit permissions if we're allowing access to

@@ -20,12 +20,19 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
+import com.netflix.spinnaker.fiat.model.resources.ResourceType;
+import lombok.Data;
 
+@Data
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "resourceGroupType")
-@JsonSubTypes(
-    @JsonSubTypes.Type(value = PrefixResourceGroup.class, name = ResourceGroupTypes.PREFIX))
-public interface ResourceGroup {
-  boolean contains(Resource.AccessControlled resource);
+@JsonSubTypes(@JsonSubTypes.Type(value = PrefixResourceGroup.class, name = "Prefix"))
+public abstract class ResourceGroup {
+  public abstract boolean contains(Resource.AccessControlled resource);
 
-  Permissions getPermissions();
+  private ResourceType resourceType;
+
+  // needed for serialization
+  private ResourceGroupType resourceGroupType;
+
+  private Permissions permissions = Permissions.EMPTY;
 }

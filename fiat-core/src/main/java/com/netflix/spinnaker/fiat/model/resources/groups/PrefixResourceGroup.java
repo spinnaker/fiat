@@ -16,16 +16,13 @@
 
 package com.netflix.spinnaker.fiat.model.resources.groups;
 
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import lombok.Data;
 
 @Data
-public class PrefixResourceGroup implements ResourceGroup {
+public class PrefixResourceGroup extends ResourceGroup {
 
   private String expression;
-
-  private Permissions permissions = Permissions.EMPTY;
 
   public PrefixResourceGroup setExpression(String expression) {
     if (!expression.endsWith("*")) {

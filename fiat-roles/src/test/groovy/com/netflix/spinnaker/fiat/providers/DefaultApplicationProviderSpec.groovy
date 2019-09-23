@@ -16,6 +16,7 @@
 
 package com.netflix.spinnaker.fiat.providers
 
+import com.netflix.spinnaker.fiat.config.FiatResourceGroupConfig
 import com.netflix.spinnaker.fiat.model.Authorization
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.model.resources.Permissions
@@ -25,7 +26,6 @@ import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.AdditiveGrou
 import com.netflix.spinnaker.fiat.model.resources.groups.PrefixResourceGroup
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service
-import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.GroupResolutionStrategy
 import org.apache.commons.collections4.CollectionUtils
 import spock.lang.Specification
 import spock.lang.Subject
@@ -40,7 +40,7 @@ class DefaultApplicationProviderSpec extends Specification {
 
   ClouddriverService clouddriverService = Mock(ClouddriverService)
   Front50Service front50Service = Mock(Front50Service)
-  GroupResolutionStrategy groupResolutionStrategy = new AdditiveGroupResolutionStrategy();
+  FiatResourceGroupConfig resourceGroupConfig = Mock(FiatResourceGroupConfig)
 
   @Subject DefaultApplicationProvider provider
 
@@ -66,7 +66,7 @@ class DefaultApplicationProviderSpec extends Specification {
       ]
     }
 
-    provider = new DefaultApplicationProvider(front50Service, clouddriverService, groupResolutionStrategy, allowAccessToUnknownApplications, Authorization.READ)
+    provider = new DefaultApplicationProvider(front50Service, clouddriverService, resourceGroupConfig, allowAccessToUnknownApplications, Authorization.READ)
 
     when:
     def restrictedResult = provider.getAllRestricted([new Role(role)] as Set<Role>, false)
@@ -95,12 +95,6 @@ class DefaultApplicationProviderSpec extends Specification {
   def "should add prefix permissions to permissions found from application entries when we have additive group resolution"() {
     setup:
     Front50Service front50Service = Mock(Front50Service) {
-      getAllGroupPermissions(ResourceType.APPLICATION) >> [
-        new PrefixResourceGroup().setExpression("*")
-          .setPermissions(Permissions.Builder.factory([(C): ["power_group"], (D): ["power_group"], (W): ["power_group"], (E): ["power_group"]]).build()),
-        new PrefixResourceGroup().setExpression("unicorn*")
-          .setPermissions(Permissions.Builder.factory([(W): ["unicorn_team"], (E): ["unicorn_team"]]).build()),
-      ]
       getAllApplicationPermissions() >> [
         new Application().setName("unicorn_api"),
         new Application().setName("new_app_with_permissions")
@@ -114,7 +108,17 @@ class DefaultApplicationProviderSpec extends Specification {
       ]
     }
 
-    provider = new DefaultApplicationProvider(front50Service, clouddriverService, groupResolutionStrategy, allowAccessToUnknownApplications, Authorization.READ)
+    FiatResourceGroupConfig resourceGroupConfig = Mock(FiatResourceGroupConfig) {
+      getResourceGroupsForResourceType(ResourceType.APPLICATION) >> [
+        new PrefixResourceGroup().setExpression("*")
+                .setPermissions(Permissions.Builder.factory([(C): ["power_group"], (D): ["power_group"], (W): ["power_group"], (E): ["power_group"]]).build()),
+        new PrefixResourceGroup().setExpression("unicorn*")
+                .setPermissions(Permissions.Builder.factory([(W): ["unicorn_team"], (E): ["unicorn_team"]]).build()),
+      ]
+      getGroupResolutionStrategy() >> new AdditiveGroupResolutionStrategy()
+    }
+
+    provider = new DefaultApplicationProvider(front50Service, clouddriverService, resourceGroupConfig, allowAccessToUnknownApplications, Authorization.READ)
 
     when:
     def allApplications = provider.getAll()
@@ -154,7 +158,7 @@ class DefaultApplicationProviderSpec extends Specification {
     when:
     app.setPermissions(makePerms(givenPermissions))
     provider = new DefaultApplicationProvider(
-        front50Service, clouddriverService, groupResolutionStrategy, allowAccessToUnknownApplications, Authorization.READ
+        front50Service, clouddriverService, resourceGroupConfig, allowAccessToUnknownApplications, Authorization.READ
     )
     def resultApps = provider.getAll()
 
@@ -180,7 +184,7 @@ class DefaultApplicationProviderSpec extends Specification {
 
     when:
     app.setPermissions(makePerms(givenPermissions))
-    provider = new DefaultApplicationProvider(front50Service, clouddriverService, groupResolutionStrategy, false, fallback)
+    provider = new DefaultApplicationProvider(front50Service, clouddriverService, resourceGroupConfig, false, fallback)
     def resultApps = provider.getAll()
 
     then:

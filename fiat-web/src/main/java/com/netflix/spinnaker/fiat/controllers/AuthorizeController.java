@@ -18,6 +18,7 @@ package com.netflix.spinnaker.fiat.controllers;
 
 import com.netflix.spectator.api.Id;
 import com.netflix.spectator.api.Registry;
+import com.netflix.spinnaker.fiat.config.FiatResourceGroupConfig;
 import com.netflix.spinnaker.fiat.config.FiatServerConfigurationProperties;
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig;
 import com.netflix.spinnaker.fiat.model.Authorization;
@@ -25,14 +26,11 @@ import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.*;
 import com.netflix.spinnaker.fiat.model.resources.groups.ResourceGroup;
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository;
-import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
-import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.GroupResolutionStrategy;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import io.swagger.annotations.ApiOperation;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,8 +47,7 @@ public class AuthorizeController {
   private final Registry registry;
   private final PermissionsRepository permissionsRepository;
   private final FiatServerConfigurationProperties configProps;
-  private final Front50Service front50Service;
-  private final GroupResolutionStrategy groupResolutionStrategy;
+  private final FiatResourceGroupConfig resourceGroupConfig;
 
   private final Id getUserPermissionCounterId;
 
@@ -59,13 +56,11 @@ public class AuthorizeController {
       Registry registry,
       PermissionsRepository permissionsRepository,
       FiatServerConfigurationProperties configProps,
-      Front50Service front50Service,
-      GroupResolutionStrategy groupResolutionStrategy) {
+      FiatResourceGroupConfig resourceGroupConfig) {
     this.registry = registry;
     this.permissionsRepository = permissionsRepository;
     this.configProps = configProps;
-    this.front50Service = front50Service;
-    this.groupResolutionStrategy = groupResolutionStrategy;
+    this.resourceGroupConfig = resourceGroupConfig;
 
     this.getUserPermissionCounterId = registry.createId("fiat.getUserPermission");
   }
@@ -210,17 +205,15 @@ public class AuthorizeController {
       return Authorization.ALL;
     }
 
-    Set<ResourceGroup> groups =
-        Optional.ofNullable(front50Service.getAllGroupPermissions(resourceType))
-            .map(List::stream)
-            .orElseGet(Stream::empty)
-            .collect(Collectors.toSet());
+    Set<ResourceGroup> groups = resourceGroupConfig.getResourceGroupsForResourceType(resourceType);
 
     Application tempApplication = new Application();
     tempApplication.setName(resourceName);
 
     Permissions matchingGroupPermissions =
-        groupResolutionStrategy.resolveNoIncludeResourcePermissions(groups, tempApplication);
+        resourceGroupConfig
+            .getGroupResolutionStrategy()
+            .resolveNoIncludeResourcePermissions(groups, tempApplication);
 
     List<String> userRoles =
         getUserPermission(userId).getRoles().stream()

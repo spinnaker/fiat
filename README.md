@@ -32,7 +32,7 @@ Fiat Service Accounts are groups that act as a user during automated triggers (s
 ---
 
 ### Resource Group Permissions
-In addition to storing resource-level permissions, fiat stores resource-group-level permissions in Front50. Group permissions cover all resource that comply to a certain restriction specified by the group. For example, we might have a group permission that covers all applications whose names starts with the prefix `abc*`.
+In addition to storing resource-level permissions, fiat allows us to configure resource-group-level permissions. Group permissions cover all resource that comply to a certain restriction specified by the group. For example, we might have a group permission that covers all applications whose names starts with the prefix `abc*`.
 
 When speaking about group permissions, there are three things to consider:
 1. The resource type that the group applies to: Currently, we allow storing resource groups for all resource types, but only process those belonging to applications.

@@ -22,6 +22,7 @@ import com.netflix.spectator.api.NoopRegistry
 import com.netflix.spectator.api.Registry
 import com.netflix.spinnaker.config.FiatSystemTest
 import com.netflix.spinnaker.config.TestUserRoleProviderConfig
+import com.netflix.spinnaker.fiat.config.FiatResourceGroupConfig
 import com.netflix.spinnaker.fiat.config.FiatServerConfigurationProperties
 import com.netflix.spinnaker.fiat.model.Authorization
 import com.netflix.spinnaker.fiat.model.UserPermission
@@ -31,8 +32,7 @@ import com.netflix.spinnaker.fiat.model.resources.ResourceType
 import com.netflix.spinnaker.fiat.model.resources.groups.PrefixResourceGroup
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService
-import com.netflix.spinnaker.fiat.providers.internal.Front50Service
-import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.GroupResolutionStrategy
+import com.netflix.spinnaker.fiat.providers.internal.resourcegroups.AdditiveGroupResolutionStrategy
 import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.mock.web.MockHttpServletResponse
@@ -61,9 +61,6 @@ class AuthorizeControllerSpec extends Specification {
   WebApplicationContext wac
 
   @Autowired
-  Front50Service stubFront50Service
-
-  @Autowired
   ClouddriverService stubClouddriverService
 
   @Autowired
@@ -82,7 +79,7 @@ class AuthorizeControllerSpec extends Specification {
   ObjectMapper objectMapper
 
   @Autowired
-  GroupResolutionStrategy groupResolutionStrategy
+  FiatResourceGroupConfig resourceGroupConfig
 
   @Delegate
   FiatSystemTestSupport fiatIntegrationTestSupport = new FiatSystemTestSupport()
@@ -165,7 +162,7 @@ class AuthorizeControllerSpec extends Specification {
   def "should get user from repo"() {
     setup:
     PermissionsRepository repository = Mock(PermissionsRepository)
-    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties, stubFront50Service, groupResolutionStrategy)
+    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties, resourceGroupConfig)
 
     def foo = new UserPermission().setId("foo@batman.com")
 
@@ -187,7 +184,7 @@ class AuthorizeControllerSpec extends Specification {
   def "should get user's accounts from repo"() {
     setup:
     PermissionsRepository repository = Mock(PermissionsRepository)
-    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties, stubFront50Service, groupResolutionStrategy)
+    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties, resourceGroupConfig)
 
     def bar = new Account().setName("bar")
     def foo = new UserPermission().setId("foo").setAccounts([bar] as Set)
@@ -265,8 +262,7 @@ class AuthorizeControllerSpec extends Specification {
         registry,
         permissionsRepository,
         new FiatServerConfigurationProperties(defaultToUnrestrictedUser: defaultToUnrestrictedUser),
-        stubFront50Service,
-        groupResolutionStrategy
+        resourceGroupConfig
     )
     permissionsRepository.put(unrestrictedUser)
 
@@ -296,8 +292,8 @@ class AuthorizeControllerSpec extends Specification {
     setup:
     permissionsRepository.put(roleAUser)
     permissionsRepository.put(roleBUser)
-    def front50Service = Mock(Front50Service) {
-      getAllGroupPermissions(*_) >> [
+    def resourceGroupConfig = Mock(FiatResourceGroupConfig) {
+      getResourceGroupsForResourceType(ResourceType.APPLICATION) >> [
               new PrefixResourceGroup().setExpression("*").setPermissions(Permissions.factory([
                       (Authorization.CREATE): ['roleA']
               ])),
@@ -305,8 +301,9 @@ class AuthorizeControllerSpec extends Specification {
                       (Authorization.CREATE): ['roleB']
               ]))
       ]
+      getGroupResolutionStrategy() >> new AdditiveGroupResolutionStrategy()
     }
-    def authorizeController = new AuthorizeController(registry, permissionsRepository, fiatServerConfigurationProperties, front50Service, groupResolutionStrategy)
+    def authorizeController = new AuthorizeController(registry, permissionsRepository, fiatServerConfigurationProperties, resourceGroupConfig)
 
     when:
     HttpServletResponse response = new MockHttpServletResponse()
