@@ -36,7 +36,6 @@ class PermissionsSpec extends Specification {
   private static final Authorization W = Authorization.WRITE
   private static final Authorization E = Authorization.EXECUTE
   private static final Authorization C = Authorization.CREATE
-  private static final Authorization D = Authorization.DELETE
 
   @Autowired
   TestConfigProps testConfigProps
@@ -157,7 +156,7 @@ class PermissionsSpec extends Specification {
     Permissions p = new Permissions.Builder().build()
 
     expect:
-    p.getAuthorizations([]) == [R, W, E, C, D] as Set
+    p.getAuthorizations([]) == [R, W, E, C] as Set
 
     when:
     p = Permissions.factory([(R): ["bar"], (W): ["bar"]])

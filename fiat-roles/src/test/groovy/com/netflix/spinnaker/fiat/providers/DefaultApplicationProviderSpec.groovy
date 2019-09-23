@@ -36,7 +36,6 @@ class DefaultApplicationProviderSpec extends Specification {
   private static final Authorization W = Authorization.WRITE
   private static final Authorization E = Authorization.EXECUTE
   private static final Authorization C = Authorization.CREATE
-  private static final Authorization D = Authorization.DELETE
 
   ClouddriverService clouddriverService = Mock(ClouddriverService)
   Front50Service front50Service = Mock(Front50Service)
@@ -111,7 +110,7 @@ class DefaultApplicationProviderSpec extends Specification {
     FiatResourceGroupConfig resourceGroupConfig = Mock(FiatResourceGroupConfig) {
       getResourceGroupsForResourceType(ResourceType.APPLICATION) >> [
         new PrefixResourceGroup().setExpression("*")
-                .setPermissions(Permissions.Builder.factory([(C): ["power_group"], (D): ["power_group"], (W): ["power_group"], (E): ["power_group"]]).build()),
+                .setPermissions(Permissions.Builder.factory([(C): ["power_group"], (W): ["power_group"], (E): ["power_group"]]).build()),
         new PrefixResourceGroup().setExpression("unicorn*")
                 .setPermissions(Permissions.Builder.factory([(W): ["unicorn_team"], (E): ["unicorn_team"]]).build()),
       ]
@@ -132,14 +131,12 @@ class DefaultApplicationProviderSpec extends Specification {
     then:
     // permissions resulting from prefixes are added to unknown app
     unicorn_app.getPermissions().get(C) as Set == ["power_group"] as Set
-    unicorn_app.getPermissions().get(D) as Set == ["power_group"] as Set
     unicorn_app.getPermissions().get(W) as Set == ["power_group", "unicorn_team"] as Set
     unicorn_app.getPermissions().get(E) as Set == ["power_group", "unicorn_team"] as Set
 
     then:
     // permissions resulting from prefixes are added to known app
     new_app_with_permissions.getPermissions().get(C) as Set == ["power_group"] as Set
-    new_app_with_permissions.getPermissions().get(D) as Set == ["power_group"] as Set
     new_app_with_permissions.getPermissions().get(W) as Set == ["power_group"] as Set
     new_app_with_permissions.getPermissions().get(E) as Set == ["power_group", "new_team"] as Set
     new_app_with_permissions.getPermissions().get(R) as Set == ["new_team"] as Set
@@ -172,9 +169,9 @@ class DefaultApplicationProviderSpec extends Specification {
     where:
     givenPermissions           | allowAccessToUnknownApplications || expectedPermissions
     [:]                        | false                            || [:]
-    [(R): ['r']]               | false                            || [(R): ['r'], (W): [], (E): ['r'], (D): [], (C): []]
-    [(R): ['r'], (E): ['foo']] | false                            || [(R): ['r'], (W): [], (E): ['foo'], (D): [], (C): []]
-    [(R): ['r']]               | true                             || [(R): ['r'], (W): [], (E): ['r'], (D): [], (C): []]
+    [(R): ['r']]               | false                            || [(R): ['r'], (W): [], (E): ['r'], (C): []]
+    [(R): ['r'], (E): ['foo']] | false                            || [(R): ['r'], (W): [], (E): ['foo'], (C): []]
+    [(R): ['r']]               | true                             || [(R): ['r'], (W): [], (E): ['r'], (C): []]
   }
 
   @Unroll
@@ -196,7 +193,7 @@ class DefaultApplicationProviderSpec extends Specification {
 
     where:
     fallback    || givenPermissions         || expectedPermissions
-    R           || [(R): ['r']]             || [(R): ['r'], (W): [], (E): ['r'], (D): [], (C): []]
-    W           || [(R): ['r'], (W): ['w']] || [(R): ['r'], (W): ['w'], (E): ['w'], (D): [], (C): []]
+    R           || [(R): ['r']]             || [(R): ['r'], (W): [], (E): ['r'], (C): []]
+    W           || [(R): ['r'], (W): ['w']] || [(R): ['r'], (W): ['w'], (E): ['w'], (C): []]
   }
 }
