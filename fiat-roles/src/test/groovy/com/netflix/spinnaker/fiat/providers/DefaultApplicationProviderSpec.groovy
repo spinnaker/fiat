@@ -39,7 +39,7 @@ class DefaultApplicationProviderSpec extends Specification {
 
   ClouddriverService clouddriverService = Mock(ClouddriverService)
   Front50Service front50Service = Mock(Front50Service)
-  FiatResourceGroupConfig resourceGroupConfig = Mock(FiatResourceGroupConfig)
+  FiatResourceGroupConfig resourceGroupConfig = new FiatResourceGroupConfig()
 
   @Subject DefaultApplicationProvider provider
 
