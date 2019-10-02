@@ -85,11 +85,8 @@ class DefaultPermissionsResolverSpec extends Specification {
 
   def "should resolve the anonymous user permission, when enabled"() {
     setup:
-    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver()
-        .setResourceProviders(resourceProviders)
-        .setMapper(new ObjectMapper())
-        .setFiatAdminConfig(new FiatAdminConfig())
-        .setUserRolesProvider(userRolesProvider)
+    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver(
+            userRolesProvider, serviceAccountProvider, resourceProviders, new FiatAdminConfig(), new ObjectMapper())
 
     when:
     def result = resolver.resolveUnrestrictedUser()
@@ -107,10 +104,8 @@ class DefaultPermissionsResolverSpec extends Specification {
     setup:
     def testUserId = "testUserId"
     UserRolesProvider userRolesProvider = Mock(UserRolesProvider)
-    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver()
-        .setUserRolesProvider(userRolesProvider)
-        .setResourceProviders(resourceProviders)
-        .setFiatAdminConfig(new FiatAdminConfig())
+    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver(
+            userRolesProvider, serviceAccountProvider, resourceProviders, new FiatAdminConfig(), new ObjectMapper())
 
     def role1 = new Role("group1")
     def role2 = new Role("gRoUP2") // to test case insensitivity.
@@ -167,10 +162,8 @@ class DefaultPermissionsResolverSpec extends Specification {
     def testUserId = "testUserId"
     UserRolesProvider userRolesProvider = Mock(UserRolesProvider)
 
-    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver()
-            .setUserRolesProvider(userRolesProvider)
-            .setResourceProviders(resourceProviders)
-            .setFiatAdminConfig(fiatAdminConfig)
+    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver(
+            userRolesProvider, serviceAccountProvider, resourceProviders, fiatAdminConfig, new ObjectMapper())
 
     def role1 = new Role("delivery-team")
     def testUser = new ExternalUser().setId(testUserId).setExternalRoles([role1])
@@ -191,12 +184,8 @@ class DefaultPermissionsResolverSpec extends Specification {
   def "should resolve all user's permissions"() {
     setup:
     UserRolesProvider userRolesProvider = Mock(UserRolesProvider)
-    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver()
-        .setUserRolesProvider(userRolesProvider)
-        .setResourceProviders(resourceProviders)
-        .setMapper(new ObjectMapper())
-        .setFiatAdminConfig(new FiatAdminConfig())
-        .setServiceAccountProvider(serviceAccountProvider)
+    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver(
+            userRolesProvider, serviceAccountProvider, resourceProviders, new FiatAdminConfig(), new ObjectMapper())
 
     def role1 = new Role("group1")
     def role2 = new Role("group2")
@@ -249,12 +238,8 @@ class DefaultPermissionsResolverSpec extends Specification {
   def "should resolve service account permissions"() {
     setup:
     UserRolesProvider userRolesProvider = Mock(UserRolesProvider)
-    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver()
-            .setUserRolesProvider(userRolesProvider)
-            .setResourceProviders(resourceProviders)
-            .setMapper(new ObjectMapper())
-            .setFiatAdminConfig(new FiatAdminConfig())
-            .setServiceAccountProvider(serviceAccountProvider)
+    @Subject DefaultPermissionsResolver resolver = new DefaultPermissionsResolver(
+            userRolesProvider, serviceAccountProvider, resourceProviders, new FiatAdminConfig(), new ObjectMapper())
 
     def role1 = new Role(group1SvcAcct.memberOf[0])
     def svc1 = new ExternalUser().setId(group1SvcAcct.name).setExternalRoles([role1])
