@@ -27,8 +27,8 @@ import lombok.val;
 
 /**
  * Representation of authorization configuration for a resource. This object is immutable, which
- * makes it challenging when working with Jackson's {{ObjectMapper}} and Spring's
- * {{\@ConfigurationProperties}}. The {@link Builder} is a helper class for the latter use case.
+ * makes it challenging when working with Jackson's {@code ObjectMapper} and Spring's
+ * {@code @ConfigurationProperties}. The {@link Builder} is a helper class for the latter use case.
  */
 @ToString
 @EqualsAndHashCode
@@ -90,7 +90,7 @@ public class Permissions {
   }
 
   public List<String> get(Authorization a) {
-    return permissions.get(a);
+    return permissions.getOrDefault(a, Collections.emptyList());
   }
 
   /**
