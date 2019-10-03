@@ -21,43 +21,35 @@ import static com.google.common.collect.ImmutableSet.toImmutableSet;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
-import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Application;
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import lombok.NonNull;
 
 public class DefaultApplicationProvider extends BaseProvider<Application>
     implements ResourceProvider<Application> {
 
   private final Front50Service front50Service;
   private final ClouddriverService clouddriverService;
+  private final ResourcePermissionProvider<Application> permissionProvider;
 
   private final boolean allowAccessToUnknownApplications;
-  private final Authorization executeFallback;
 
   public DefaultApplicationProvider(
       Front50Service front50Service,
       ClouddriverService clouddriverService,
-      boolean allowAccessToUnknownApplications,
-      Authorization executeFallback) {
-    super();
-
+      ResourcePermissionProvider<Application> permissionProvider,
+      boolean allowAccessToUnknownApplications) {
     this.front50Service = front50Service;
     this.clouddriverService = clouddriverService;
+    this.permissionProvider = permissionProvider;
     this.allowAccessToUnknownApplications = allowAccessToUnknownApplications;
-    this.executeFallback = executeFallback;
   }
 
   @Override
@@ -86,7 +78,9 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
               // Collect to a list instead of set since we're about to modify the applications
               .collect(toImmutableList());
 
-      applications.forEach(this::ensureExecutePermission);
+      applications.forEach(
+          application ->
+              application.setPermissions(permissionProvider.getPermissions(application)));
 
       if (allowAccessToUnknownApplications) {
         // no need to include applications w/o explicit permissions if we're allowing access to
@@ -125,28 +119,5 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
     }
 
     return isRestricted ? super.getAllRestricted(roles, isAdmin) : super.getAllUnrestricted();
-  }
-
-  /**
-   * Set EXECUTE authorization(s) for the application. For applications that already have EXECUTE
-   * set, this will be a no-op. For the remaining applications, we'll add EXECUTE based on the value
-   * of the `executeFallback` flag.
-   */
-  private void ensureExecutePermission(@NonNull Application application) {
-    Permissions permissions = application.getPermissions();
-
-    if (permissions == null || !permissions.isRestricted()) {
-      return;
-    }
-
-    Map<Authorization, List<String>> authorizations =
-        Arrays.stream(Authorization.values())
-            .collect(Collectors.toMap(Function.identity(), permissions::get));
-
-    if (authorizations.get(Authorization.EXECUTE).isEmpty()) {
-      authorizations.put(Authorization.EXECUTE, authorizations.get(this.executeFallback));
-    }
-
-    application.setPermissions(Permissions.Builder.factory(authorizations).build());
   }
 }

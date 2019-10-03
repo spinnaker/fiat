@@ -2,9 +2,11 @@ package com.netflix.spinnaker.fiat.config;
 
 import com.google.common.collect.ImmutableList;
 import com.netflix.spectator.api.Registry;
+import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.permissions.ExternalUser;
 import com.netflix.spinnaker.fiat.providers.DefaultApplicationProvider;
+import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
 import com.netflix.spinnaker.fiat.roles.UserRolesProvider;
@@ -71,12 +73,13 @@ public class FiatConfig extends WebMvcConfigurerAdapter {
   DefaultApplicationProvider applicationProvider(
       Front50Service front50Service,
       ClouddriverService clouddriverService,
+      ResourcePermissionProvider<Application> permissionProvider,
       FiatServerConfigurationProperties properties) {
     return new DefaultApplicationProvider(
         front50Service,
         clouddriverService,
-        properties.isAllowAccessToUnknownApplications(),
-        properties.getExecuteFallback());
+        permissionProvider,
+        properties.isAllowAccessToUnknownApplications());
   }
 
   /**
