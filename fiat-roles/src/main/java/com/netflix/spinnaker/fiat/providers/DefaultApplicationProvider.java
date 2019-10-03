@@ -22,13 +22,11 @@ import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -133,10 +131,7 @@ public class DefaultApplicationProvider extends BaseProvider<Application>
 
     Map<Authorization, List<String>> authorizations =
         Arrays.stream(Authorization.values())
-            .collect(
-                Collectors.toMap(
-                    Function.identity(),
-                    a -> Optional.ofNullable(permissions.get(a)).orElse(new ArrayList<>())));
+            .collect(Collectors.toMap(Function.identity(), permissions::get));
 
     if (authorizations.get(Authorization.EXECUTE).isEmpty()) {
       authorizations.put(Authorization.EXECUTE, authorizations.get(this.executeFallback));
