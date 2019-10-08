@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Google, Inc.
+ * Copyright 2016 Google, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License")
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,7 @@
  */
 
 dependencies {
-  implementation project(":fiat-roles")
-  implementation project(":fiat-core")
-
-  implementation "org.apache.commons:commons-lang3"
-  implementation "org.springframework.boot:spring-boot-autoconfigure"
-  implementation "org.springframework.security:spring-security-ldap"
+  provided project(":fiat-web")
+  implementation "com.google.api-client:google-api-client"
+  implementation "com.google.apis:google-api-services-admin-directory"
 }

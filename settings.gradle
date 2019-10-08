@@ -16,15 +16,22 @@
 
 rootProject.name="fiat"
 
+def plugins = [
+  ':plugins:kork-secrets-aws',
+  ':plugins:kork-stackdriver',
+  ':plugins:roles-file',
+  ':plugins:roles-github',
+  ':plugins:roles-google-groups',
+  ':plugins:roles-ldap'
+]
+
 include 'fiat-api',
         'fiat-bom',
         'fiat-core',
-        'fiat-file',
-        'fiat-github',
-        'fiat-google-groups',
-        'fiat-ldap',
         'fiat-roles',
         'fiat-web'
+
+include(*plugins)
 
 def setBuildFile(project) {
   project.buildFileName = "${project.name}.gradle"
@@ -36,7 +43,3 @@ def setBuildFile(project) {
 rootProject.children.each {
   setBuildFile(it)
 }
-
-
-// Set as an ext variable so that build scripts can access it
-gradle.ext.includedProviderProjects = includeProviders.split(',').collect{ ':fiat-' + it.toLowerCase() }

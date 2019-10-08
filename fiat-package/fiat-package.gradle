@@ -1,0 +1,23 @@
+apply plugin: 'spinnaker.application'
+
+ext {
+  springConfigLocation = System.getProperty('spring.config.additional-location', "${System.getProperty('user.home')}/.spinnaker/")
+  springProfiles = System.getProperty('spring.profiles.active', "test,local")
+}
+
+run {
+  systemProperty('spring.config.additional-location', project.springConfigLocation)
+  systemProperty('spring.profiles.active', project.springProfiles)
+}
+mainClassName = 'com.netflix.spinnaker.fiat.Main'
+
+configurations.all {
+  exclude group: 'javax.servlet', module: 'servlet-api'
+  exclude group: "org.slf4j", module: "slf4j-log4j12"
+}
+
+dependencies {
+  implementation project(':fiat-web')
+}
+
+applicationName = 'fiat'
