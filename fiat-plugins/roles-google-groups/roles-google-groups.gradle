@@ -15,7 +15,10 @@
  */
 
 dependencies {
-  provided project(":fiat-web")
+  implementation project(":fiat-main")
   implementation "com.google.api-client:google-api-client"
   implementation "com.google.apis:google-api-services-admin-directory"
+  implementation "org.apache.commons:commons-lang3"
+  implementation "org.springframework.boot:spring-boot-autoconfigure"
+  implementation "org.slf4j:slf4j-api"
 }

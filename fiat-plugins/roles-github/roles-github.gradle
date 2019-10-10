@@ -1,3 +1,10 @@
 dependencies {
-  provided project(":fiat-web")
+  compileOnly project(":fiat-main")
+  implementation "org.springframework.boot:spring-boot-autoconfigure"
+  implementation "com.github.ben-manes.caffeine:guava"
+  implementation "com.squareup.retrofit:retrofit"
+  implementation "com.squareup.retrofit:converter-jackson"
+  implementation "javax.validation:validation-api"
+  implementation "org.apache.commons:commons-lang3"
+  implementation "org.slf4j:slf4j-api"
 }

@@ -1,0 +1,21 @@
+dependencies {
+  api project(':fiat-core')
+  api project(':fiat-roles')
+
+  implementation "com.squareup.retrofit:retrofit"
+  implementation "com.squareup.retrofit:converter-jackson"
+  implementation "com.squareup.okhttp:okhttp"
+  implementation "com.squareup.okhttp:okhttp-urlconnection"
+  implementation "com.squareup.okhttp:okhttp-apache"
+
+  implementation "org.springframework.boot:spring-boot-starter-actuator"
+  implementation "org.springframework.boot:spring-boot-starter-web"
+  implementation "com.netflix.spinnaker.kork:kork-core"
+  implementation "com.netflix.spinnaker.kork:kork-web"
+  implementation "com.netflix.spinnaker.kork:kork-swagger"
+  implementation "net.logstash.logback:logstash-logback-encoder"
+
+  testImplementation "com.netflix.spinnaker.kork:kork-jedis"
+  testImplementation "com.netflix.spinnaker.kork:kork-jedis-test"
+  testImplementation "com.netflix.spinnaker.kork:kork-hystrix"
+}

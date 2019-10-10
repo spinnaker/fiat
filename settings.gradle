@@ -17,18 +17,20 @@
 rootProject.name="fiat"
 
 def plugins = [
-  ':plugins:kork-secrets-aws',
-  ':plugins:kork-stackdriver',
-  ':plugins:roles-file',
-  ':plugins:roles-github',
-  ':plugins:roles-google-groups',
-  ':plugins:roles-ldap'
+  ':fiat-plugins',
+  ':fiat-plugins:kork-secrets-aws',
+  ':fiat-plugins:kork-stackdriver',
+  ':fiat-plugins:roles-file',
+  ':fiat-plugins:roles-github',
+  ':fiat-plugins:roles-google-groups',
+  ':fiat-plugins:roles-ldap'
 ]
 
 include 'fiat-api',
         'fiat-bom',
         'fiat-core',
         'fiat-roles',
+        'fiat-main',
         'fiat-web'
 
 include(*plugins)

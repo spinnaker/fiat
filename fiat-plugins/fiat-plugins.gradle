@@ -1,0 +1,25 @@
+subprojects {
+  apply plugin: 'distribution'
+
+  distributions {
+    main {
+      contents {
+        from jar.outputs
+        from {
+          configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findResults { dep ->
+            def depId = dep.moduleVersion.id
+            def provided = project(":fiat-main").configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.find {
+              def testId = it.moduleVersion.id
+              return testId.group == depId.group && testId.name == depId.name
+            }
+            if (provided) {
+              //println "Found $provided.moduleVersion.id for $depId"
+              return null
+            }
+            return dep.file
+          }
+        }
+      }
+    }
+  }
+}

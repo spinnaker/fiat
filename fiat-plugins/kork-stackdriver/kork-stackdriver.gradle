@@ -1,4 +1,3 @@
 dependencies {
-  provided project(":fiat-web")
   implementation "com.netflix.spinnaker.kork:kork-stackdriver"
 }
