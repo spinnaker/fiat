@@ -68,7 +68,7 @@ class DefaultResourcePermissionConfig {
 
   @Bean
   @ConditionalOnProperty(
-      value = "auth.permissions.source.account.resource.enabled",
+      value = "auth.permissions.source.build-service.resource.enabled",
       matchIfMissing = true)
   ResourcePermissionSource<BuildService> buildServiceResourcePermissionSource() {
     return new AccessControlledResourcePermissionSource<>();
