@@ -44,10 +44,7 @@ public class AggregatingResourcePermissionProvider<T extends Resource>
       Permissions permissions = source.getPermissions(resource);
       if (permissions.isRestricted()) {
         for (Authorization auth : Authorization.values()) {
-          List<String> roles = permissions.get(auth);
-          if (roles != null && !roles.isEmpty()) {
-            builder.add(auth, roles);
-          }
+          builder.add(auth, permissions.get(auth));
         }
       }
     }

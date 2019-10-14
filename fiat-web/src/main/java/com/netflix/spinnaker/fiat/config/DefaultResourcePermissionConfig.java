@@ -42,6 +42,13 @@ class DefaultResourcePermissionConfig {
       havingValue = "default",
       matchIfMissing = true)
   public ResourcePermissionProvider<Account> defaultAccountPermissionProvider(
+      ResourcePermissionSource<Account> accountResourcePermissionSource) {
+    return new DefaultResourcePermissionProvider<>(accountResourcePermissionSource);
+  }
+
+  @Bean
+  @ConditionalOnProperty(value = "auth.permissions.provider.account", havingValue = "aggregate")
+  public ResourcePermissionProvider<Account> aggregateAccountPermissionProvider(
       List<ResourcePermissionSource<Account>> sources) {
     return new AggregatingResourcePermissionProvider<>(sources);
   }
@@ -62,6 +69,13 @@ class DefaultResourcePermissionConfig {
       havingValue = "default",
       matchIfMissing = true)
   public ResourcePermissionProvider<Application> defaultApplicationPermissionProvider(
+      ResourcePermissionSource<Application> front50ResourcePermissionSource) {
+    return new DefaultResourcePermissionProvider<>(front50ResourcePermissionSource);
+  }
+
+  @Bean
+  @ConditionalOnProperty(value = "auth.permissions.provider.application", havingValue = "aggregate")
+  public ResourcePermissionProvider<Application> aggregateApplicationPermissionProvider(
       List<ResourcePermissionSource<Application>> sources) {
     return new AggregatingResourcePermissionProvider<>(sources);
   }
@@ -80,6 +94,15 @@ class DefaultResourcePermissionConfig {
       havingValue = "default",
       matchIfMissing = true)
   public ResourcePermissionProvider<BuildService> defaultBuildServicePermissionProvider(
+      ResourcePermissionSource<BuildService> buildServiceResourcePermissionSource) {
+    return new DefaultResourcePermissionProvider<>(buildServiceResourcePermissionSource);
+  }
+
+  @Bean
+  @ConditionalOnProperty(
+      value = "auth.permissions.provider.build-service",
+      havingValue = "aggregate")
+  public ResourcePermissionProvider<BuildService> aggregateBuildServicePermissionProvider(
       List<ResourcePermissionSource<BuildService>> sources) {
     return new AggregatingResourcePermissionProvider<>(sources);
   }
