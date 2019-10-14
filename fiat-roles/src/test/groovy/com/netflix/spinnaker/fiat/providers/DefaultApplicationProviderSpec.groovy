@@ -51,7 +51,6 @@ class DefaultApplicationProviderSpec extends Specification {
           new Application().setName("app1")
                            .setPermissions(new Permissions.Builder().add(Authorization.READ, "role").build()),
       ]
-
     }
     ClouddriverService clouddriverService = Mock(ClouddriverService) {
       getApplications() >> [
@@ -130,8 +129,9 @@ class DefaultApplicationProviderSpec extends Specification {
     makePerms(expectedPermissions) == resultApps.permissions[0]
 
     where:
-    fallback    || givenPermissions         || expectedPermissions
-    R           || [(R): ['r']]             || [(R): ['r'], (E): ['r']]
-    W           || [(R): ['r'], (W): ['w']] || [(R): ['r'], (W): ['w'], (E): ['w']]
+    fallback    | givenPermissions         || expectedPermissions
+    R           | [:]                      || [:]
+    R           | [(R): ['r']]             || [(R): ['r'], (E): ['r']]
+    W           | [(R): ['r'], (W): ['w']] || [(R): ['r'], (W): ['w'], (E): ['w']]
   }
 }

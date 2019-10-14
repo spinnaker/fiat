@@ -34,12 +34,12 @@ import lombok.val;
 @EqualsAndHashCode
 public class Permissions {
 
-  public static Permissions EMPTY = new Permissions.Builder().build();
+  public static final Permissions EMPTY = Builder.fromMap(Collections.emptyMap());
 
   private final Map<Authorization, List<String>> permissions;
 
   private Permissions(Map<Authorization, List<String>> p) {
-    this.permissions = p;
+    this.permissions = Collections.unmodifiableMap(p);
   }
 
   /**
@@ -67,10 +67,6 @@ public class Permissions {
 
   public boolean isAuthorized(Set<Role> userRoles) {
     return !getAuthorizations(userRoles).isEmpty();
-  }
-
-  public boolean isEmpty() {
-    return permissions.isEmpty();
   }
 
   public Set<Authorization> getAuthorizations(Set<Role> userRoles) {
@@ -105,6 +101,25 @@ public class Permissions {
    */
   public static class Builder extends LinkedHashMap<Authorization, List<String>> {
 
+    static Permissions fromMap(Map<Authorization, List<String>> authConfig) {
+      final Map<Authorization, List<String>> perms = new EnumMap<>(Authorization.class);
+      for (Authorization auth : Authorization.values()) {
+        perms.put(
+            auth,
+            Optional.ofNullable(authConfig.get(auth))
+                .map(
+                    groups ->
+                        groups.stream()
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .map(String::toLowerCase)
+                            .collect(Collectors.toList()))
+                .map(Collections::unmodifiableList)
+                .orElse(Collections.emptyList()));
+      }
+      return new Permissions(perms);
+    }
+
     @JsonCreator
     public static Builder factory(Map<Authorization, List<String>> data) {
       return new Builder().set(data);
@@ -127,19 +142,11 @@ public class Permissions {
     }
 
     public Permissions build() {
-      final Map<Authorization, List<String>> perms = new HashMap<>();
-      this.forEach(
-          (auth, groups) -> {
-            List<String> lowerGroups =
-                Collections.unmodifiableList(
-                    groups.stream()
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .map(String::toLowerCase)
-                        .collect(Collectors.toList()));
-            perms.put(auth, lowerGroups);
-          });
-      return new Permissions(Collections.unmodifiableMap(perms));
+      final Permissions result = fromMap(this);
+      if (!result.isRestricted()) {
+        return Permissions.EMPTY;
+      }
+      return result;
     }
   }
 }

@@ -18,7 +18,7 @@ package com.netflix.spinnaker.fiat.model;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 public enum Authorization {
@@ -26,6 +26,6 @@ public enum Authorization {
   WRITE,
   EXECUTE;
 
-  public static Set<Authorization> ALL =
-      Collections.unmodifiableSet(new HashSet<>(Arrays.asList(values())));
+  public static final Set<Authorization> ALL =
+      Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(values())));
 }

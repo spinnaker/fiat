@@ -86,7 +86,7 @@ public class DefaultApplicationResourceProvider extends BaseResourceProvider<App
         // no need to include applications w/o explicit permissions if we're allowing access to
         // unknown applications by default
         return applications.stream()
-            .filter(a -> !a.getPermissions().isEmpty())
+            .filter(a -> a.getPermissions().isRestricted())
             .collect(toImmutableSet());
       } else {
         return ImmutableSet.copyOf(applications);

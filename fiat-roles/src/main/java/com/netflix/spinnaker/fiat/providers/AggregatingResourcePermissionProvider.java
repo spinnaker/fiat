@@ -52,11 +52,6 @@ public class AggregatingResourcePermissionProvider<T extends Resource>
       }
     }
 
-    Permissions aggregate = builder.build();
-    if (aggregate.isEmpty()) {
-      return Permissions.EMPTY;
-    }
-
-    return aggregate;
+    return builder.build();
   }
 }
