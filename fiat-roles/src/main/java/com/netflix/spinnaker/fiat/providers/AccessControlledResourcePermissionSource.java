@@ -19,13 +19,16 @@ package com.netflix.spinnaker.fiat.providers;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import java.util.Optional;
+import javax.annotation.Nonnull;
 
 public final class AccessControlledResourcePermissionSource<T extends Resource.AccessControlled>
     implements ResourcePermissionSource<T> {
 
   @Override
-  public Permissions getPermissions(T resource) {
-    return Optional.ofNullable(resource.getPermissions())
+  @Nonnull
+  public Permissions getPermissions(@Nonnull T resource) {
+    return Optional.ofNullable(resource)
+        .map(Resource.AccessControlled::getPermissions)
         .filter(Permissions::isRestricted)
         .orElse(Permissions.EMPTY);
   }

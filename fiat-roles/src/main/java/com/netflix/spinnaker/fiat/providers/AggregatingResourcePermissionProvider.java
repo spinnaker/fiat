@@ -20,6 +20,7 @@ import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import java.util.List;
+import javax.annotation.Nonnull;
 
 /**
  * AggregatingResourcePermissionProvider additively combines permissions from all
@@ -38,7 +39,8 @@ public class AggregatingResourcePermissionProvider<T extends Resource>
   }
 
   @Override
-  public Permissions getPermissions(T resource) {
+  @Nonnull
+  public Permissions getPermissions(@Nonnull T resource) {
     Permissions.Builder builder = new Permissions.Builder();
     for (ResourcePermissionSource<T> source : resourcePermissionSources) {
       Permissions permissions = source.getPermissions(resource);

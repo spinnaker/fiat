@@ -18,6 +18,7 @@ package com.netflix.spinnaker.fiat.providers;
 
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
+import javax.annotation.Nonnull;
 
 /**
  * A ResourcePermissionSource is capable of resolving the Permissions for a specified Resource from
@@ -31,5 +32,14 @@ import com.netflix.spinnaker.fiat.model.resources.Resource;
  * @param <T> the type of Resource this ResourcePermissionSource will supply Permissions for
  */
 public interface ResourcePermissionSource<T extends Resource> {
-  Permissions getPermissions(T resource);
+
+  /**
+   * Retrieves Permissions for the supplied resource.
+   *
+   * @param resource the resource for which to get permissions (never null)
+   * @return the Permissions for the resource (never null - use Permissions.EMPTY or apply some
+   *     restriction)
+   */
+  @Nonnull
+  Permissions getPermissions(@Nonnull T resource);
 }

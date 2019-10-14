@@ -25,6 +25,7 @@ import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nonnull;
 
 public final class Front50ApplicationResourcePermissionSource
     implements ResourcePermissionSource<Application> {
@@ -36,7 +37,8 @@ public final class Front50ApplicationResourcePermissionSource
   }
 
   @Override
-  public Permissions getPermissions(Application resource) {
+  @Nonnull
+  public Permissions getPermissions(@Nonnull Application resource) {
     Permissions storedPermissions = resource.getPermissions();
     if (storedPermissions == null || !storedPermissions.isRestricted()) {
       return Permissions.EMPTY;

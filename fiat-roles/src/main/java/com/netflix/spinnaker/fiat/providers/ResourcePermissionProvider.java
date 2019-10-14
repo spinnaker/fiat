@@ -18,14 +18,28 @@ package com.netflix.spinnaker.fiat.providers;
 
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
+import javax.annotation.Nonnull;
 
 /**
  * A ResourcePermissionProvider is responsible for supplying the full set of Permissions for a
  * specific Resource.
  *
+ * <p>Note that while the API signature matches ResourcePermissionSource the intent of
+ * ResourcePermissionProvider is the interface for consumers interested in the actual Permissions of
+ * a resource, while ResourcePermissionSource models a single source of Permissions (for example
+ * CloudDriver as a source of Account permissions).
+ *
  * @param <T> the type of Resource for which this ResourcePermissionProvider supplies Permissions.
  */
 public interface ResourcePermissionProvider<T extends Resource> {
 
-  Permissions getPermissions(T resource);
+  /**
+   * Retrieves Permissions for the supplied resource.
+   *
+   * @param resource the resource for which to get permissions (never null)
+   * @return the Permissions for the resource (never null - use Permissions.EMPTY or apply some
+   *     restriction)
+   */
+  @Nonnull
+  Permissions getPermissions(@Nonnull T resource);
 }

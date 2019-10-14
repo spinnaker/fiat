@@ -101,7 +101,7 @@ public class Permissions {
    */
   public static class Builder extends LinkedHashMap<Authorization, List<String>> {
 
-    static Permissions fromMap(Map<Authorization, List<String>> authConfig) {
+    private static Permissions fromMap(Map<Authorization, List<String>> authConfig) {
       final Map<Authorization, List<String>> perms = new EnumMap<>(Authorization.class);
       for (Authorization auth : Authorization.values()) {
         perms.put(

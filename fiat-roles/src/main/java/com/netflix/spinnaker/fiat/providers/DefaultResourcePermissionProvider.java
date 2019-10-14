@@ -19,6 +19,7 @@ package com.netflix.spinnaker.fiat.providers;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import java.util.Objects;
+import javax.annotation.Nonnull;
 
 /**
  * A ResourcePermissionProvider that delegates to a single ResourcePermissionProvider.
@@ -35,7 +36,8 @@ public class DefaultResourcePermissionProvider<T extends Resource>
   }
 
   @Override
-  public Permissions getPermissions(T resource) {
+  @Nonnull
+  public Permissions getPermissions(@Nonnull T resource) {
     return resourcePermissionSource.getPermissions(resource);
   }
 }
