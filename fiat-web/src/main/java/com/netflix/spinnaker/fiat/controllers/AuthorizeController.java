@@ -22,19 +22,13 @@ import com.netflix.spinnaker.fiat.config.FiatServerConfigurationProperties;
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.UserPermission;
-import com.netflix.spinnaker.fiat.model.resources.Account;
-import com.netflix.spinnaker.fiat.model.resources.Application;
-import com.netflix.spinnaker.fiat.model.resources.ResourceType;
-import com.netflix.spinnaker.fiat.model.resources.Role;
-import com.netflix.spinnaker.fiat.model.resources.ServiceAccount;
+import com.netflix.spinnaker.fiat.model.resources.*;
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository;
+import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import io.swagger.annotations.ApiOperation;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +46,7 @@ public class AuthorizeController {
   private final Registry registry;
   private final PermissionsRepository permissionsRepository;
   private final FiatServerConfigurationProperties configProps;
+  private final ResourcePermissionProvider<Application> applicationResourcePermissionProvider;
 
   private final Id getUserPermissionCounterId;
 
@@ -59,10 +54,12 @@ public class AuthorizeController {
   public AuthorizeController(
       Registry registry,
       PermissionsRepository permissionsRepository,
-      FiatServerConfigurationProperties configProps) {
+      FiatServerConfigurationProperties configProps,
+      ResourcePermissionProvider<Application> applicationResourcePermissionProvider) {
     this.registry = registry;
     this.permissionsRepository = permissionsRepository;
     this.configProps = configProps;
+    this.applicationResourcePermissionProvider = applicationResourcePermissionProvider;
 
     this.getUserPermissionCounterId = registry.createId("fiat.getUserPermission");
   }
@@ -150,35 +147,54 @@ public class AuthorizeController {
   }
 
   @RequestMapping(
-      value = "/{userId:.+}/{resourceType:.+}/{resourceName:.+}/{authorization:.+}",
+      value = "/{userId:.+}/{resourceType:.+}/{resource:.+}/{authorization:.+}",
       method = RequestMethod.GET)
   public void getUserAuthorization(
       @PathVariable String userId,
       @PathVariable String resourceType,
-      @PathVariable String resourceName,
+      @PathVariable Resource resource,
       @PathVariable String authorization,
       HttpServletResponse response)
       throws IOException {
     Authorization a = Authorization.valueOf(authorization.toUpperCase());
-    ResourceType r = ResourceType.parse(resourceType);
+    ResourceType rt = ResourceType.parse(resourceType);
     Set<Authorization> authorizations = new HashSet<>(0);
 
-    try {
-      switch (r) {
-        case ACCOUNT:
-          authorizations = getUserAccount(userId, resourceName).getAuthorizations();
-          break;
-        case APPLICATION:
-          authorizations = getUserApplication(userId, resourceName).getAuthorizations();
-          break;
-        default:
+    if (a == Authorization.CREATE) {
+      if (!configProps.isRestrictApplicationCreation()) {
+        authorizations.add(Authorization.CREATE);
+      } else {
+        if (rt != ResourceType.APPLICATION) {
           response.sendError(
               HttpServletResponse.SC_BAD_REQUEST,
-              "Resource type " + resourceType + " does not contain authorizations");
+              "Resource type " + resourceType + "does not support creation");
           return;
+        }
+        List<String> userRoles =
+            getUserRoles(userId).stream().map(Role.View::getName).collect(Collectors.toList());
+        authorizations =
+            applicationResourcePermissionProvider
+                .getPermissions((Application) resource)
+                .getAuthorizations(userRoles);
       }
-    } catch (NotFoundException nfe) {
-      // Ignore. Will return 404 below.
+    } else {
+      try {
+        switch (rt) {
+          case ACCOUNT:
+            authorizations = getUserAccount(userId, resource.getName()).getAuthorizations();
+            break;
+          case APPLICATION:
+            authorizations = getUserApplication(userId, resource.getName()).getAuthorizations();
+            break;
+          default:
+            response.sendError(
+                HttpServletResponse.SC_BAD_REQUEST,
+                "Resource type " + resourceType + " does not contain authorizations");
+            return;
+        }
+      } catch (NotFoundException nfe) {
+        // Ignore. Will return 404 below.
+      }
     }
 
     if (authorizations.contains(a)) {
