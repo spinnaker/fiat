@@ -160,7 +160,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
       return AuthenticatedRequest.propagate(
               () -> {
                 return retryHandler.retry(
-                    "get whether " + username + " can create resource" + resource,
+                    "determine whether " + username + " can create resource" + resource,
                     () -> {
                       Response response = fiatService.canCreate(username, resourceType, resource);
                       if (response.getStatus() == HttpServletResponse.SC_OK) {

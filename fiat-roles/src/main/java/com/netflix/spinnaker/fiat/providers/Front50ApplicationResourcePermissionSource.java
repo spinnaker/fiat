@@ -53,7 +53,7 @@ public final class Front50ApplicationResourcePermissionSource
       authorizations.put(Authorization.EXECUTE, authorizations.get(executeFallback));
     }
 
-    // CREATE permissions are not allowed on the resource level
+    // CREATE permissions are not allowed on the resource level.
     authorizations.remove(Authorization.CREATE);
 
     return Permissions.Builder.factory(authorizations).build();
