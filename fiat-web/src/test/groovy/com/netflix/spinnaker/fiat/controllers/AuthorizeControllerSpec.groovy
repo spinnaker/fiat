@@ -25,7 +25,9 @@ import com.netflix.spinnaker.config.TestUserRoleProviderConfig
 import com.netflix.spinnaker.fiat.config.FiatServerConfigurationProperties
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Account
+import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository
+import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service
 import org.slf4j.MDC
@@ -72,6 +74,9 @@ class AuthorizeControllerSpec extends Specification {
 
   @Autowired
   ObjectMapper objectMapper
+
+  @Autowired
+  ResourcePermissionProvider<Application> applicationResourcePermissionProvider;
 
   @Delegate
   FiatSystemTestSupport fiatIntegrationTestSupport = new FiatSystemTestSupport()
@@ -154,7 +159,7 @@ class AuthorizeControllerSpec extends Specification {
   def "should get user from repo"() {
     setup:
     PermissionsRepository repository = Mock(PermissionsRepository)
-    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties)
+    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties, applicationResourcePermissionProvider)
 
     def foo = new UserPermission().setId("foo@batman.com")
 
@@ -176,7 +181,7 @@ class AuthorizeControllerSpec extends Specification {
   def "should get user's accounts from repo"() {
     setup:
     PermissionsRepository repository = Mock(PermissionsRepository)
-    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties)
+    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties, applicationResourcePermissionProvider)
 
     def bar = new Account().setName("bar")
     def foo = new UserPermission().setId("foo").setAccounts([bar] as Set)
@@ -253,7 +258,8 @@ class AuthorizeControllerSpec extends Specification {
     def authorizeController = new AuthorizeController(
         registry,
         permissionsRepository,
-        new FiatServerConfigurationProperties(defaultToUnrestrictedUser: defaultToUnrestrictedUser)
+        new FiatServerConfigurationProperties(defaultToUnrestrictedUser: defaultToUnrestrictedUser),
+        applicationResourcePermissionProvider
     )
     permissionsRepository.put(unrestrictedUser)
 
