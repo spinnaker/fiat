@@ -30,13 +30,11 @@ import io.swagger.annotations.ApiOperation;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
@@ -125,6 +123,22 @@ public class AuthorizeController {
         .orElseThrow(NotFoundException::new);
   }
 
+  @RequestMapping(value = "/{userId:.+}/buildServices", method = RequestMethod.GET)
+  public Set<BuildService.View> getUserBuildServices(@PathVariable String userId) {
+    return new HashSet<>(getUserPermissionView(userId).getBuildServices());
+  }
+
+  @RequestMapping(
+      value = "/{userId:.+}/buildServices/{buildServiceName:.+}",
+      method = RequestMethod.GET)
+  public BuildService.View getUserBuildService(
+      @PathVariable String userId, @PathVariable String buildServiceName) {
+    return getUserPermissionView(userId).getBuildServices().stream()
+        .filter(buildService -> buildServiceName.equalsIgnoreCase(buildService.getName()))
+        .findFirst()
+        .orElseThrow(NotFoundException::new);
+  }
+
   @RequestMapping(value = "/{userId:.+}/serviceAccounts", method = RequestMethod.GET)
   public Set<ServiceAccount.View> getServiceAccounts(@PathVariable String userId) {
     return new HashSet<>(getUserPermissionView(userId).getServiceAccounts());
@@ -147,13 +161,53 @@ public class AuthorizeController {
   }
 
   @RequestMapping(
-      value = "/{userId:.+}/{resourceType:.+}/{resource:.+}/{authorization:.+}",
+      value = "/{userId:.+}/{resourceType:.+}/{resourceName:.+}/{authorization:.+}",
       method = RequestMethod.GET)
   public void getUserAuthorization(
       @PathVariable String userId,
       @PathVariable String resourceType,
-      @PathVariable Resource resource,
+      @PathVariable String resourceName,
       @PathVariable String authorization,
+      HttpServletResponse response)
+      throws IOException {
+    Authorization a = Authorization.valueOf(authorization.toUpperCase());
+    ResourceType r = ResourceType.parse(resourceType);
+    Set<Authorization> authorizations = new HashSet<>(0);
+
+    try {
+      switch (r) {
+        case ACCOUNT:
+          authorizations = getUserAccount(userId, resourceName).getAuthorizations();
+          break;
+        case APPLICATION:
+          authorizations = getUserApplication(userId, resourceName).getAuthorizations();
+          break;
+        default:
+          response.sendError(
+              HttpServletResponse.SC_BAD_REQUEST,
+              "Resource type " + resourceType + " does not contain authorizations");
+          return;
+      }
+    } catch (NotFoundException nfe) {
+      // Ignore. Will return 404 below.
+    }
+
+    if (authorizations.contains(a)) {
+      response.setStatus(HttpServletResponse.SC_OK);
+      return;
+    }
+
+    response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+  }
+
+  @RequestMapping(
+      value = "/{userId:.+}/{resourceType:.+}/{authorization:.+}",
+      method = RequestMethod.POST)
+  public void hasPermission(
+      @PathVariable String userId,
+      @PathVariable String resourceType,
+      @PathVariable String authorization,
+      @RequestBody @Nonnull Resource resource,
       HttpServletResponse response)
       throws IOException {
     Authorization a = Authorization.valueOf(authorization.toUpperCase());
@@ -186,6 +240,8 @@ public class AuthorizeController {
           case APPLICATION:
             authorizations = getUserApplication(userId, resource.getName()).getAuthorizations();
             break;
+          case BUILD_SERVICE:
+            authorizations = getUserBuildService(userId, resource.getName()).getAuthorizations();
           default:
             response.sendError(
                 HttpServletResponse.SC_BAD_REQUEST,
