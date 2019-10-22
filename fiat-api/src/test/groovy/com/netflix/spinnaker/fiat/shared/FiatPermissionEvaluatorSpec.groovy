@@ -106,7 +106,7 @@ class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
     Resource resourceCanCreate = new Application().setName("app1")
     Resource resourceCannotCreate = new Application().setName("app2")
     fiatService.canCreate("testUser", 'APPLICATION', resourceCanCreate) >> new Response("", HttpServletResponse.SC_OK, "", [], null)
-    fiatService.hasAuthorization("testUser", 'APPLICATION', resourceCannotCreate) >> new Response("", HttpServletResponse.SC_NOT_FOUND, "", [], null)
+    fiatService.canCreate("testUser", 'APPLICATION', resourceCannotCreate) >> new Response("", HttpServletResponse.SC_NOT_FOUND, "", [], null)
 
     expect:
     evaluator.hasPermission(authentication, resource, 'APPLICATION', 'READ')
