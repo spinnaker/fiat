@@ -200,28 +200,25 @@ public class AuthorizeController {
     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
   }
 
-  @RequestMapping(
-      value = "/{userId:.+}/{resourceType:.+}/{authorization:.+}",
-      method = RequestMethod.POST)
-  public void hasPermission(
+  @RequestMapping(value = "/{userId:.+}/{authorization:.+}", method = RequestMethod.POST)
+  public void hasAuthorization(
       @PathVariable String userId,
-      @PathVariable String resourceType,
       @PathVariable String authorization,
       @RequestBody @Nonnull Resource resource,
       HttpServletResponse response)
       throws IOException {
     Authorization a = Authorization.valueOf(authorization.toUpperCase());
-    ResourceType rt = ResourceType.parse(resourceType);
+    ResourceType resourceType = resource.getResourceType();
     Set<Authorization> authorizations = new HashSet<>(0);
 
     if (a == Authorization.CREATE) {
       if (!configProps.isRestrictApplicationCreation()) {
         authorizations.add(Authorization.CREATE);
       } else {
-        if (rt != ResourceType.APPLICATION) {
+        if (resourceType != ResourceType.APPLICATION) {
           response.sendError(
               HttpServletResponse.SC_BAD_REQUEST,
-              "Resource type " + resourceType + "does not support creation");
+              "Resource type " + resourceType.toString() + "does not support creation");
           return;
         }
         List<String> userRoles =
@@ -233,7 +230,7 @@ public class AuthorizeController {
       }
     } else {
       try {
-        switch (rt) {
+        switch (resourceType) {
           case ACCOUNT:
             authorizations = getUserAccount(userId, resource.getName()).getAuthorizations();
             break;

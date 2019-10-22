@@ -24,6 +24,7 @@ import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Authorizable;
+import com.netflix.spinnaker.fiat.model.resources.Resource;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import com.netflix.spinnaker.security.User;
@@ -39,6 +40,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.StringUtils;
@@ -49,6 +52,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.BackOffExecution;
 import org.springframework.util.backoff.ExponentialBackOff;
+import retrofit.client.Response;
 
 @Component
 @Slf4j
@@ -143,7 +147,51 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
   @Override
   public boolean hasPermission(
       Authentication authentication, Object resource, Object authorization) {
-    return false;
+    if (!fiatStatus.isEnabled()) {
+      return true;
+    }
+
+    Resource r;
+    try {
+      if (resource == null) {
+        throw new IllegalArgumentException("Provided resource is null");
+      }
+      r = (Resource) resource;
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          "Provided resource is not an instance of " + Resource.class.getCanonicalName());
+    }
+
+    Authorization a = Authorization.valueOf(authorization.toString());
+    if (a != Authorization.CREATE) {
+      throw new IllegalArgumentException(
+          "This method should only be called for `CREATE`. For other operations, please call the other implementation");
+    }
+
+    String userName = getUsername(authentication);
+
+    try {
+      return AuthenticatedRequest.propagate(
+              () -> {
+                return retryHandler.retry(
+                    "get whether " + userName + " can " + a.toString() + " resource " + resource,
+                    () -> {
+                      Response response = fiatService.hasAuthorization(userName, a.toString(), r);
+                      if (response.getStatus() == HttpServletResponse.SC_OK) {
+                        return true;
+                      } else if (response.getStatus() == HttpServletResponse.SC_NOT_FOUND) {
+                        return false;
+                      } else {
+                        throw new ServletException(
+                            response.getStatus() + ": " + response.getReason());
+                      }
+                    });
+              })
+          .call();
+    } catch (Exception e) {
+      log.info(e.toString());
+      return false;
+    }
   }
 
   public boolean hasPermission(
