@@ -20,15 +20,19 @@ import com.netflix.spinnaker.fiat.model.Authorization
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.model.resources.Permissions
+import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
 import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
 import com.netflix.spinnaker.security.AuthenticatedRequest
 import org.slf4j.MDC
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken
+import retrofit.client.Response
 import spock.lang.Shared
 import spock.lang.Subject
 import spock.lang.Unroll
+
+import javax.servlet.http.HttpServletResponse
 
 class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
 
@@ -97,6 +101,11 @@ class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
                                                      .setMemberOf(["foo"])] as Set)
     fiatService.getUserPermission("testUser") >> upv
 
+    Resource resourceCanCreate = new Application().setName("app1")
+    Resource resourceCannotCreate = new Application().setName("app2")
+    fiatService.hasAuthorization("testUser", 'CREATE', resourceCanCreate) >> new Response("", HttpServletResponse.SC_OK, "", [], null)
+    fiatService.hasAuthorization("testUser", 'CREATE', resourceCannotCreate) >> new Response("", HttpServletResponse.SC_NOT_FOUND, "", [], null)
+
     expect:
     evaluator.hasPermission(authentication, resource, 'APPLICATION', 'READ')
 
@@ -107,6 +116,9 @@ class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
     !evaluator.hasPermission(authentication, resource, 'SERVICE_ACCOUNT', 'WRITE')
 
     evaluator.hasPermission(authentication, svcAcct, 'SERVICE_ACCOUNT', 'WRITE')
+
+    evaluator.hasPermission(authentication, resourceCanCreate, 'CREATE')
+    !evaluator.hasPermission(authentication, resourceCannotCreate, 'CREATE')
   }
 
   @Unroll

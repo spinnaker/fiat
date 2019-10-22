@@ -211,6 +211,12 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
 
     ResourceType r = ResourceType.parse(resourceType);
     Authorization a = null;
+
+    if (a == Authorization.CREATE) {
+      throw new IllegalArgumentException(
+          "This method should not be called for `CREATE`. Please call the other implementation");
+    }
+
     // Service accounts don't have read/write authorizations.
     if (r != ResourceType.SERVICE_ACCOUNT) {
       a = Authorization.valueOf(authorization.toString());
