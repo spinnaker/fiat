@@ -166,7 +166,13 @@ class AuthorizeControllerSpec extends Specification {
   def "should get user from repo"() {
     setup:
     PermissionsRepository repository = Mock(PermissionsRepository)
-    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties, applicationResourcePermissionProvider)
+    AuthorizeController controller = new AuthorizeController(
+            registry,
+            repository,
+            fiatServerConfigurationProperties,
+            applicationResourcePermissionProvider,
+            objectMapper
+    )
 
     def foo = new UserPermission().setId("foo@batman.com")
 
@@ -188,7 +194,13 @@ class AuthorizeControllerSpec extends Specification {
   def "should get user's accounts from repo"() {
     setup:
     PermissionsRepository repository = Mock(PermissionsRepository)
-    AuthorizeController controller = new AuthorizeController(registry, repository, fiatServerConfigurationProperties, applicationResourcePermissionProvider)
+    AuthorizeController controller = new AuthorizeController(
+            registry,
+            repository,
+            fiatServerConfigurationProperties,
+            applicationResourcePermissionProvider,
+            objectMapper
+    )
 
     def bar = new Account().setName("bar")
     def foo = new UserPermission().setId("foo").setAccounts([bar] as Set)
@@ -266,7 +278,8 @@ class AuthorizeControllerSpec extends Specification {
         registry,
         permissionsRepository,
         new FiatServerConfigurationProperties(defaultToUnrestrictedUser: defaultToUnrestrictedUser),
-        applicationResourcePermissionProvider
+        applicationResourcePermissionProvider,
+        objectMapper
     )
     permissionsRepository.put(unrestrictedUser)
 
@@ -298,11 +311,12 @@ class AuthorizeControllerSpec extends Specification {
             registry,
             permissionsRepository,
             new FiatServerConfigurationProperties(restrictApplicationCreation: false),
-            applicationResourcePermissionProvider
+            applicationResourcePermissionProvider,
+            objectMapper
     )
     when:
     def response = new MockHttpServletResponse()
-    authorizeController.hasAuthorization("any user", "CREATE", new Application(), response)
+    authorizeController.canCreate("any user", "APPLICATION", new Application(), response)
 
     then:
     response.status == HttpServletResponse.SC_OK
@@ -324,11 +338,19 @@ class AuthorizeControllerSpec extends Specification {
             registry,
             permissionsRepository,
             new FiatServerConfigurationProperties(restrictApplicationCreation: true),
-            applicationResourcePermissionProvider
+            applicationResourcePermissionProvider,
+            objectMapper
     )
     when:
+    def applicationToCreate = [
+            'name': 'application1',
+            'permissions': [
+                    'READ': ['group1']
+            ],
+            'otherProperty': 23
+    ]
     def response = new MockHttpServletResponse()
-    authorizeController.hasAuthorization(userId, "CREATE", new Application(), response)
+    authorizeController.canCreate(userId, "APPLICATION", applicationToCreate, response)
 
     then:
     response.status == expectedResponse

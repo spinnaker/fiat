@@ -24,7 +24,6 @@ import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Authorizable;
-import com.netflix.spinnaker.fiat.model.resources.Resource;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import com.netflix.spinnaker.security.User;
@@ -147,36 +146,23 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
   @Override
   public boolean hasPermission(
       Authentication authentication, Object resource, Object authorization) {
+    return false;
+  }
+
+  public boolean canCreate(String resourceType, Object resource) {
     if (!fiatStatus.isEnabled()) {
       return true;
     }
 
-    Resource r;
-    try {
-      if (resource == null) {
-        throw new IllegalArgumentException("Provided resource is null");
-      }
-      r = (Resource) resource;
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          "Provided resource is not an instance of " + Resource.class.getCanonicalName());
-    }
-
-    Authorization a = Authorization.valueOf(authorization.toString());
-    if (a != Authorization.CREATE) {
-      throw new IllegalArgumentException(
-          "This method should only be called for `CREATE`. For other operations, please call the other implementation");
-    }
-
-    String userName = getUsername(authentication);
+    String username = getUsername(SecurityContextHolder.getContext().getAuthentication());
 
     try {
       return AuthenticatedRequest.propagate(
               () -> {
                 return retryHandler.retry(
-                    "get whether " + userName + " can " + a.toString() + " resource " + resource,
+                    "get whether " + username + " can create resource" + resource,
                     () -> {
-                      Response response = fiatService.hasAuthorization(userName, a.toString(), r);
+                      Response response = fiatService.canCreate(username, resourceType, resource);
                       if (response.getStatus() == HttpServletResponse.SC_OK) {
                         return true;
                       } else if (response.getStatus() == HttpServletResponse.SC_NOT_FOUND) {
@@ -212,14 +198,14 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     ResourceType r = ResourceType.parse(resourceType);
     Authorization a = null;
 
-    if (a == Authorization.CREATE) {
-      throw new IllegalArgumentException(
-          "This method should not be called for `CREATE`. Please call the other implementation");
-    }
-
     // Service accounts don't have read/write authorizations.
     if (r != ResourceType.SERVICE_ACCOUNT) {
       a = Authorization.valueOf(authorization.toString());
+    }
+
+    if (a == Authorization.CREATE) {
+      throw new IllegalArgumentException(
+          "This method should not be called for `CREATE`. Please call the other implementation");
     }
 
     if (r == ResourceType.APPLICATION && StringUtils.isNotEmpty(resourceName.toString())) {

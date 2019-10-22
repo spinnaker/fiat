@@ -17,7 +17,6 @@
 package com.netflix.spinnaker.fiat.shared;
 
 import com.netflix.spinnaker.fiat.model.UserPermission;
-import com.netflix.spinnaker.fiat.model.resources.Resource;
 import java.util.Collection;
 import java.util.List;
 import retrofit.client.Response;
@@ -53,15 +52,15 @@ public interface FiatService {
 
   /**
    * @param userId The username of the user
-   * @param authorization The authorization in question (read, write, etc)
-   * @param resource The resource for which we want to get the authorization
-   * @return 200 if the user has access to the specified resource, 404 otherwise
+   * @param resourceType The type of the resource
+   * @param resource The resource to check
+   * @return 200 if the user can create the specified resource, 404 otherwise
    */
-  @POST("/authorize/{userId}/{authorization}")
-  Response hasAuthorization(
+  @POST("/authorize/{userId}/{resourceType}")
+  Response canCreate(
       @Path("userId") String userId,
-      @Path("authorization") String authorization,
-      @Body Resource resource);
+      @Path("resourceType") String resourceType,
+      @Body Object resource);
 
   /**
    * Use to update all users.

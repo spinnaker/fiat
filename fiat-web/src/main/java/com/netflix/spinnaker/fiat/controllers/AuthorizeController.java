@@ -16,6 +16,7 @@
 
 package com.netflix.spinnaker.fiat.controllers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.spectator.api.Id;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.fiat.config.FiatServerConfigurationProperties;
@@ -45,6 +46,7 @@ public class AuthorizeController {
   private final PermissionsRepository permissionsRepository;
   private final FiatServerConfigurationProperties configProps;
   private final ResourcePermissionProvider<Application> applicationResourcePermissionProvider;
+  private final ObjectMapper objectMapper;
 
   private final Id getUserPermissionCounterId;
 
@@ -53,11 +55,13 @@ public class AuthorizeController {
       Registry registry,
       PermissionsRepository permissionsRepository,
       FiatServerConfigurationProperties configProps,
-      ResourcePermissionProvider<Application> applicationResourcePermissionProvider) {
+      ResourcePermissionProvider<Application> applicationResourcePermissionProvider,
+      ObjectMapper objectMapper) {
     this.registry = registry;
     this.permissionsRepository = permissionsRepository;
     this.configProps = configProps;
     this.applicationResourcePermissionProvider = applicationResourcePermissionProvider;
+    this.objectMapper = objectMapper;
 
     this.getUserPermissionCounterId = registry.createId("fiat.getUserPermission");
   }
@@ -200,62 +204,40 @@ public class AuthorizeController {
     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
   }
 
-  @RequestMapping(value = "/{userId:.+}/{authorization:.+}", method = RequestMethod.POST)
-  public void hasAuthorization(
+  @RequestMapping(value = "/{userId:.+}/{resourceType:.+}", method = RequestMethod.POST)
+  public void canCreate(
       @PathVariable String userId,
-      @PathVariable String authorization,
-      @RequestBody @Nonnull Resource resource,
+      @PathVariable String resourceType,
+      @RequestBody @Nonnull Object resource,
       HttpServletResponse response)
       throws IOException {
-    Authorization a = Authorization.valueOf(authorization.toUpperCase());
-    ResourceType resourceType = resource.getResourceType();
-    Set<Authorization> authorizations = new HashSet<>(0);
+    ResourceType rt = ResourceType.parse(resourceType);
 
-    if (a == Authorization.CREATE) {
-      if (!configProps.isRestrictApplicationCreation()) {
-        authorizations.add(Authorization.CREATE);
-      } else {
-        if (resourceType != ResourceType.APPLICATION) {
-          response.sendError(
-              HttpServletResponse.SC_BAD_REQUEST,
-              "Resource type " + resourceType.toString() + "does not support creation");
-          return;
-        }
-        List<String> userRoles =
-            getUserRoles(userId).stream().map(Role.View::getName).collect(Collectors.toList());
-        authorizations =
-            applicationResourcePermissionProvider
-                .getPermissions((Application) resource)
-                .getAuthorizations(userRoles);
-      }
-    } else {
-      try {
-        switch (resourceType) {
-          case ACCOUNT:
-            authorizations = getUserAccount(userId, resource.getName()).getAuthorizations();
-            break;
-          case APPLICATION:
-            authorizations = getUserApplication(userId, resource.getName()).getAuthorizations();
-            break;
-          case BUILD_SERVICE:
-            authorizations = getUserBuildService(userId, resource.getName()).getAuthorizations();
-          default:
-            response.sendError(
-                HttpServletResponse.SC_BAD_REQUEST,
-                "Resource type " + resourceType + " does not contain authorizations");
-            return;
-        }
-      } catch (NotFoundException nfe) {
-        // Ignore. Will return 404 below.
-      }
-    }
-
-    if (authorizations.contains(a)) {
+    if (!configProps.isRestrictApplicationCreation()) {
       response.setStatus(HttpServletResponse.SC_OK);
       return;
     }
 
-    response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+    if (rt != ResourceType.APPLICATION) {
+      response.sendError(
+          HttpServletResponse.SC_BAD_REQUEST,
+          "Resource type " + resourceType + "does not support creation");
+      return;
+    }
+    List<String> userRoles =
+        getUserRoles(userId).stream().map(Role.View::getName).collect(Collectors.toList());
+
+    Resource r = objectMapper.convertValue(resource, rt.modelClass);
+
+    // can easily implement options other than APPLICATION, but it is not currently needed.
+    if (applicationResourcePermissionProvider
+        .getPermissions((Application) r)
+        .getAuthorizations(userRoles)
+        .contains(Authorization.CREATE)) {
+      response.setStatus(HttpServletResponse.SC_OK);
+    } else {
+      response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+    }
   }
 
   private Optional<UserPermission> getUserPermissionOrDefault(String userId) {
