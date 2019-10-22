@@ -127,22 +127,6 @@ public class AuthorizeController {
         .orElseThrow(NotFoundException::new);
   }
 
-  @RequestMapping(value = "/{userId:.+}/buildServices", method = RequestMethod.GET)
-  public Set<BuildService.View> getUserBuildServices(@PathVariable String userId) {
-    return new HashSet<>(getUserPermissionView(userId).getBuildServices());
-  }
-
-  @RequestMapping(
-      value = "/{userId:.+}/buildServices/{buildServiceName:.+}",
-      method = RequestMethod.GET)
-  public BuildService.View getUserBuildService(
-      @PathVariable String userId, @PathVariable String buildServiceName) {
-    return getUserPermissionView(userId).getBuildServices().stream()
-        .filter(buildService -> buildServiceName.equalsIgnoreCase(buildService.getName()))
-        .findFirst()
-        .orElseThrow(NotFoundException::new);
-  }
-
   @RequestMapping(value = "/{userId:.+}/serviceAccounts", method = RequestMethod.GET)
   public Set<ServiceAccount.View> getServiceAccounts(@PathVariable String userId) {
     return new HashSet<>(getUserPermissionView(userId).getServiceAccounts());
