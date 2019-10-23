@@ -18,37 +18,36 @@ package com.netflix.spinnaker.fiat.providers;
 
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
+import javax.annotation.Nonnull;
 import lombok.Data;
 
-import javax.annotation.Nonnull;
-
 @Data
-public class ApplicationPrefixPermissionSource implements ResourcePermissionSource<Application>{
+public class ApplicationPrefixPermissionSource implements ResourcePermissionSource<Application> {
 
-    private String prefix;
-    private Permissions permissions;
+  private String prefix;
+  private Permissions permissions;
 
-    public ApplicationPrefixPermissionSource setPrefix(String prefix) {
-        if (!prefix.endsWith("*")) {
-            throw new IllegalArgumentException("Prefix expressions must end with a *");
-        }
-        this.prefix = prefix;
-
-        return this;
+  public ApplicationPrefixPermissionSource setPrefix(String prefix) {
+    if (!prefix.endsWith("*")) {
+      throw new IllegalArgumentException("Prefix expressions must end with a *");
     }
+    this.prefix = prefix;
 
-    @Nonnull
-    @Override
-    public Permissions getPermissions(@Nonnull Application resource) {
-        if (contains(resource)) {
-            return permissions;
-        } else {
-            return Permissions.EMPTY
-        }
-    }
+    return this;
+  }
 
-    private boolean contains(Application application) {
-        String prefixWithoutStar = prefix.substring(0, prefix.length() - 1);
-        return application.getName().startsWith(prefixWithoutStar);
+  @Nonnull
+  @Override
+  public Permissions getPermissions(@Nonnull Application resource) {
+    if (contains(resource)) {
+      return permissions;
+    } else {
+      return Permissions.EMPTY;
     }
+  }
+
+  private boolean contains(Application application) {
+    String prefixWithoutStar = prefix.substring(0, prefix.length() - 1);
+    return application.getName().startsWith(prefixWithoutStar);
+  }
 }
