@@ -16,17 +16,24 @@
 
 package com.netflix.spinnaker.fiat.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.BuildService;
 import com.netflix.spinnaker.fiat.providers.*;
+import java.util.Arrays;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 class DefaultResourcePermissionConfig {
+
+  @Autowired ObjectMapper objectMapper;
 
   @Bean
   @ConditionalOnProperty(
@@ -61,6 +68,15 @@ class DefaultResourcePermissionConfig {
       FiatServerConfigurationProperties fiatServerConfigurationProperties) {
     return new Front50ApplicationResourcePermissionSource(
         fiatServerConfigurationProperties.getExecuteFallback());
+  }
+
+  @Bean
+  @ConditionalOnExpression(
+      "T(org.springframework.utils.CollectionUtils).isNotEmpty(${auth.permissions.source.application.prefix})")
+  List<ResourcePermissionSource<Application>> applicationPrefixPermissionSource(
+      @Value("${auth.permissions.source.application.prefix}") List<Object> prefixes) {
+    return Arrays.asList(
+        objectMapper.convertValue(prefixes, ApplicationPrefixPermissionSource[].class));
   }
 
   @Bean
