@@ -25,6 +25,7 @@ import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Authorizable;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
+import com.netflix.spinnaker.kork.exceptions.IntegrationException;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import com.netflix.spinnaker.security.User;
 import java.io.Serializable;
@@ -39,19 +40,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.BackOffExecution;
 import org.springframework.util.backoff.ExponentialBackOff;
-import retrofit.client.Response;
+import retrofit.RetrofitError;
 
 @Component
 @Slf4j
@@ -160,16 +160,24 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
       return AuthenticatedRequest.propagate(
               () -> {
                 return retryHandler.retry(
-                    "determine whether " + username + " can create resource" + resource,
+                    "determine whether " + username + " can create resource " + resource,
                     () -> {
-                      Response response = fiatService.canCreate(username, resourceType, resource);
-                      if (response.getStatus() == HttpServletResponse.SC_OK) {
+                      try {
+                        fiatService.canCreate(username, resourceType, resource);
                         return true;
-                      } else if (response.getStatus() == HttpServletResponse.SC_NOT_FOUND) {
-                        return false;
-                      } else {
-                        throw new ServletException(
-                            response.getStatus() + ": " + response.getReason());
+                      } catch (RetrofitError re) {
+                        boolean shouldRetry = true;
+                        if (re.getKind() == RetrofitError.Kind.HTTP) {
+                          switch (HttpStatus.valueOf(re.getResponse().getStatus())) {
+                            case NOT_FOUND:
+                              return false;
+                            case BAD_REQUEST:
+                              shouldRetry = false;
+                          }
+                        }
+                        IntegrationException ie = new IntegrationException(re);
+                        ie.setRetryable(shouldRetry);
+                        throw ie;
                       }
                     });
               })

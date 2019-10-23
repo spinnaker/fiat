@@ -199,7 +199,7 @@ public class AuthorizeController {
     if (rt != ResourceType.APPLICATION) {
       response.sendError(
           HttpServletResponse.SC_BAD_REQUEST,
-          "Resource type " + resourceType + "does not support creation");
+          "Resource type " + resourceType + " does not support creation");
       return;
     }
 

@@ -28,6 +28,7 @@ import com.netflix.spinnaker.security.AuthenticatedRequest
 import org.slf4j.MDC
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken
+import retrofit.RetrofitError
 import retrofit.client.Response
 import spock.lang.Shared
 import spock.lang.Subject
@@ -105,8 +106,10 @@ class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
     SecurityContextHolder.getContext().setAuthentication(authentication)
     Resource resourceCanCreate = new Application().setName("app1")
     Resource resourceCannotCreate = new Application().setName("app2")
-    fiatService.canCreate("testUser", 'APPLICATION', resourceCanCreate) >> new Response("", HttpServletResponse.SC_OK, "", [], null)
-    fiatService.canCreate("testUser", 'APPLICATION', resourceCannotCreate) >> new Response("", HttpServletResponse.SC_NOT_FOUND, "", [], null)
+    fiatService.canCreate("testUser", 'APPLICATION', resourceCanCreate) >> null // doesn't return anything in case of success
+    fiatService.canCreate("testUser", 'APPLICATION', resourceCannotCreate) >> {
+      throw RetrofitError.httpError("", new Response("", HttpServletResponse.SC_NOT_FOUND, "", [], null), null, null)
+    }
 
     expect:
     evaluator.hasPermission(authentication, resource, 'APPLICATION', 'READ')
