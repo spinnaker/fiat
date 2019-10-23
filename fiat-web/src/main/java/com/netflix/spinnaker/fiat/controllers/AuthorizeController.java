@@ -196,28 +196,30 @@ public class AuthorizeController {
       HttpServletResponse response)
       throws IOException {
     ResourceType rt = ResourceType.parse(resourceType);
-
-    if (!configProps.isRestrictApplicationCreation()) {
-      response.setStatus(HttpServletResponse.SC_OK);
-      return;
-    }
-
     if (rt != ResourceType.APPLICATION) {
       response.sendError(
           HttpServletResponse.SC_BAD_REQUEST,
           "Resource type " + resourceType + "does not support creation");
       return;
     }
+
+    if (!configProps.isRestrictApplicationCreation()) {
+      response.setStatus(HttpServletResponse.SC_OK);
+      return;
+    }
+
+    UserPermission.View userPermissionView = getUserPermissionView(userId);
     List<String> userRoles =
-        getUserRoles(userId).stream().map(Role.View::getName).collect(Collectors.toList());
+        userPermissionView.getRoles().stream().map(Role.View::getName).collect(Collectors.toList());
 
     Resource r = objectMapper.convertValue(resource, rt.modelClass);
 
     // can easily implement options other than APPLICATION, but it is not currently needed.
-    if (applicationResourcePermissionProvider
-        .getPermissions((Application) r)
-        .getAuthorizations(userRoles)
-        .contains(Authorization.CREATE)) {
+    if (userPermissionView.isAdmin()
+        || applicationResourcePermissionProvider
+            .getPermissions((Application) r)
+            .getAuthorizations(userRoles)
+            .contains(Authorization.CREATE)) {
       response.setStatus(HttpServletResponse.SC_OK);
     } else {
       response.setStatus(HttpServletResponse.SC_NOT_FOUND);
