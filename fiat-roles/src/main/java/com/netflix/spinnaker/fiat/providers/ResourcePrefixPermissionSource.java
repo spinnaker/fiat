@@ -114,7 +114,7 @@ public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled>
               if (p1.isFullApplicationName()) {
                 return -1;
               }
-              return p1.getPrefix().length() - p2.getPrefix().length();
+              return p2.getPrefix().length() - p1.getPrefix().length();
             })
         .get()
         .getPermissions();
