@@ -55,6 +55,7 @@ class DefaultResourcePermissionConfig {
   }
 
   @Bean
+  @ConditionalOnProperty("auth.permissions.source.application.prefix.enabled")
   @ConfigurationProperties("auth.permissions.source.application.prefix")
   ResourcePermissionSource<Application> applicationPrefixResourcePermissionSource() {
     return new ResourcePrefixPermissionSource<Application>();
