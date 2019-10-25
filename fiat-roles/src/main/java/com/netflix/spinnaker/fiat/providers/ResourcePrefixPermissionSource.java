@@ -18,21 +18,21 @@ package com.netflix.spinnaker.fiat.providers;
 
 import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
-import javax.annotation.Nonnull;
-
 import com.netflix.spinnaker.fiat.model.resources.Resource;
-import lombok.Data;
-import org.springframework.util.StringUtils;
-
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import lombok.Data;
+import org.springframework.util.StringUtils;
 
 @Data
-public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled> implements ResourcePermissionSource<T> {
+public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled>
+    implements ResourcePermissionSource<T> {
 
   public enum ResolutionStrategy {
-    AGGREGATE, MOST_SPECIFIC
+    AGGREGATE,
+    MOST_SPECIFIC
   }
 
   private List<PrefixEntry<T>> prefixes;
@@ -47,7 +47,8 @@ public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled>
 
     public PrefixEntry setPrefix(String prefix) {
       if (StringUtils.isEmpty(prefix)) {
-        throw new IllegalArgumentException("Prefix must either end with *, or be a full application name");
+        throw new IllegalArgumentException(
+            "Prefix must either end with *, or be a full application name");
       }
       isFullApplicationName = !prefix.endsWith("*");
       this.prefix = prefix;
@@ -55,7 +56,12 @@ public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled>
       return this;
     }
 
-    private boolean contains(T resource) {
+    public PrefixEntry setPermissions(Map<Authorization, List<String>> permissions) {
+      this.permissions = Permissions.factory(permissions);
+      return this;
+    }
+
+    public boolean contains(T resource) {
       if (isFullApplicationName) {
         return prefix.equals(resource.getName());
       }
@@ -63,18 +69,14 @@ public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled>
       String prefixWithoutStar = prefix.substring(0, prefix.length() - 1);
       return resource.getName().startsWith(prefixWithoutStar);
     }
-
-    public PrefixEntry setPermissions(Map<Authorization, List<String>> permissions) {
-      this.permissions = Permissions.factory(permissions);
-      return this;
-    }
   }
 
   @Nonnull
   @Override
   public Permissions getPermissions(@Nonnull T resource) {
 
-    List<PrefixEntry<T>> matchingPrefixes = prefixes.stream().filter(prefix -> prefix.contains(resource)).collect(Collectors.toList());
+    List<PrefixEntry<T>> matchingPrefixes =
+        prefixes.stream().filter(prefix -> prefix.contains(resource)).collect(Collectors.toList());
 
     if (matchingPrefixes.isEmpty()) {
       return Permissions.EMPTY;
@@ -86,7 +88,8 @@ public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled>
       case MOST_SPECIFIC:
         return getMostSpecificPermissions(matchingPrefixes);
       default:
-        throw new IllegalStateException("Unrecognized Resolution Stratgey " + resolutionStrategy.name());
+        throw new IllegalStateException(
+            "Unrecognized Resolution Stratgey " + resolutionStrategy.name());
     }
   }
 
@@ -105,11 +108,15 @@ public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled>
   }
 
   private Permissions getMostSpecificPermissions(List<PrefixEntry<T>> matchingPrefixes) {
-    return matchingPrefixes.stream().min((p1, p2) -> {
-      if (p1.isFullApplicationName()) {
-        return -1;
-      }
-      return p1.getPrefix().length() - p2.getPrefix().length();
-    }).get().getPermissions();
+    return matchingPrefixes.stream()
+        .min(
+            (p1, p2) -> {
+              if (p1.isFullApplicationName()) {
+                return -1;
+              }
+              return p1.getPrefix().length() - p2.getPrefix().length();
+            })
+        .get()
+        .getPermissions();
   }
 }
