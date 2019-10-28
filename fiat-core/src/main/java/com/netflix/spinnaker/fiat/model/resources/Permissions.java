@@ -61,6 +61,17 @@ public class Permissions {
     return permissions.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
   }
 
+  /**
+   * Determines whether this Permissions has any Authorizations with associated roles.
+   *
+   * @return whether this Permissions has any Authorizations with associated roles
+   * @deprecated check {@code !isRestricted()} instead
+   */
+  @Deprecated
+  public boolean isEmpty() {
+    return !isRestricted();
+  }
+
   public boolean isRestricted() {
     return this.permissions.values().stream().anyMatch(groups -> !groups.isEmpty());
   }
@@ -104,18 +115,17 @@ public class Permissions {
     private static Permissions fromMap(Map<Authorization, List<String>> authConfig) {
       final Map<Authorization, List<String>> perms = new EnumMap<>(Authorization.class);
       for (Authorization auth : Authorization.values()) {
-        perms.put(
-            auth,
-            Optional.ofNullable(authConfig.get(auth))
-                .map(
-                    groups ->
-                        groups.stream()
-                            .map(String::trim)
-                            .filter(s -> !s.isEmpty())
-                            .map(String::toLowerCase)
-                            .collect(Collectors.toList()))
-                .map(Collections::unmodifiableList)
-                .orElse(Collections.emptyList()));
+        Optional.ofNullable(authConfig.get(auth))
+            .map(
+                groups ->
+                    groups.stream()
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(String::toLowerCase)
+                        .collect(Collectors.toList()))
+            .filter(g -> !g.isEmpty())
+            .map(Collections::unmodifiableList)
+            .ifPresent(roles -> perms.put(auth, roles));
       }
       return new Permissions(perms);
     }
