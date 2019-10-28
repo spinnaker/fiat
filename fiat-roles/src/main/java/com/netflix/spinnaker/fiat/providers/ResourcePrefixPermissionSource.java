@@ -36,7 +36,7 @@ public class ResourcePrefixPermissionSource<T extends Resource.AccessControlled>
   }
 
   private List<PrefixEntry<T>> prefixes;
-  private ResolutionStrategy resolutionStrategy;
+  private ResolutionStrategy resolutionStrategy = ResolutionStrategy.AGGREGATE;
 
   @Data
   public static class PrefixEntry<T extends Resource.AccessControlled> {
