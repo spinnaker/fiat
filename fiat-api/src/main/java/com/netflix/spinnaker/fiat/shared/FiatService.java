@@ -58,7 +58,7 @@ public interface FiatService {
    * @param resourceType The type of the resource
    * @param resource The resource to check
    */
-  @POST("/authorize/canCreate/{userId}/{resourceType}")
+  @POST("/authorize/{userId}/{resourceType}/create")
   Response canCreate(
       @Path("userId") String userId,
       @Path("resourceType") String resourceType,
