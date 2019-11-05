@@ -188,7 +188,7 @@ public class AuthorizeController {
     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
   }
 
-  @RequestMapping(value = "/{userId:.+}/{resourceType:.+}", method = RequestMethod.POST)
+  @RequestMapping(value = "canCreate/{userId:.+}/{resourceType:.+}", method = RequestMethod.POST)
   public void canCreate(
       @PathVariable String userId,
       @PathVariable String resourceType,
