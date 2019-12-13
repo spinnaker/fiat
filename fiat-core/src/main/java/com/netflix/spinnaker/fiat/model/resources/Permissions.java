@@ -16,6 +16,9 @@
 
 package com.netflix.spinnaker.fiat.model.resources;
 
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.netflix.spinnaker.fiat.model.Authorization;
@@ -98,6 +101,10 @@ public class Permissions {
 
   public List<String> get(Authorization a) {
     return permissions.getOrDefault(a, Collections.emptyList());
+  }
+
+  public Map<Authorization, List<String>> unpack() {
+    return Arrays.stream(Authorization.values()).collect(toMap(identity(), this::get));
   }
 
   /**
