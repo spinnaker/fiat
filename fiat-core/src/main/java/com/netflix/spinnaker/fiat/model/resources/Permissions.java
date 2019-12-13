@@ -100,7 +100,7 @@ public class Permissions {
   }
 
   public List<String> get(Authorization a) {
-    return permissions.getOrDefault(a, Collections.emptyList());
+    return permissions.getOrDefault(a, new ArrayList<>());
   }
 
   public Map<Authorization, List<String>> unpack() {
