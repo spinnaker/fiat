@@ -130,12 +130,13 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
             for (ResourceType r : ResourceType.values()) {
               String userResourceKey = userKey(userId, r);
-
-              pipeline.del(userResourceKey);
-
               Map<String, String> redisValue = resourceTypeToRedisValue.get(r);
+              String tempKey = UUID.randomUUID().toString();
               if (redisValue != null && !redisValue.isEmpty()) {
-                pipeline.hmset(userResourceKey, redisValue);
+                pipeline.hmset(tempKey, redisValue);
+                pipeline.rename(tempKey, userResourceKey);
+              } else {
+                pipeline.del(userResourceKey);
               }
             }
             pipeline.sync();
@@ -333,7 +334,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
                 return jedis.sscan(key, cursor.get());
               });
       results.addAll(result.getResult());
-      cursor.set(result.getStringCursor());
+      cursor.set(result.getCursor());
     } while (!"0".equals(cursor.get()));
     return results;
   }

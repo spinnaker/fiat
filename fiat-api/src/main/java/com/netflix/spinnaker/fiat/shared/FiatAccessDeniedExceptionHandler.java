@@ -17,9 +17,14 @@
 package com.netflix.spinnaker.fiat.shared;
 
 import java.io.IOException;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.StringJoiner;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.servlet.error.DefaultErrorAttributes;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +33,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @ControllerAdvice
 public class FiatAccessDeniedExceptionHandler {
+  private final Logger log = LoggerFactory.getLogger(getClass());
 
   private final DefaultErrorAttributes defaultErrorAttributes = new DefaultErrorAttributes();
 
@@ -36,6 +42,16 @@ public class FiatAccessDeniedExceptionHandler {
       AccessDeniedException e, HttpServletResponse response, HttpServletRequest request)
       throws IOException {
     storeException(request, response, e);
+
+    Map<String, String> headers = requestHeaders(request);
+
+    log.error(
+        "Encountered exception while processing request {}:{} with headers={}",
+        request.getMethod(),
+        request.getRequestURI(),
+        headers.toString(),
+        e);
+
     String errorMessage =
         FiatPermissionEvaluator.getAuthorizationFailure()
             .map(this::authorizationFailureMessage)
@@ -61,6 +77,20 @@ public class FiatAccessDeniedExceptionHandler {
     }
 
     return sj.toString();
+  }
+
+  private Map<String, String> requestHeaders(HttpServletRequest request) {
+    Map<String, String> headers = new HashMap<>();
+
+    if (request.getHeaderNames() != null) {
+      for (Enumeration<String> h = request.getHeaderNames(); h.hasMoreElements(); ) {
+        String headerName = h.nextElement();
+        String headerValue = request.getHeader(headerName);
+        headers.put(headerName, headerValue);
+      }
+    }
+
+    return headers;
   }
 
   private void storeException(
