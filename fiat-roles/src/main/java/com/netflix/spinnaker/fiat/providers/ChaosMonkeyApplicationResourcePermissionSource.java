@@ -20,33 +20,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
-import com.netflix.spinnaker.fiat.model.resources.Resource;
 import java.util.List;
 import javax.annotation.Nonnull;
 
-public class ChaosMonkeyResourcePermissionSource<T extends Resource.AccessControlled>
-    implements ResourcePermissionSource<T> {
+public class ChaosMonkeyApplicationResourcePermissionSource
+    implements ResourcePermissionSource<Application> {
 
   private final List<String> roles;
   private final ObjectMapper objectMapper;
 
-  public ChaosMonkeyResourcePermissionSource(List<String> roles, ObjectMapper objectMapper) {
+  public ChaosMonkeyApplicationResourcePermissionSource(
+      List<String> roles, ObjectMapper objectMapper) {
     this.roles = roles;
     this.objectMapper = objectMapper;
   }
 
   @Nonnull
   @Override
-  public Permissions getPermissions(@Nonnull T resource) {
+  public Permissions getPermissions(@Nonnull Application application) {
     Permissions.Builder builder = new Permissions.Builder();
-    Permissions permissions = resource.getPermissions();
+    Permissions permissions = application.getPermissions();
 
     if (permissions.isRestricted()) {
-      if (resource instanceof Application) {
-        Application application = (Application) resource;
-        if (isChaosMonkeyEnabled(application)) {
-          builder.add(Authorization.READ, roles).add(Authorization.WRITE, roles).build();
-        }
+      if (isChaosMonkeyEnabled(application)) {
+        builder.add(Authorization.READ, roles).add(Authorization.WRITE, roles).build();
       }
     }
 

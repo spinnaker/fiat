@@ -98,7 +98,7 @@ class DefaultResourcePermissionConfig {
   @ConditionalOnProperty(value = "auth.permissions.source.application.chaos-monkey.enabled")
   public ResourcePermissionSource<Application> chaosMonkeyApplicationResourcePermissionSource(
       ObjectMapper objectMapper, FiatServerConfigurationProperties configurationProperties) {
-    return new ChaosMonkeyResourcePermissionSource<>(
+    return new ChaosMonkeyApplicationResourcePermissionSource(
         configurationProperties.getChaosMonkey().getRoles(), objectMapper);
   }
 }
