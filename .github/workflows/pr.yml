@@ -3,7 +3,6 @@ name: Fiat PR build
 on: [pull_request]
 
 jobs:
-  name: PR build
   build:
     runs-on: ubuntu-latest
     steps:
