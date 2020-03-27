@@ -142,7 +142,7 @@ public class LdapUserRolesProvider implements UserRolesProvider {
           .collect(
               Collectors.groupingBy(
                   Pair::getKey,
-                  Collectors.mapping(Pair::getValue, Collectors.toCollection(HashSet::new))));
+                  Collectors.mapping(Pair::getValue, Collectors.toCollection(ArrayList::new))));
     }
 
     // ExternalUser is used here as a simple data type to hold the username/roles combination.
