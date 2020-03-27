@@ -138,10 +138,9 @@ class LdapUserRolesProviderTest extends Specification {
     roles = provider.multiLoadRoles(users)
 
     then: "should use ldapTemplate.search method"
-    roles.size() == 2
     roles == [user1: [role1], user2: [role2]]
   }
-  
+
   private static ExternalUser externalUser(String id) {
     return new ExternalUser().setId(id)
   }
