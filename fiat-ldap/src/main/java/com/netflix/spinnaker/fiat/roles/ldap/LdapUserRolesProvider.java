@@ -125,7 +125,7 @@ public class LdapUserRolesProvider implements UserRolesProvider {
       return new HashMap<>();
     }
 
-    if (users.size() > configProps.getThresholdToUseGroupFilter()
+    if (users.size() > configProps.getThresholdToUseGroupMembership()
         && StringUtils.isNotEmpty(configProps.getGroupUserAttributes())) {
       Set<String> userIds = users.stream().map(ExternalUser::getId).collect(Collectors.toSet());
       return ldapTemplate

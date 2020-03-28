@@ -59,6 +59,6 @@ public class LdapConfig {
     String groupRoleAttributes = "cn";
     String groupUserAttributes = "";
 
-    int thresholdToUseGroupFilter = 100;
+    int thresholdToUseGroupMembership = 100;
   }
 }

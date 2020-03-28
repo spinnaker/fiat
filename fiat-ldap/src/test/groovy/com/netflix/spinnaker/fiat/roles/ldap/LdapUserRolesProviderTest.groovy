@@ -123,15 +123,15 @@ class LdapUserRolesProviderTest extends Specification {
       2 * loadRoles(_) >>> [[role1], [role2]]
     }.setConfigProps(configProps)
 
-    when: "thresholdToUseGroupFilter is too high"
-    configProps.thresholdToUseGroupFilter = 100
+    when: "thresholdToUseGroupMembership is too high"
+    configProps.thresholdToUseGroupMembership = 100
     def roles = provider.multiLoadRoles(users)
 
     then: "should use loadRoles"
     roles == [user1: [role1], user2: [role2]]
 
-    when: "users count is greater than thresholdToUseGroupFilter"
-    configProps.thresholdToUseGroupFilter = 1
+    when: "users count is greater than thresholdToUseGroupMembership"
+    configProps.thresholdToUseGroupMembership = 1
     provider.ldapTemplate = Mock(SpringSecurityLdapTemplate) {
       1 * search(*_) >> [[Pair.of("user1",role1)], [Pair.of("user2", role2)], [Pair.of("unknown", role2)]]
     }
