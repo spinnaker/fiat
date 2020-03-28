@@ -57,7 +57,7 @@ public class LdapConfig {
     String userSearchFilter;
     String groupSearchFilter = "(uniqueMember={0})";
     String groupRoleAttributes = "cn";
-    String groupUserAttributes = "member";
+    String groupUserAttributes = "";
 
     int thresholdToUseGroupFilter = 100;
   }
