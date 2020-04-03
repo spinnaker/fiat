@@ -17,7 +17,6 @@
 package com.netflix.spinnaker.fiat.controllers
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.netflix.hystrix.strategy.HystrixPlugins
 import com.netflix.spectator.api.NoopRegistry
 import com.netflix.spectator.api.Registry
 import com.netflix.spinnaker.config.FiatSystemTest
@@ -29,9 +28,8 @@ import com.netflix.spinnaker.fiat.model.resources.Account
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.model.resources.Permissions
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository
+import com.netflix.spinnaker.fiat.permissions.PermissionsResolver
 import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider
-import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService
-import com.netflix.spinnaker.fiat.providers.internal.Front50Service
 import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.mock.web.MockHttpServletResponse
@@ -60,13 +58,10 @@ class AuthorizeControllerSpec extends Specification {
   WebApplicationContext wac
 
   @Autowired
-  Front50Service stubFront50Service
-
-  @Autowired
-  ClouddriverService stubClouddriverService
-
-  @Autowired
   PermissionsRepository permissionsRepository
+
+  @Autowired
+  PermissionsResolver permissionsResolver
 
   @Autowired
   FiatServerConfigurationProperties fiatServerConfigurationProperties
@@ -89,7 +84,6 @@ class AuthorizeControllerSpec extends Specification {
   MockMvc mockMvc;
 
   def setup() {
-    HystrixPlugins.reset();
     this.mockMvc = MockMvcBuilders
         .webAppContextSetup(this.wac)
         .defaultRequest(get("/").content().contentType("application/json"))
@@ -167,6 +161,7 @@ class AuthorizeControllerSpec extends Specification {
     AuthorizeController controller = new AuthorizeController(
             registry,
             repository,
+            permissionsResolver,
             fiatServerConfigurationProperties,
             applicationResourcePermissionProvider,
             objectMapper
@@ -175,14 +170,14 @@ class AuthorizeControllerSpec extends Specification {
     def foo = new UserPermission().setId("foo@batman.com")
 
     when:
-    controller.getUserPermission("foo%40batman.com")
+    controller.getUserPermission("foo@batman.com")
 
     then:
     1 * repository.get("foo@batman.com") >> Optional.empty()
     thrown NotFoundException
 
     when:
-    def result = controller.getUserPermission("foo%40batman.com")
+    def result = controller.getUserPermission("foo@batman.com")
 
     then:
     1 * repository.get("foo@batman.com") >> Optional.of(foo)
@@ -195,6 +190,7 @@ class AuthorizeControllerSpec extends Specification {
     AuthorizeController controller = new AuthorizeController(
             registry,
             repository,
+            permissionsResolver,
             fiatServerConfigurationProperties,
             applicationResourcePermissionProvider,
             objectMapper
@@ -270,11 +266,51 @@ class AuthorizeControllerSpec extends Specification {
   }
 
   @Unroll
+  def "should fallback to permission resolver if no session available"() {
+    given:
+    def resolver = Mock(PermissionsResolver)
+    def authorizeController = new AuthorizeController(
+            registry,
+            permissionsRepository,
+            resolver,
+            new FiatServerConfigurationProperties(allowPermissionResolverFallback: allowPermissionResolverFallback),
+            applicationResourcePermissionProvider,
+            objectMapper
+    )
+    def account = new Account().setName("some-account")
+    def userPermissions = new UserPermission().setId(targetUser).setAccounts([account] as Set)
+    Optional<UserPermission> optionalUserPermission
+
+    when:
+    try {
+      MDC.put("X-SPINNAKER-USER", authenticatedUser)
+      optionalUserPermission = authorizeController.getUserPermissionOrDefault(targetUser)
+    } finally {
+      MDC.remove("X-SPINNAKER-USER")
+    }
+
+    then:
+    if (shouldReturnResolvedUser) {
+      1 * resolver.resolve(targetUser) >> userPermissions
+    }
+    optionalUserPermission.orElse(null) == (shouldReturnResolvedUser ? userPermissions : null)
+
+    where:
+    authenticatedUser     | targetUser            | allowPermissionResolverFallback || shouldReturnResolvedUser
+    "user_has_no_session" | "user_has_no_session" | true                            || true
+    "existing_user"       | "user_does_not_exist" | true                            || false
+    "user_has_no_session" | "user_has_no_session" | false                           || false
+    "existing_user"       | "user_does_not_exist" | false                           || false
+  }
+
+
+  @Unroll
   def "should fallback to unrestricted user if no session available"() {
     given:
     def authorizeController = new AuthorizeController(
         registry,
         permissionsRepository,
+        permissionsResolver,
         new FiatServerConfigurationProperties(defaultToUnrestrictedUser: defaultToUnrestrictedUser),
         applicationResourcePermissionProvider,
         objectMapper
@@ -308,6 +344,7 @@ class AuthorizeControllerSpec extends Specification {
     def authorizeController = new AuthorizeController(
             registry,
             permissionsRepository,
+            permissionsResolver,
             new FiatServerConfigurationProperties(restrictApplicationCreation: false),
             applicationResourcePermissionProvider,
             objectMapper
@@ -335,6 +372,7 @@ class AuthorizeControllerSpec extends Specification {
     def authorizeController = new AuthorizeController(
             registry,
             permissionsRepository,
+            permissionsResolver,
             new FiatServerConfigurationProperties(restrictApplicationCreation: true),
             applicationResourcePermissionProvider,
             objectMapper

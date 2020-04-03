@@ -19,6 +19,7 @@ package com.netflix.spinnaker.fiat.roles;
 import com.netflix.appinfo.InstanceInfo;
 import com.netflix.discovery.DiscoveryClient;
 import com.netflix.spectator.api.Gauge;
+import com.netflix.spectator.api.Id;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.fiat.config.ResourceProvidersHealthIndicator;
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig;
@@ -35,10 +36,13 @@ import com.netflix.spinnaker.kork.eureka.RemoteStatusChangedEvent;
 import com.netflix.spinnaker.kork.lock.LockManager;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -72,6 +76,7 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
 
   private final AtomicBoolean isEnabled;
 
+  private final Registry registry;
   private final Gauge userRolesSyncCount;
 
   @Autowired
@@ -105,7 +110,8 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
             // default to enabled iff discovery is not available
             !discoveryClient.isPresent());
 
-    this.userRolesSyncCount = registry.gauge("fiat.userRoles.syncCount");
+    this.registry = registry;
+    this.userRolesSyncCount = registry.gauge(metricName("syncCount"));
   }
 
   @Override
@@ -134,7 +140,7 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
         lockOptions,
         () -> {
           try {
-            userRolesSyncCount.set(this.syncAndReturn(new ArrayList<>()));
+            timeIt("syncTime", () -> userRolesSyncCount.set(this.syncAndReturn(new ArrayList<>())));
           } catch (Exception e) {
             log.error("User roles synchronization failed", e);
             userRolesSyncCount.set(-1);
@@ -175,9 +181,14 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
 
         return updateUserPermissions(combo);
       } catch (ProviderException | PermissionResolutionException ex) {
+        registry
+            .counter(metricName("syncFailure"), "cause", ex.getClass().getSimpleName())
+            .increment();
         Status status = healthIndicator.health().getStatus();
         long waitTime = backOffExec.nextBackOff();
         if (waitTime == BackOffExecution.STOP || System.currentTimeMillis() > timeout) {
+          String cause = (waitTime == BackOffExecution.STOP) ? "backoff-exhausted" : "timeout";
+          registry.counter("syncAborted", "cause", cause).increment();
           log.error("Unable to resolve service account permissions.", ex);
           return 0;
         }
@@ -235,8 +246,12 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
 
   public long updateUserPermissions(Map<String, UserPermission> permissionsById) {
     if (permissionsById.remove(UnrestrictedResourceConfig.UNRESTRICTED_USERNAME) != null) {
-      permissionsRepository.put(permissionsResolver.resolveUnrestrictedUser());
-      log.info("Synced anonymous user role.");
+      timeIt(
+          "syncAnonymous",
+          () -> {
+            permissionsRepository.put(permissionsResolver.resolveUnrestrictedUser());
+            log.info("Synced anonymous user role.");
+          });
     }
 
     List<ExternalUser> extUsers =
@@ -257,11 +272,48 @@ public class UserRolesSyncer implements ApplicationListener<RemoteStatusChangedE
     }
 
     long count =
-        permissionsResolver.resolve(extUsers).values().stream()
-            .map(permission -> permissionsRepository.put(permission))
-            .count();
+        timeIt(
+            "syncUsers",
+            () -> {
+              Collection<UserPermission> values = permissionsResolver.resolve(extUsers).values();
+              values.forEach(permissionsRepository::put);
+              return values.size();
+            });
     log.info("Synced {} non-anonymous user roles.", count);
     return count;
+  }
+
+  private static String metricName(String name) {
+    return "fiat.userRoles." + name;
+  }
+
+  private void timeIt(String timerName, Runnable theThing) {
+    Callable<Object> c =
+        () -> {
+          theThing.run();
+          return null;
+        };
+    timeIt(timerName, c);
+  }
+
+  private <T> T timeIt(String timerName, Callable<T> theThing) {
+    long startTime = System.nanoTime();
+    String cause = null;
+    try {
+      return theThing.call();
+    } catch (RuntimeException re) {
+      cause = re.getClass().getSimpleName();
+      throw re;
+    } catch (Exception ex) {
+      cause = ex.getClass().getSimpleName();
+      throw new RuntimeException(ex);
+    } finally {
+      boolean success = cause == null;
+      Id timer = registry.createId(metricName(timerName)).withTag("success", success);
+      registry
+          .timer(success ? timer : timer.withTag("cause", cause))
+          .record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
+    }
   }
 
   private boolean isInService() {
