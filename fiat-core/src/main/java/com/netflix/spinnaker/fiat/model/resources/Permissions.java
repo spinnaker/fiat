@@ -26,7 +26,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
-import lombok.val;
 
 /**
  * Representation of authorization configuration for a resource. This object is immutable, which
@@ -79,13 +78,8 @@ public class Permissions {
     return this.permissions.values().stream().anyMatch(groups -> !groups.isEmpty());
   }
 
-  public boolean isAuthorized(Set<Role> userRoles) {
-    return !getAuthorizations(userRoles).isEmpty();
-  }
-
-  public Set<Authorization> getAuthorizations(Set<Role> userRoles) {
-    val r = userRoles.stream().map(Role::getName).collect(Collectors.toList());
-    return getAuthorizations(r);
+  public boolean isAuthorized(Set<String> userRoles) {
+    return !getAuthorizations(new ArrayList<>(userRoles)).isEmpty();
   }
 
   public Set<Authorization> getAuthorizations(List<String> userRoles) {

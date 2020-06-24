@@ -19,9 +19,11 @@ package com.netflix.spinnaker.fiat.model.resources;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.val;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -52,7 +54,8 @@ public class Account extends BaseAccessControlled<Account> implements Viewable {
       if (isAdmin) {
         this.authorizations = Authorization.ALL;
       } else {
-        this.authorizations = account.permissions.getAuthorizations(userRoles);
+        val r = userRoles.stream().map(Role::getName).collect(Collectors.toList());
+        this.authorizations = account.permissions.getAuthorizations(r);
       }
     }
   }
