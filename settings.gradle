@@ -35,7 +35,7 @@ enableFeaturePreview("VERSION_ORDERING_V2")
 
 rootProject.name="fiat"
 
-include 'fiat-api',
+include 'fiat-client',
         'fiat-bom',
         'fiat-core',
         'fiat-file',
