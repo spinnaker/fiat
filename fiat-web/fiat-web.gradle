@@ -36,6 +36,7 @@ dependencies {
   implementation "com.netflix.spinnaker.kork:kork-swagger"
   implementation "net.logstash.logback:logstash-logback-encoder"
 
+  implementation project(":fiat-api")
   implementation project(':fiat-core')
   implementation project(':fiat-roles')
 

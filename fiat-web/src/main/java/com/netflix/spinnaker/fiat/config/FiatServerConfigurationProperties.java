@@ -16,7 +16,7 @@
 
 package com.netflix.spinnaker.fiat.config;
 
-import com.netflix.spinnaker.fiat.model.Authorization;
+import com.netflix.spinnaker.fiat.api.Authorization;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Data;

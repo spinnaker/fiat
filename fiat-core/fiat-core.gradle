@@ -1,4 +1,5 @@
 dependencies {
+  implementation project(":fiat-api")
 
   implementation "com.fasterxml.jackson.core:jackson-annotations"
   implementation "com.google.code.findbugs:jsr305"

@@ -1,7 +1,7 @@
 package com.netflix.spinnaker.fiat.permissions;
 
-import com.netflix.spinnaker.fiat.model.Authorization;
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
+import com.netflix.spinnaker.fiat.api.Authorization;
+import com.netflix.spinnaker.fiat.api.Permissions;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nonnull;

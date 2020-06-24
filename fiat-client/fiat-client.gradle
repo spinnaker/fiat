@@ -16,6 +16,7 @@
 
 dependencies {
   implementation project(":fiat-core")
+  implementation project(":fiat-api")
 
   implementation "org.springframework:spring-aop"
   implementation "org.springframework:spring-web"

@@ -16,7 +16,7 @@
 
 package com.netflix.spinnaker.fiat.shared
 
-import com.netflix.spinnaker.fiat.model.Authorization
+import com.netflix.spinnaker.fiat.api.Authorization
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount

@@ -21,8 +21,8 @@ import static com.google.common.collect.ImmutableSet.toImmutableSet;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
+import com.netflix.spinnaker.fiat.api.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Application;
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.permissions.FallbackPermissionsResolver;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;

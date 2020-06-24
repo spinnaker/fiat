@@ -19,11 +19,11 @@ package com.netflix.spinnaker.fiat.permissions
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.netflix.spinnaker.fiat.config.FiatAdminConfig
 import com.netflix.spinnaker.fiat.config.FiatRoleConfig
-import com.netflix.spinnaker.fiat.model.Authorization
+import com.netflix.spinnaker.fiat.api.Authorization
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Account
 import com.netflix.spinnaker.fiat.model.resources.Application
-import com.netflix.spinnaker.fiat.model.resources.Permissions
+import com.netflix.spinnaker.fiat.api.Permissions
 import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
 import com.netflix.spinnaker.fiat.providers.AccessControlledResourcePermissionSource

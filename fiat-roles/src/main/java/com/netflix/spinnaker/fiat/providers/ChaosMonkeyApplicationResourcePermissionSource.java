@@ -17,9 +17,9 @@
 package com.netflix.spinnaker.fiat.providers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.netflix.spinnaker.fiat.model.Authorization;
+import com.netflix.spinnaker.fiat.api.Authorization;
+import com.netflix.spinnaker.fiat.api.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Application;
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import java.util.List;
 import javax.annotation.Nonnull;
 

@@ -19,7 +19,8 @@ package com.netflix.spinnaker.fiat.model.resources
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.netflix.spinnaker.fiat.YamlFileApplicationContextInitializer
-import com.netflix.spinnaker.fiat.model.Authorization
+import com.netflix.spinnaker.fiat.api.Authorization
+import com.netflix.spinnaker.fiat.api.Permissions
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties

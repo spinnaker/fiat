@@ -16,7 +16,7 @@
 
 package com.netflix.spinnaker.fiat.providers;
 
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
+import com.netflix.spinnaker.fiat.api.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Resource;
 import java.util.Objects;
 import javax.annotation.Nonnull;

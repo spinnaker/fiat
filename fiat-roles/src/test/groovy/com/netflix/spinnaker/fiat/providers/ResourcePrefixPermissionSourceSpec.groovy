@@ -16,7 +16,7 @@
 
 package com.netflix.spinnaker.fiat.providers
 
-import com.netflix.spinnaker.fiat.model.Authorization
+import com.netflix.spinnaker.fiat.api.Authorization
 import com.netflix.spinnaker.fiat.model.resources.Application
 import spock.lang.Specification
 

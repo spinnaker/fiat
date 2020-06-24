@@ -1,6 +1,6 @@
 package com.netflix.spinnaker.fiat.permissions;
 
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
+import com.netflix.spinnaker.fiat.api.Permissions;
 import javax.annotation.Nonnull;
 
 /**

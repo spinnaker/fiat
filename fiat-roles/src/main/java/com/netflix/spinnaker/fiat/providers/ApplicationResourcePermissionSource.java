@@ -19,9 +19,9 @@ package com.netflix.spinnaker.fiat.providers;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
-import com.netflix.spinnaker.fiat.model.Authorization;
+import com.netflix.spinnaker.fiat.api.Authorization;
+import com.netflix.spinnaker.fiat.api.Permissions;
 import com.netflix.spinnaker.fiat.model.resources.Application;
-import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model;
+package com.netflix.spinnaker.fiat.api;
 
 import java.util.Collections;
 import java.util.EnumSet;

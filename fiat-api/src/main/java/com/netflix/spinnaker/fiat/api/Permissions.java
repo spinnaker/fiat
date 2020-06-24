@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model.resources;
+package com.netflix.spinnaker.fiat.api;
 
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.netflix.spinnaker.fiat.model.Authorization;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;

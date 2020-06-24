@@ -17,6 +17,7 @@
 package com.netflix.spinnaker.fiat.model.resources;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.netflix.spinnaker.fiat.api.Permissions;
 
 public interface Resource {
   String getName();
