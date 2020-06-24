@@ -15,7 +15,7 @@
  */
 
 dependencies {
-  implementation project(":fiat-api")
+  api project(":fiat-api")
   implementation project(":fiat-core")
 
   implementation "com.squareup.retrofit:retrofit"

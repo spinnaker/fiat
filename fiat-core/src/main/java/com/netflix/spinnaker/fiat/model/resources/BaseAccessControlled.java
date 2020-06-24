@@ -18,6 +18,7 @@ package com.netflix.spinnaker.fiat.model.resources;
 
 import com.netflix.spinnaker.fiat.api.Authorization;
 import com.netflix.spinnaker.fiat.api.Permissions;
+import com.netflix.spinnaker.fiat.api.Resource;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 

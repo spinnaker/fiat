@@ -16,7 +16,7 @@
 
 package com.netflix.spinnaker.fiat.providers;
 
-import com.netflix.spinnaker.fiat.model.resources.Resource;
+import com.netflix.spinnaker.fiat.api.Resource;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import java.util.Set;
 

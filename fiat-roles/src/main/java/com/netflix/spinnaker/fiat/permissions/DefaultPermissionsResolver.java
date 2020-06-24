@@ -18,10 +18,10 @@ package com.netflix.spinnaker.fiat.permissions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.netflix.spinnaker.fiat.api.Resource;
 import com.netflix.spinnaker.fiat.config.FiatAdminConfig;
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig;
 import com.netflix.spinnaker.fiat.model.UserPermission;
-import com.netflix.spinnaker.fiat.model.resources.Resource;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount;
 import com.netflix.spinnaker.fiat.providers.ProviderException;

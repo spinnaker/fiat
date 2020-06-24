@@ -27,7 +27,7 @@ import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Account
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.api.Permissions
-import com.netflix.spinnaker.fiat.model.resources.Resource
+import com.netflix.spinnaker.fiat.api.Resource
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository
 import com.netflix.spinnaker.fiat.permissions.PermissionsResolver
 import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider

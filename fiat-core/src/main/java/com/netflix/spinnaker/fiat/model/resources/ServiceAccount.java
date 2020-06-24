@@ -17,6 +17,7 @@
 package com.netflix.spinnaker.fiat.model.resources;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.netflix.spinnaker.fiat.api.Resource;
 import com.netflix.spinnaker.fiat.api.ResourceType;
 import com.netflix.spinnaker.fiat.model.UserPermission;
 import java.util.ArrayList;

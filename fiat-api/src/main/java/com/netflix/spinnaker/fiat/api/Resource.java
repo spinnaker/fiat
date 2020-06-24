@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model.resources;
+package com.netflix.spinnaker.fiat.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.netflix.spinnaker.fiat.api.Permissions;
-import com.netflix.spinnaker.fiat.api.ResourceType;
 
 public interface Resource {
   String getName();
