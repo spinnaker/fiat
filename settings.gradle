@@ -35,8 +35,9 @@ enableFeaturePreview("VERSION_ORDERING_V2")
 
 rootProject.name="fiat"
 
-include 'fiat-client',
+include 'fiat-api',
         'fiat-bom',
+        'fiat-client',
         'fiat-core',
         'fiat-file',
         'fiat-github',
@@ -58,3 +59,5 @@ rootProject.children.each {
 
 // Set as an ext variable so that build scripts can access it
 gradle.ext.includedProviderProjects = includeProviders.split(',').collect{ ':fiat-' + it.toLowerCase() }
+include 'fiat-api'
+
