@@ -26,6 +26,7 @@ import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount;
 import com.netflix.spinnaker.fiat.providers.ProviderException;
 import com.netflix.spinnaker.fiat.providers.ResourceProvider;
+import com.netflix.spinnaker.fiat.providers.ResourceProviderRegistry;
 import com.netflix.spinnaker.fiat.roles.UserRolesProvider;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -57,12 +58,12 @@ public class DefaultPermissionsResolver implements PermissionsResolver {
   public DefaultPermissionsResolver(
       UserRolesProvider userRolesProvider,
       ResourceProvider<ServiceAccount> serviceAccountProvider,
-      List<ResourceProvider<? extends Resource>> resourceProviders,
+      ResourceProviderRegistry resourceProviderRegistry,
       FiatAdminConfig fiatAdminConfig,
       @Qualifier("objectMapper") ObjectMapper mapper) {
     this.userRolesProvider = userRolesProvider;
     this.serviceAccountProvider = serviceAccountProvider;
-    this.resourceProviders = ImmutableList.copyOf(resourceProviders);
+    this.resourceProviders = ImmutableList.copyOf(resourceProviderRegistry.getAll());
     this.fiatAdminConfig = fiatAdminConfig;
     this.mapper = mapper;
   }
