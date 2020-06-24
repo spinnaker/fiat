@@ -19,6 +19,7 @@ package com.netflix.spinnaker.fiat.model.resources;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.netflix.spinnaker.fiat.api.Authorization;
 import com.netflix.spinnaker.fiat.api.Permissions;
+import com.netflix.spinnaker.fiat.api.ResourceType;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Data;

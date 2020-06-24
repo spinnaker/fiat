@@ -19,7 +19,7 @@ package com.netflix.spinnaker.fiat.providers
 import com.netflix.spinnaker.fiat.api.Authorization
 import com.netflix.spinnaker.fiat.api.Permissions
 import com.netflix.spinnaker.fiat.model.resources.Resource
-import com.netflix.spinnaker.fiat.model.resources.ResourceType
+import com.netflix.spinnaker.fiat.api.ResourceType
 import com.netflix.spinnaker.fiat.model.resources.Role
 import groovy.transform.EqualsAndHashCode
 import groovy.transform.builder.Builder

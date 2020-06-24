@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model.resources
+package com.netflix.spinnaker.fiat.api
 
-import com.netflix.spinnaker.fiat.api.Authorization
-import com.netflix.spinnaker.fiat.api.Permissions
 import spock.lang.Specification
 
 class ResourceSpec extends Specification {

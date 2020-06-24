@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.netflix.spinnaker.fiat.api.Authorization;
 import com.netflix.spinnaker.fiat.api.Permissions;
+import com.netflix.spinnaker.fiat.api.ResourceType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;

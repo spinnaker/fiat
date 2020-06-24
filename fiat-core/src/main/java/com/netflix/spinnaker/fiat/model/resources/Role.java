@@ -17,6 +17,7 @@
 package com.netflix.spinnaker.fiat.model.resources;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.netflix.spinnaker.fiat.api.ResourceType;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import lombok.Data;

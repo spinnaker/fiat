@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model.resources;
+package com.netflix.spinnaker.fiat.api;
 
 import java.util.Objects;
 
