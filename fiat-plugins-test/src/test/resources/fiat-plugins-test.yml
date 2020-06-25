@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: fiat
+
+fiat:
+  writeMode:
+    enabled: false
+    syncDelayMs: -1
+  cache:
+    expiresAfterWriteSeconds: 0
+
+services:
+  clouddriver:
+    baseUrl: http://clouddriver.net
+  front50:
+    baseUrl: http://front50.net
+  igor:
+    enabled: false
+    baseUrl: http://igor.net

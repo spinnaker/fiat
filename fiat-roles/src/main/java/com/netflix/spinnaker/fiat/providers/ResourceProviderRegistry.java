@@ -57,7 +57,7 @@ public class ResourceProviderRegistry {
   }
 
   @SuppressWarnings("rawtypes")
-  static class ExtensionResourceProvider extends BaseResourceProvider {
+  public static class ExtensionResourceProvider extends BaseResourceProvider {
     private final ResourceLoader loader;
 
     ExtensionResourceProvider(ResourceLoader loader) {
@@ -65,7 +65,7 @@ public class ResourceProviderRegistry {
     }
 
     @Override
-    protected Set<? extends Resource> loadAll() throws ProviderException {
+    public Set<? extends Resource> loadAll() throws ProviderException {
       return loader.loadAll();
     }
   }

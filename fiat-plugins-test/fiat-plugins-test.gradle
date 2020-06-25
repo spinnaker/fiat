@@ -1,0 +1,75 @@
+/*
+ * Copyright 2020 Armory, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.3.72"
+    classpath "org.jetbrains.kotlin:kotlin-allopen:1.3.72"
+  }
+}
+
+apply plugin: "kotlin"
+apply plugin: "kotlin-spring"
+
+dependencies {
+  implementation(project(":fiat-api"))
+
+  implementation(platform("com.netflix.spinnaker.kork:kork-bom:$korkVersion"))
+
+  compileOnly("org.pf4j:pf4j:3.2.0")
+  annotationProcessor("org.pf4j:pf4j:3.2.0")
+
+  compileOnly("com.netflix.spinnaker.kork:kork-exceptions")
+  compileOnly("com.netflix.spinnaker.kork:kork-plugins-api")
+
+  compileOnly("com.fasterxml.jackson.core:jackson-core")
+  compileOnly("com.fasterxml.jackson.core:jackson-databind")
+  compileOnly("com.fasterxml.jackson.core:jackson-annotations")
+
+  testImplementation(project(":fiat-web"))
+  testImplementation(project(":fiat-api"))
+  testImplementation(project(":fiat-roles"))
+  testImplementation("com.netflix.spinnaker.kork:kork-plugins-tck")
+  testImplementation("com.netflix.spinnaker.kork:kork-plugins")
+  testImplementation("com.netflix.spinnaker.kork:kork-jedis")
+
+  testImplementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+  testImplementation("com.fasterxml.jackson.dataformat:jackson-dataformat-properties")
+  testImplementation "com.fasterxml.jackson.module:jackson-module-kotlin"
+
+  testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+  testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
+}
+
+test {
+  filter {
+    includeTestsMatching "com.netflix.spinnaker.orca.plugins.test.OrcaPluginsTest"
+  }
+
+  useJUnitPlatform {
+    includeEngines("junit-jupiter", "junit-vintage")
+  }
+}
+
+compileTestKotlin {
+  kotlinOptions {
+    languageVersion = "1.3"
+    jvmTarget = "1.8"
+  }
+}
