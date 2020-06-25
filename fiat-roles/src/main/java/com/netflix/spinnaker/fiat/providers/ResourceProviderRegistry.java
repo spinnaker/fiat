@@ -21,37 +21,32 @@ import com.netflix.spinnaker.fiat.api.ResourceLoader;
 import com.netflix.spinnaker.fiat.config.ProviderCacheConfig;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
-@Component
+@Slf4j
 public class ResourceProviderRegistry {
-  List<ResourceProvider<? extends Resource>> resourceProviders;
-  List<ExtensionResourceProvider> extensionResourceProviders = new ArrayList<>();
+  private final List<ResourceProvider<? extends Resource>> resourceProviders;
+  private final List<ExtensionResourceProvider> extensionResourceProviders = new ArrayList<>();
 
-  @Autowired
   public ResourceProviderRegistry(
       List<ResourceProvider<? extends Resource>> resourceProviders,
-      Optional<List<ResourceLoader>> resourceLoaders,
+      List<ResourceLoader> resourceLoaders,
       ProviderCacheConfig providerCacheConfig) {
     this.resourceProviders = resourceProviders;
-
-    resourceLoaders.ifPresent(
-        loaders ->
-            loaders.forEach(
-                l -> {
-                  val erp = new ExtensionResourceProvider(l);
-                  erp.setProviderCacheConfig(providerCacheConfig);
-                  extensionResourceProviders.add(erp);
-                }));
+    resourceLoaders.forEach(
+        l -> {
+          val erp = new ExtensionResourceProvider(l);
+          erp.setProviderCacheConfig(providerCacheConfig);
+          extensionResourceProviders.add(erp);
+        });
   }
 
   @Scheduled(fixedRateString = "${fiat.cache.refresh-interval:PT15S}")
-  private void reloadExtensionCaches() {
+  private void reloadExtensionResourceCaches() {
+    log.info("Reloading {} extension resource caches...", extensionResourceProviders.size());
     extensionResourceProviders.forEach(ExtensionResourceProvider::reloadCache);
   }
 
@@ -61,8 +56,9 @@ public class ResourceProviderRegistry {
     return all;
   }
 
+  @SuppressWarnings("rawtypes")
   static class ExtensionResourceProvider extends BaseResourceProvider {
-    ResourceLoader loader;
+    private final ResourceLoader loader;
 
     ExtensionResourceProvider(ResourceLoader loader) {
       this.loader = loader;

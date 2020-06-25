@@ -96,7 +96,7 @@ class DefaultPermissionsResolverSpec extends Specification {
   }
 
   @Shared
-  ResourceProviderRegistry resourceProviderRegistry = new ResourceProviderRegistry([accountProvider, applicationProvider, serviceAccountProvider], Optional.EMPTY, null)
+  ResourceProviderRegistry resourceProviderRegistry = new ResourceProviderRegistry([accountProvider, applicationProvider, serviceAccountProvider], [], null)
 
   def "should resolve the anonymous user permission, when enabled"() {
     setup:

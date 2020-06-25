@@ -16,9 +16,9 @@
 
 package com.netflix.spinnaker.fiat.api;
 
-import com.netflix.spinnaker.kork.plugins.api.internal.SpinnakerExtensionPoint;
 import java.util.Set;
+import org.pf4j.ExtensionPoint;
 
-public interface ResourceLoader extends SpinnakerExtensionPoint {
+public interface ResourceLoader extends ExtensionPoint {
   Set<? extends Resource> loadAll();
 }

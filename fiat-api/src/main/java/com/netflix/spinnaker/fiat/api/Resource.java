@@ -17,9 +17,9 @@
 package com.netflix.spinnaker.fiat.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.netflix.spinnaker.kork.plugins.api.internal.SpinnakerExtensionPoint;
+import org.pf4j.ExtensionPoint;
 
-public interface Resource extends SpinnakerExtensionPoint {
+public interface Resource extends ExtensionPoint {
   String getName();
 
   @JsonIgnore

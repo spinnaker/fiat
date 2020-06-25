@@ -3,25 +3,19 @@ package com.netflix.spinnaker.fiat.config;
 import com.google.common.collect.ImmutableList;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.config.PluginsAutoConfiguration;
-import com.netflix.spinnaker.fiat.api.Authorization;
+import com.netflix.spinnaker.fiat.api.*;
 import com.netflix.spinnaker.fiat.model.resources.Application;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.permissions.DefaultFallbackPermissionsResolver;
 import com.netflix.spinnaker.fiat.permissions.ExternalUser;
 import com.netflix.spinnaker.fiat.permissions.FallbackPermissionsResolver;
-import com.netflix.spinnaker.fiat.providers.DefaultApplicationResourceProvider;
-import com.netflix.spinnaker.fiat.providers.DefaultServiceAccountResourceProvider;
-import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider;
+import com.netflix.spinnaker.fiat.providers.*;
 import com.netflix.spinnaker.fiat.providers.internal.ClouddriverService;
 import com.netflix.spinnaker.fiat.providers.internal.Front50Service;
 import com.netflix.spinnaker.fiat.roles.UserRolesProvider;
 import com.netflix.spinnaker.filters.AuthenticatedRequestFilter;
 import com.netflix.spinnaker.kork.web.interceptors.MetricsInterceptor;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import lombok.val;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -88,6 +82,15 @@ public class FiatConfig extends WebMvcConfigurerAdapter {
         permissionProvider,
         executeFallbackPermissionsResolver,
         properties.isAllowAccessToUnknownApplications());
+  }
+
+  @Bean
+  ResourceProviderRegistry resourceProviderRegistry(
+      List<ResourceProvider<? extends Resource>> resourceProviders,
+      Optional<List<ResourceLoader>> resourceLoaders,
+      ProviderCacheConfig providerCacheConfig) {
+    return new ResourceProviderRegistry(
+        resourceProviders, resourceLoaders.orElseGet(ArrayList::new), providerCacheConfig);
   }
 
   @Bean
