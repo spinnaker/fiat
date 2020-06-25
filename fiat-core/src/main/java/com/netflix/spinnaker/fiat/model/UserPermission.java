@@ -137,21 +137,23 @@ public class UserPermission {
             this.extensionResources.computeIfAbsent(
                 resource.getResourceType(), (ignore) -> new HashSet<>());
 
-        val authorizable = new Authorizable() {
-          @Override
-          public String getName() {
-            return resource.getName();
-          }
+        val authorizable =
+            new Authorizable() {
+              @Override
+              public String getName() {
+                return resource.getName();
+              }
 
-          @Override
-          public Set<Authorization> getAuthorizations() {
-            if (permission.isAdmin()) {
-              return Authorization.ALL;
-            }
-            val roles = permission.getRoles().stream().map(Role::getName).collect(Collectors.toList());
-            return resource.getPermissions().getAuthorizations(roles);
-          }
-        };
+              @Override
+              public Set<Authorization> getAuthorizations() {
+                if (permission.isAdmin()) {
+                  return Authorization.ALL;
+                }
+                val roles =
+                    permission.getRoles().stream().map(Role::getName).collect(Collectors.toList());
+                return resource.getPermissions().getAuthorizations(roles);
+              }
+            };
         set.add(authorizable);
       }
 
