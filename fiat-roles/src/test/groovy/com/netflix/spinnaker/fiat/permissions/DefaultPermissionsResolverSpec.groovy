@@ -17,9 +17,13 @@
 package com.netflix.spinnaker.fiat.permissions
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.netflix.spinnaker.fiat.api.Resource
+import com.netflix.spinnaker.fiat.api.ResourceLoader
+import com.netflix.spinnaker.fiat.api.ResourceType
 import com.netflix.spinnaker.fiat.config.FiatAdminConfig
 import com.netflix.spinnaker.fiat.config.FiatRoleConfig
 import com.netflix.spinnaker.fiat.api.Authorization
+import com.netflix.spinnaker.fiat.config.ProviderCacheConfig
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Account
 import com.netflix.spinnaker.fiat.model.resources.Application
@@ -96,7 +100,15 @@ class DefaultPermissionsResolverSpec extends Specification {
   }
 
   @Shared
-  ResourceProviderRegistry resourceProviderRegistry = new ResourceProviderRegistry([accountProvider, applicationProvider, serviceAccountProvider], [], null)
+  Resource.AccessControlled myExtensionResource = new MyExtensionResource()
+
+  @Shared
+  ResourceLoader extensionResourceLoader = Mock(ResourceLoader) {
+    loadAll() >> [myExtensionResource]
+  }
+
+  @Shared
+  ResourceProviderRegistry resourceProviderRegistry = new ResourceProviderRegistry([accountProvider, applicationProvider, serviceAccountProvider], [extensionResourceLoader], new ProviderCacheConfig())
 
   def "should resolve the anonymous user permission, when enabled"() {
     setup:
@@ -192,6 +204,7 @@ class DefaultPermissionsResolverSpec extends Specification {
     expected.setRoles([role1] as Set).setAdmin(true)
             .setServiceAccounts([group1SvcAcct, group2SvcAcct] as Set)
             .setAccounts([reqGroup1Acct, reqGroup1and2Acct, anonymousRead] as Set)
+            .setExtensionResources([myExtensionResource] as Set)
     result == expected
 
   }
@@ -288,5 +301,38 @@ class DefaultPermissionsResolverSpec extends Specification {
     result.remove("group1") == expectedServiceAcct
     result.remove("user1") == expectedUser1
     result.isEmpty()
+  }
+
+  def "should resolve permissions for extension resources"() {
+    setup:
+    def userRolesProvider = Mock(UserRolesProvider)
+    @Subject def resolver = new DefaultPermissionsResolver(
+        userRolesProvider, serviceAccountProvider, resourceProviderRegistry, new FiatAdminConfig(), new ObjectMapper())
+
+    def role = new Role("extension_resource_reader")
+    def user = new ExternalUser().setId("user")
+    def up = new UserPermission()
+    up.with {
+      id = "user"
+      roles = [role]
+      extensionResources = [myExtensionResource]
+    }
+
+    when:
+    1 * userRolesProvider.multiLoadRoles(_) >> [
+        user: [role],
+    ]
+    def result = resolver.resolve([user])
+
+    then:
+    result == ["user": up]
+  }
+
+  class MyExtensionResource implements Resource.AccessControlled {
+    ResourceType resourceType = new ResourceType("my_resource_type")
+    String name = "my_resource_instance"
+    Permissions permissions = Permissions.factory([
+        (Authorization.READ): ["extension_resource_reader"],
+    ])
   }
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2020 Google, Inc.
+ * Copyright 2020 Armory, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,11 +14,16 @@
  * limitations under the License.
  */
 
-dependencies {
-  api("com.netflix.spinnaker.kork:kork-plugins-api")
+package com.netflix.spinnaker.fiat.model.resources;
 
-  implementation "com.fasterxml.jackson.core:jackson-annotations"
+import com.netflix.spinnaker.fiat.api.Authorization;
+import java.util.Set;
+import lombok.Builder;
+import lombok.Data;
 
-  compileOnly("org.projectlombok:lombok")
-  annotationProcessor("org.projectlombok:lombok")
+@Data
+@Builder
+public class AuthorizableImpl implements Authorizable {
+  private String name;
+  private Set<Authorization> authorizations;
 }
