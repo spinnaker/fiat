@@ -16,9 +16,15 @@
 
 package com.netflix.spinnaker.fiat.api;
 
+import com.netflix.spinnaker.kork.annotations.Alpha;
 import java.util.Set;
 import org.pf4j.ExtensionPoint;
 
+/**
+ * Loads Resources. For example, if you were re-writing Fiat's Account resource as a plugin,
+ * loadAll() would ask Clouddriver for a list of accounts and their associated permissions.
+ */
+@Alpha
 public interface ResourceLoader extends ExtensionPoint {
   Set<? extends Resource> loadAll();
 }

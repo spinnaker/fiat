@@ -17,15 +17,22 @@
 package com.netflix.spinnaker.fiat.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.netflix.spinnaker.kork.annotations.Alpha;
 import org.pf4j.ExtensionPoint;
 
+/** Represents a Fiat resource (e.g., a Role or a Service account). */
+@Alpha
 public interface Resource extends ExtensionPoint {
   String getName();
 
   @JsonIgnore
   ResourceType getResourceType();
 
-  /** Represents Resources that have restrictions on permissions. */
+  /**
+   * Represents Resources that have restrictions on permissions (e.g., an Account or an
+   * Application). Plugin developers should implement this interface.
+   */
+  @Alpha
   interface AccessControlled extends Resource {
 
     Permissions getPermissions();

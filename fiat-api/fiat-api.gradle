@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-apply plugin: "java-library"
-
 dependencies {
   api("com.netflix.spinnaker.kork:kork-plugins-api")
 
