@@ -49,4 +49,21 @@ dependencies {
   testImplementation "com.netflix.spinnaker.kork:kork-jedis-test"
 }
 
+test {
+  // The Implementation-Version is set in the MANIFEST.MF for the JAR produced via testing so that
+  // assertions can be made against the version (see fiat-plugins-test, for example).
+  jar {
+    manifest {
+      String implementationVersion = getAttributes()["Implementation-Version"]
+      if (implementationVersion == null
+          || implementationVersion.isEmpty()
+          || implementationVersion == "undefined") {
+        attributes(
+          'Implementation-Version': '9.0.0'
+        )
+      }
+    }
+  }
+}
+
 applicationName = 'fiat'

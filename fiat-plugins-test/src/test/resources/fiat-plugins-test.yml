@@ -5,7 +5,6 @@ spring:
 fiat:
   writeMode:
     enabled: false
-    syncDelayMs: -1
   cache:
     expiresAfterWriteSeconds: 0
 
@@ -17,3 +16,14 @@ services:
   igor:
     enabled: false
     baseUrl: http://igor.net
+
+spinnaker:
+  extensibility:
+    plugins-root-path: build/plugins
+    plugins:
+      io.armory.fiat.enabled.plugin:
+        enabled: true
+      io.armory.fiat.disabled.plugin:
+        enabled: false
+      io.armory.fiat.version.not.supported.plugin:
+        enabled: true

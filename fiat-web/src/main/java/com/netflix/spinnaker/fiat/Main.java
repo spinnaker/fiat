@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.springframework.boot.actuate.autoconfigure.ldap.LdapHealthContributorAutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.gson.GsonAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
@@ -44,6 +45,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
       // https://github.com/spring-projects/spring-ldap/issues/473
       LdapHealthContributorAutoConfiguration.class
     })
+@SpringBootApplication
 public class Main extends SpringBootServletInitializer {
 
   private static final Map<String, Object> DEFAULT_PROPS = buildDefaults();

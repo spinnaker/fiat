@@ -19,8 +19,8 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.3.72"
-    classpath "org.jetbrains.kotlin:kotlin-allopen:1.3.72"
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}"
+    classpath "org.jetbrains.kotlin:kotlin-allopen:${kotlinVersion}"
   }
 }
 
@@ -31,13 +31,10 @@ dependencies {
   implementation(project(":fiat-api"))
 
   implementation(platform("com.netflix.spinnaker.kork:kork-bom:$korkVersion"))
-
-  compileOnly("org.pf4j:pf4j:3.2.0")
-  annotationProcessor("org.pf4j:pf4j:3.2.0")
-
-  compileOnly("com.netflix.spinnaker.kork:kork-exceptions")
   compileOnly("com.netflix.spinnaker.kork:kork-plugins-api")
 
+  annotationProcessor("org.pf4j:pf4j:3.2.0")
+  compileOnly("org.pf4j:pf4j:3.2.0")
   compileOnly("com.fasterxml.jackson.core:jackson-core")
   compileOnly("com.fasterxml.jackson.core:jackson-databind")
   compileOnly("com.fasterxml.jackson.core:jackson-annotations")
@@ -58,12 +55,11 @@ dependencies {
 }
 
 test {
-  filter {
-    includeTestsMatching "com.netflix.spinnaker.orca.plugins.test.OrcaPluginsTest"
-  }
-
   useJUnitPlatform {
     includeEngines("junit-jupiter", "junit-vintage")
+  }
+  filter {
+    includeTestsMatching "com.netflix.spinnaker.fiat.plugins.FiatPluginsTest"
   }
 }
 
