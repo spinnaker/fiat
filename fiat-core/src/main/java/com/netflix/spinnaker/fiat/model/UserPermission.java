@@ -17,6 +17,7 @@
 package com.netflix.spinnaker.fiat.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.netflix.spinnaker.fiat.api.Authorization;
 import com.netflix.spinnaker.fiat.api.Resource;
 import com.netflix.spinnaker.fiat.api.ResourceType;
 import com.netflix.spinnaker.fiat.model.resources.*;
@@ -37,7 +38,7 @@ public class UserPermission {
   private Set<ServiceAccount> serviceAccounts = new LinkedHashSet<>();
   private Set<Role> roles = new LinkedHashSet<>();
   private Set<BuildService> buildServices = new LinkedHashSet<>();
-  private Set<Resource> extensionResources = new LinkedHashSet<>();
+  private Set<Resource.AccessControlled> extensionResources = new LinkedHashSet<>();
   private boolean admin = false;
 
   public void addResource(Resource resource) {
@@ -61,8 +62,10 @@ public class UserPermission {
             roles.add((Role) resource);
           } else if (resource instanceof BuildService) {
             buildServices.add((BuildService) resource);
+          } else if (resource instanceof Resource.AccessControlled) {
+            extensionResources.add((Resource.AccessControlled) resource);
           } else {
-            extensionResources.add(resource);
+            throw new IllegalArgumentException("Cannot add unknown resource " + resource);
           }
         });
 
@@ -133,10 +136,23 @@ public class UserPermission {
         val set =
             this.extensionResources.computeIfAbsent(
                 resource.getResourceType(), (ignore) -> new HashSet<>());
-        val view = ((Viewable) resource).getView(permission.getRoles(), permission.isAdmin());
-        if (view instanceof Authorizable) {
-          set.add((Authorizable) view);
-        }
+
+        val authorizable = new Authorizable() {
+          @Override
+          public String getName() {
+            return resource.getName();
+          }
+
+          @Override
+          public Set<Authorization> getAuthorizations() {
+            if (permission.isAdmin()) {
+              return Authorization.ALL;
+            }
+            val roles = permission.getRoles().stream().map(Role::getName).collect(Collectors.toList());
+            return resource.getPermissions().getAuthorizations(roles);
+          }
+        };
+        set.add(authorizable);
       }
 
       this.admin = permission.isAdmin();
