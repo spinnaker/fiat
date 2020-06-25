@@ -60,5 +60,3 @@ rootProject.children.each {
 
 // Set as an ext variable so that build scripts can access it
 gradle.ext.includedProviderProjects = includeProviders.split(',').collect{ ':fiat-' + it.toLowerCase() }
-include 'fiat-plugins-test'
-
