@@ -183,11 +183,17 @@ public class RedisPermissionsRepository implements PermissionsRepository {
                 .map(Resource::getResourceType)
                 .forEach(
                     r -> {
-                      Response<Map<String, String>> resourceMap = p.hgetAll(userKey(id, r));
+                      String userKey = userKey(id, r);
+                      String unrestrictedUserKey = unrestrictedUserKey(r);
+                      Response<Map<String, String>> resourceMap = p.hgetAll(userKey);
                       userResponseMap.put(r, resourceMap);
-                      Response<Map<String, String>> unrestrictedMap =
-                          p.hgetAll(unrestrictedUserKey(r));
-                      unrestrictedResponseMap.put(r, unrestrictedMap);
+                      if (userKey.equals(unrestrictedUserKey)) {
+                        unrestrictedResponseMap.put(r, resourceMap);
+                      } else {
+                        Response<Map<String, String>> unrestrictedMap =
+                            p.hgetAll(unrestrictedUserKey);
+                        unrestrictedResponseMap.put(r, unrestrictedMap);
+                      }
                       log.info("Resource: {}; map size: {}", r, unrestrictedResponseMap.size());
                     });
             Response<Boolean> admin = p.sismember(adminKey(), id);
