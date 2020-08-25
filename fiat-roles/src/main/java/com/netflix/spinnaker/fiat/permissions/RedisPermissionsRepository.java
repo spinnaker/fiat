@@ -151,8 +151,6 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       redisClientDelegate.withMultiKeyPipeline(
           pipeline -> {
             String userId = permission.getId();
-            pipeline.sadd(allUsersKey(), userId);
-
             if (permission.isAdmin()) {
               pipeline.sadd(adminKey(), userId);
             } else {
@@ -180,6 +178,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
                     });
 
             serverTime.set(pipeline.time());
+            pipeline.sadd(allUsersKey(), userId);
 
             pipeline.sync();
           });
