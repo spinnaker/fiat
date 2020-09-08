@@ -31,6 +31,7 @@ import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository
 import com.netflix.spinnaker.fiat.permissions.PermissionsResolver
 import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider
+import com.netflix.spinnaker.kork.web.exceptions.NotFoundException
 import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.mock.web.MockHttpServletResponse
@@ -275,6 +276,7 @@ class AuthorizeControllerSpec extends Specification {
   def "should fallback to permission resolver if no session available"() {
     given:
     def resolver = Mock(PermissionsResolver)
+    permissionsRepository.put(unrestrictedUser)
     def authorizeController = new AuthorizeController(
             registry,
             permissionsRepository,
@@ -285,7 +287,9 @@ class AuthorizeControllerSpec extends Specification {
             objectMapper
     )
     def account = new Account().setName("some-account")
-    def userPermissions = new UserPermission().setId(targetUser).setAccounts([account] as Set)
+    def mkUP = { -> new UserPermission().setId(targetUser).setAccounts([account] as Set)}
+    def userPermissions = mkUP()
+    def expectedPermissions = shouldReturnResolvedUser ? mkUP().merge(unrestrictedUser) : null
     Optional<UserPermission> optionalUserPermission
 
     when:
@@ -300,7 +304,7 @@ class AuthorizeControllerSpec extends Specification {
     if (shouldReturnResolvedUser) {
       1 * resolver.resolve(targetUser) >> userPermissions
     }
-    optionalUserPermission.orElse(null) == (shouldReturnResolvedUser ? userPermissions : null)
+    optionalUserPermission.orElse(null) == expectedPermissions
 
     where:
     authenticatedUser     | targetUser            | allowPermissionResolverFallback || shouldReturnResolvedUser

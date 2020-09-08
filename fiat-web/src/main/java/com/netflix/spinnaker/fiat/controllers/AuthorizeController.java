@@ -28,10 +28,12 @@ import com.netflix.spinnaker.fiat.permissions.PermissionsRepository;
 import com.netflix.spinnaker.fiat.permissions.PermissionsResolver;
 import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider;
 import com.netflix.spinnaker.kork.web.exceptions.InvalidRequestException;
+import com.netflix.spinnaker.kork.web.exceptions.NotFoundException;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import io.swagger.annotations.ApiOperation;
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletResponse;
@@ -117,7 +119,7 @@ public class AuthorizeController {
     return getUserPermissionView(userId).getAccounts().stream()
         .filter(account -> accountName.equalsIgnoreCase(account.getName()))
         .findFirst()
-        .orElseThrow(NotFoundException::new);
+        .orElseThrow(userNotFound(userId));
   }
 
   @RequestMapping(value = "/{userId:.+}/applications", method = RequestMethod.GET)
@@ -133,7 +135,7 @@ public class AuthorizeController {
     return getUserPermissionView(userId).getApplications().stream()
         .filter(application -> applicationName.equalsIgnoreCase(application.getName()))
         .findFirst()
-        .orElseThrow(NotFoundException::new);
+        .orElseThrow(userNotFound(userId));
   }
 
   @RequestMapping(value = "/{userId:.+}/serviceAccounts", method = RequestMethod.GET)
@@ -164,7 +166,7 @@ public class AuthorizeController {
   public ServiceAccount.View getServiceAccount(
       @PathVariable String userId, @PathVariable String serviceAccountName) {
     return getUserPermissionOrDefault(userId)
-        .orElseThrow(NotFoundException::new)
+        .orElseThrow(userNotFound(userId))
         .getView()
         .getServiceAccounts()
         .stream()
@@ -174,7 +176,7 @@ public class AuthorizeController {
                     .getName()
                     .equalsIgnoreCase(ControllerSupport.convert(serviceAccountName)))
         .findFirst()
-        .orElseThrow(NotFoundException::new);
+        .orElseThrow(serviceAccountNotFound(userId, serviceAccountName));
   }
 
   @RequestMapping(
@@ -275,7 +277,16 @@ public class AuthorizeController {
      * User does not have any stored permissions but the requested userId matches the
      * X-SPINNAKER-USER header value, likely a request that has not transited gate.
      */
-    if (userId.equalsIgnoreCase(authenticatedUserId)) {
+    if (userId.equalsIgnoreCase(authenticatedUserId)
+        && (configProps.isAllowPermissionResolverFallback()
+            || configProps.isDefaultToUnrestrictedUser())) {
+
+      Optional<UserPermission> unrestricted =
+          permissionsRepository.get(UnrestrictedResourceConfig.UNRESTRICTED_USERNAME);
+      if (!unrestricted.isPresent()) {
+        log.error(
+            "Error resolving fallback permissions: lookup of unrestricted user failed. Access to anonymous resources will fail");
+      }
 
       /*
        * First, attempt to resolve via the permissionsResolver.
@@ -285,6 +296,7 @@ public class AuthorizeController {
         if (resolvedUserPermission.getAllResources().stream().anyMatch(Objects::nonNull)) {
           log.debug("Resolved fallback permissions for user {}", authenticatedUserId);
           userPermission = resolvedUserPermission;
+          unrestricted.ifPresent(userPermission::merge);
         }
       }
 
@@ -292,12 +304,11 @@ public class AuthorizeController {
        * If user permissions are not resolved, default to those of the unrestricted user.
        */
       if (userPermission == null && configProps.isDefaultToUnrestrictedUser()) {
-        log.debug("Falling back to unrestricted user permissions for user {}", authenticatedUserId);
-        userPermission =
-            permissionsRepository
-                .get(UnrestrictedResourceConfig.UNRESTRICTED_USERNAME)
-                .map(u -> u.setId(authenticatedUserId))
-                .orElse(null);
+        if (unrestricted.isPresent()) {
+          log.debug(
+              "Falling back to unrestricted user permissions for user {}", authenticatedUserId);
+          userPermission = unrestricted.get().setId(authenticatedUserId);
+        }
       }
     }
 
@@ -321,8 +332,18 @@ public class AuthorizeController {
 
   private UserPermission.View getUserPermissionView(String userId) {
     return getUserPermissionOrDefault(userId)
-        .orElseThrow(NotFoundException::new)
+        .orElseThrow(userNotFound(userId))
         .getView()
         .setAllowAccessToUnknownApplications(configProps.isAllowAccessToUnknownApplications());
+  }
+
+  private Supplier<NotFoundException> userNotFound(String userId) {
+    return () -> new NotFoundException(String.format("user not found: %s", userId));
+  }
+
+  private Supplier<NotFoundException> serviceAccountNotFound(String userId, String serviceAccount) {
+    return () ->
+        new NotFoundException(
+            String.format("service account not found: %s, for user: %s", serviceAccount, userId));
   }
 }
