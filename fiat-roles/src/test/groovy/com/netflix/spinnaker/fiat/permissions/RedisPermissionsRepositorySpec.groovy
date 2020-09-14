@@ -29,6 +29,8 @@ import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
 import com.netflix.spinnaker.kork.jedis.EmbeddedRedis
 import com.netflix.spinnaker.kork.jedis.JedisClientDelegate
+import com.netflix.spinnaker.kork.jedis.RedisClientDelegate
+import io.github.resilience4j.retry.RetryRegistry
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPool
 import spock.lang.AutoCleanup
@@ -36,13 +38,22 @@ import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Subject
 
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReadWriteLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
+
 class RedisPermissionsRepositorySpec extends Specification {
 
   private static final String EMPTY_PERM_JSON = "{}"
 
   private static final String UNRESTRICTED = UnrestrictedResourceConfig.UNRESTRICTED_USERNAME
-
-  static String prefix = "unittests"
 
   @Shared
   @AutoCleanup("destroy")
@@ -51,29 +62,155 @@ class RedisPermissionsRepositorySpec extends Specification {
   @Shared
   ObjectMapper objectMapper = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL)
 
+  RedisPermissionRepositoryConfigProps configProps = new RedisPermissionRepositoryConfigProps(prefix: "unittests")
+
   @Shared
   Jedis jedis
 
+  @Shared
+  PausableRedisClientDelegate redisClientDelegate
+
   @Subject
   RedisPermissionsRepository repo
+
+  Clock clock = new TestClock()
 
   def setupSpec() {
     embeddedRedis = EmbeddedRedis.embed()
     jedis = embeddedRedis.jedis
     jedis.flushDB()
+    redisClientDelegate = new PausableRedisClientDelegate(new JedisClientDelegate(embeddedRedis.pool as JedisPool))
+  }
+
+  private static class TestClock extends Clock {
+    private Instant instant = Instant.now()
+    @Override
+    ZoneId getZone() {
+      return ZoneId
+    }
+
+    @Override
+    Clock withZone(ZoneId zone) {
+      throw new UnsupportedOperationException()
+    }
+
+    @Override
+    Instant instant() {
+      return instant
+    }
+
+    void tick(Duration amount) {
+      this.instant = instant.plus(amount)
+    }
+  }
+
+  static class PausableRedisClientDelegate implements RedisClientDelegate {
+    private final RedisClientDelegate delegate
+    private final AtomicReference<CountDownLatch> pauseLatch = new AtomicReference<>()
+    private final ReadWriteLock latchLock = new ReentrantReadWriteLock()
+    private final AtomicReference<CountDownLatch> pausedNotification = new AtomicReference<>()
+
+    PausableRedisClientDelegate(RedisClientDelegate delegate) {
+      this.delegate = delegate
+    }
+
+    void pause(CountDownLatch pausedNotification) {
+      latchLock.writeLock().lock()
+      try {
+        pauseLatch.set(new CountDownLatch(1))
+        this.pausedNotification.set(pausedNotification)
+      } finally {
+        latchLock.writeLock().unlock()
+      }
+    }
+
+    void resume() {
+      latchLock.writeLock().lock()
+      try {
+        if (pauseLatch.get() != null) {
+          pauseLatch.get().countDown()
+          pauseLatch.set(null)
+          pausedNotification.set(null)
+        }
+      } finally {
+        latchLock.writeLock().unlock()
+      }
+    }
+
+    @Delegate
+    private RedisClientDelegate getDelegate() {
+      latchLock.readLock().lock()
+      CountDownLatch latch = null
+      try {
+        latch = pauseLatch.get()
+        if (latch != null) {
+          pausedNotification.get()?.countDown()
+        }
+      } finally {
+        latchLock.readLock().unlock()
+      }
+      if (latch != null) {
+        latch.await()
+      }
+      return delegate
+    }
   }
 
   def setup() {
     repo = new RedisPermissionsRepository(
+        clock,
         objectMapper,
-        new JedisClientDelegate(embeddedRedis.pool as JedisPool),
+        redisClientDelegate,
         [new Application(), new Account(), new ServiceAccount(), new Role(), new BuildService()],
-        prefix,
+        configProps,
+        RetryRegistry.ofDefaults()
     )
   }
 
   def cleanup() {
     jedis.flushDB()
+  }
+
+  def "should fail if timeout is exceeded"() {
+    given:
+    repo.put(new UserPermission().setId("foo"))
+    def exec = Executors.newFixedThreadPool(1)
+    def latch = new CountDownLatch(1)
+
+    when:
+    redisClientDelegate.pause(latch)
+    def result = exec.submit {
+      repo.get("foo")
+    }
+
+    latch.await()
+
+    //TODO(cfieber): apologies to all readers of this test code
+    // this is gross, but a brief sleep will ensure the repo.get
+    // call attempts to make a redis call and hits the pause
+    // point in the PausableRedisClientDelegate.
+    Thread.sleep(5)
+    clock.tick(configProps.repository.getPermissionTimeout.plusMillis(1))
+    redisClientDelegate.resume()
+    result.get()
+
+    then:
+    def ex = thrown(ExecutionException)
+    ex.cause instanceof PermissionReadException
+    ex.cause.message.contains("timeout")
+  }
+
+  def "should set last modified for unrestricted user on save"() {
+    expect:
+    !jedis.sismember("unittests:users", UNRESTRICTED)
+    !jedis.exists("unittests:last_modified:__unrestricted_user__")
+
+    when:
+    repo.put(new UserPermission().setId(UNRESTRICTED))
+
+    then:
+    jedis.sismember("unittests:users", UNRESTRICTED)
+    jedis.exists("unittests:last_modified:__unrestricted_user__")
   }
 
   def "should put the specified permission in redis"() {
@@ -109,14 +246,14 @@ class RedisPermissionsRepositorySpec extends Specification {
 
   def "should remove permission that has been revoked"() {
     setup:
-    jedis.sadd("unittests:users", "testUser");
+    jedis.sadd("unittests:users", "testUser")
     jedis.sadd("unittests:roles:role1", "testUser")
     jedis.hset("unittests:permissions:testUser:accounts",
                "account",
-               '{"name":"account","requiredGroupMembership":[]}')
+               '{"name":"account","permissions":{}}')
     jedis.hset("unittests:permissions:testUser:applications",
                "app",
-               '{"name":"app","requiredGroupMembership":[]}')
+               '{"name":"app","permissions":{}}')
     jedis.hset("unittests:permissions:testUser:service_accounts",
                "serviceAccount",
                '{"name":"serviceAccount"}')
@@ -142,13 +279,13 @@ class RedisPermissionsRepositorySpec extends Specification {
 
   def "should get the permission out of redis"() {
     setup:
-    jedis.sadd("unittests:users", "testUser");
+    jedis.sadd("unittests:users", "testUser")
     jedis.hset("unittests:permissions:testUser:accounts",
                "account",
-               '{"name":"account","requiredGroupMembership":["abc"]}')
+               '{"name":"account","permissions":{"READ":["abc"]}}')
     jedis.hset("unittests:permissions:testUser:applications",
                "app",
-               '{"name":"app","requiredGroupMembership":["abc"]}')
+               '{"name":"app","permissions":{"READ":["abc"]}}')
     jedis.hset("unittests:permissions:testUser:service_accounts",
                "serviceAccount",
                '{"name":"serviceAccount"}')
@@ -157,19 +294,19 @@ class RedisPermissionsRepositorySpec extends Specification {
     def result = repo.get("testUser").get()
 
     then:
+    def abcRead = new Permissions.Builder().add(Authorization.READ, "abc").build()
     def expected = new UserPermission()
         .setId("testUser")
-        .setAccounts([new Account().setName("account")
-                                   .setRequiredGroupMembership(["abc"])] as Set)
-        .setApplications([new Application().setName("app")
-                                           .setRequiredGroupMembership(["abc"])] as Set)
+        .setAccounts([new Account().setName("account").setPermissions(abcRead)] as Set)
+        .setApplications([new Application().setName("app").setPermissions(abcRead)] as Set)
         .setServiceAccounts([new ServiceAccount().setName("serviceAccount")] as Set)
     result == expected
 
     when:
     jedis.hset("unittests:permissions:__unrestricted_user__:accounts",
                "account",
-               '{"name":"unrestrictedAccount","requiredGroupMembership":[]}')
+               '{"name":"unrestrictedAccount","permissions":{}}')
+    jedis.set("unittests:last_modified:__unrestricted_user__", "1")
     result = repo.get("testUser").get()
 
     then:
@@ -179,7 +316,7 @@ class RedisPermissionsRepositorySpec extends Specification {
 
   def "should get all users from redis"() {
     setup:
-    jedis.sadd("unittests:users", "testUser1", "testUser2", "testUser3");
+    jedis.sadd("unittests:users", "testUser1", "testUser2", "testUser3")
 
     and:
     Account account1 = new Account().setName("account1")
@@ -187,24 +324,25 @@ class RedisPermissionsRepositorySpec extends Specification {
     ServiceAccount serviceAccount1 = new ServiceAccount().setName("serviceAccount1")
     jedis.hset("unittests:permissions:testUser1:accounts",
                "account1",
-               '{"name":"account1","requiredGroupMembership":[]}')
+               '{"name":"account1","permissions":{}}')
     jedis.hset("unittests:permissions:testUser1:applications",
                "app1",
-               '{"name":"app1","requiredGroupMembership":[]}')
+               '{"name":"app1","permissions":{}}')
     jedis.hset("unittests:permissions:testUser1:service_accounts",
                "serviceAccount1",
                '{"name":"serviceAccount1"}')
 
     and:
-    Account account2 = new Account().setName("account2").setRequiredGroupMembership(["abc"])
-    Application app2 = new Application().setName("app2").setRequiredGroupMembership(["abc"])
+    def abcRead = new Permissions.Builder().add(Authorization.READ, "abc").build()
+    Account account2 = new Account().setName("account2").setPermissions(abcRead)
+    Application app2 = new Application().setName("app2").setPermissions(abcRead)
     ServiceAccount serviceAccount2 = new ServiceAccount().setName("serviceAccount2")
     jedis.hset("unittests:permissions:testUser2:accounts",
                "account2",
-               '{"name":"account2","requiredGroupMembership":["abc"]}')
+               '{"name":"account2","permissions":{"READ":["abc"]}}')
     jedis.hset("unittests:permissions:testUser2:applications",
                "app2",
-               '{"name":"app2","requiredGroupMembership":["abc"]}')
+               '{"name":"app2","permissions":{"READ":["abc"]}}')
     jedis.hset("unittests:permissions:testUser2:service_accounts",
                "serviceAccount2",
                '{"name":"serviceAccount2"}')
@@ -212,7 +350,7 @@ class RedisPermissionsRepositorySpec extends Specification {
     jedis.sadd("unittests:permissions:admin", "testUser3")
 
     when:
-    def result = repo.getAllById();
+    def result = repo.getAllById()
 
     then:
     def testUser1 = new UserPermission().setId("testUser1")
@@ -268,7 +406,7 @@ class RedisPermissionsRepositorySpec extends Specification {
     def user2 = new UserPermission().setId("user2").setRoles([role1, role3] as Set)
     def user3 = new UserPermission().setId("user3") // no roles.
     def user4 = new UserPermission().setId("user4").setRoles([role4] as Set)
-    def unrestricted = new UserPermission().setId(UNRESTRICTED).setAccounts([acct1] as Set);
+    def unrestricted = new UserPermission().setId(UNRESTRICTED).setAccounts([acct1] as Set)
 
     jedis.hset("unittests:permissions:user1:roles", "role1", '{"name":"role1"}')
     jedis.hset("unittests:permissions:user1:roles", "role2", '{"name":"role2"}')
@@ -299,10 +437,10 @@ class RedisPermissionsRepositorySpec extends Specification {
     then:
     result == ["user2"       : user2.merge(unrestricted),
                "user4"       : user4.merge(unrestricted),
-               (UNRESTRICTED): unrestricted];
+               (UNRESTRICTED): unrestricted]
 
     when:
-    result = repo.getAllByRoles(null);
+    result = repo.getAllByRoles(null)
 
     then:
     result == ["user1"       : user1.merge(unrestricted),
