@@ -16,15 +16,18 @@
 
 package com.netflix.spinnaker.fiat.shared;
 
+import com.netflix.spinnaker.kork.api.authz.AccessDeniedDecorator;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.web.servlet.error.DefaultErrorAttributes;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -36,6 +39,13 @@ public class FiatAccessDeniedExceptionHandler {
   private final Logger log = LoggerFactory.getLogger(getClass());
 
   private final DefaultErrorAttributes defaultErrorAttributes = new DefaultErrorAttributes();
+
+  private final ObjectProvider<List<AccessDeniedDecorator>> accessDeniedDecoratorsProvider;
+
+  public FiatAccessDeniedExceptionHandler(
+      ObjectProvider<List<AccessDeniedDecorator>> accessDeniedDecoratorsProvider) {
+    this.accessDeniedDecoratorsProvider = accessDeniedDecoratorsProvider;
+  }
 
   @ExceptionHandler(AccessDeniedException.class)
   public void handleAccessDeniedException(
@@ -62,21 +72,43 @@ public class FiatAccessDeniedExceptionHandler {
 
   private String authorizationFailureMessage(
       FiatPermissionEvaluator.AuthorizationFailure authorizationFailure) {
+    StringJoiner sj = new StringJoiner(" ");
+
+    defaultErrorDecoration(sj, authorizationFailure);
+    additionalErrorDecoration(sj, authorizationFailure);
+
+    return sj.toString();
+  }
+
+  /**
+   * Default access denied error decoration - decorates the error with the resource type and
+   * resource name that authorization was denied to.
+   */
+  private void defaultErrorDecoration(
+      StringJoiner sj, FiatPermissionEvaluator.AuthorizationFailure authorizationFailure) {
     // Make the resource type readable (ie, "service account" instead of "serviceaccount")
     String resourceType =
         authorizationFailure.getResourceType().toString().replace("_", " ").toLowerCase();
-
-    StringJoiner sj =
-        new StringJoiner(" ")
-            .add("Access denied to")
-            .add(resourceType)
-            .add(authorizationFailure.getResourceName());
-
+    sj.add("Access denied to").add(resourceType).add(authorizationFailure.getResourceName());
     if (authorizationFailure.hasAuthorization()) {
       sj.add("- required authorization:").add(authorizationFailure.getAuthorization().toString());
     }
+  }
 
-    return sj.toString();
+  /** Decorates the error from the provided list of {@link AccessDeniedDecorator} objects. */
+  private void additionalErrorDecoration(
+      StringJoiner sj, FiatPermissionEvaluator.AuthorizationFailure authorizationFailure) {
+    List<AccessDeniedDecorator> accessDeniedDecorators =
+        accessDeniedDecoratorsProvider.getIfAvailable();
+    if (accessDeniedDecorators != null && !accessDeniedDecorators.isEmpty()) {
+      accessDeniedDecorators.forEach(
+          decorator ->
+              sj.add("\n")
+                  .add(
+                      decorator.decorate(
+                          authorizationFailure.getResourceType().toString(),
+                          authorizationFailure.getResourceName())));
+    }
   }
 
   private Map<String, String> requestHeaders(HttpServletRequest request) {
