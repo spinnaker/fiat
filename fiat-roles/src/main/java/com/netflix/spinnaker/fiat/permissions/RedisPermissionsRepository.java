@@ -370,16 +370,15 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     UserPermission unrestrictedUser = getUserPermission(UNRESTRICTED, rawUnrestricted);
     Set<String> adminSet = getAllAdmins();
 
-    return dedupedUsernames.stream()
-        .map(
-            userId -> {
-              RawUserPermission rawUser = new RawUserPermission(responseTable.row(userId));
-              rawUser.isAdmin = adminSet.contains(userId);
-              return getUserPermission(userId, rawUser);
-            })
-        .collect(
-            Collectors.toMap(
-                UserPermission::getId, permission -> permission.merge(unrestrictedUser)));
+    Map<String, UserPermission> userPermissions = new HashMap<>();
+    for (String userId : dedupedUsernames) {
+      RawUserPermission rawUser = new RawUserPermission(responseTable.row(userId));
+      rawUser.isAdmin = adminSet.contains(userId);
+      UserPermission permission = getUserPermission(userId, rawUser);
+      userPermissions.put(userId, permission.merge(unrestrictedUser));
+    }
+
+    return userPermissions;
   }
 
   private UserPermission getUserPermission(String userId, RawUserPermission raw) {

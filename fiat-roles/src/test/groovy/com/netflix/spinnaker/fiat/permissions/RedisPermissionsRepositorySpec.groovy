@@ -399,6 +399,7 @@ class RedisPermissionsRepositorySpec extends Specification {
     def role2 = new Role("role2")
     def role3 = new Role("role3")
     def role4 = new Role("role4")
+    def role5 = new Role("role5")
 
     def acct1 = new Account().setName("acct1")
 
@@ -406,6 +407,8 @@ class RedisPermissionsRepositorySpec extends Specification {
     def user2 = new UserPermission().setId("user2").setRoles([role1, role3] as Set)
     def user3 = new UserPermission().setId("user3") // no roles.
     def user4 = new UserPermission().setId("user4").setRoles([role4] as Set)
+    def user5 = new UserPermission().setId("user5").setRoles([role5] as Set)
+    def uSER5 = new UserPermission().setId("uSER5").setRoles([role5] as Set)
     def unrestricted = new UserPermission().setId(UNRESTRICTED).setAccounts([acct1] as Set)
 
     jedis.hset("unittests:permissions:user1:roles", "role1", '{"name":"role1"}')
@@ -413,6 +416,8 @@ class RedisPermissionsRepositorySpec extends Specification {
     jedis.hset("unittests:permissions:user2:roles", "role1", '{"name":"role1"}')
     jedis.hset("unittests:permissions:user2:roles", "role3", '{"name":"role3"}')
     jedis.hset("unittests:permissions:user4:roles", "role4", '{"name":"role4"}')
+    jedis.hset("unittests:permissions:user5:roles", "role5", '{"name":"role5"}')
+    jedis.hset("unittests:permissions:uSER5:roles", "role5", '{"name":"role5"}')
 
     jedis.hset("unittests:permissions:__unrestricted_user__:accounts", "acct1", '{"name":"acct1"}')
 
@@ -420,8 +425,10 @@ class RedisPermissionsRepositorySpec extends Specification {
     jedis.sadd("unittests:roles:role2", "user1")
     jedis.sadd("unittests:roles:role3", "user2")
     jedis.sadd("unittests:roles:role4", "user4")
+    jedis.sadd("unittests:roles:role5", "user5")
+    jedis.sadd("unittests:roles:role5", "uSER5")
 
-    jedis.sadd("unittests:users", "user1", "user2", "user3", "user4", "__unrestricted_user__")
+    jedis.sadd("unittests:users", "user1", "user2", "user3", "user4", "user5", "uSER5", "__unrestricted_user__")
 
     when:
     def result = repo.getAllByRoles(["role1"])
@@ -447,6 +454,8 @@ class RedisPermissionsRepositorySpec extends Specification {
                "user2"       : user2.merge(unrestricted),
                "user3"       : user3.merge(unrestricted),
                "user4"       : user4.merge(unrestricted),
+               "user5"       : user5.merge(unrestricted),
+               "uSER5"       : uSER5.merge(unrestricted),
                (UNRESTRICTED): unrestricted]
 
     when:
@@ -454,5 +463,13 @@ class RedisPermissionsRepositorySpec extends Specification {
 
     then:
     result == [(UNRESTRICTED): unrestricted]
+
+    when:
+    result = repo.getAllByRoles(["role5"])
+
+    then:
+    result == ["user5"       : user5.merge(unrestricted),
+               "uSER5"       : uSER5.merge(unrestricted),
+               (UNRESTRICTED): unrestricted]
   }
 }
