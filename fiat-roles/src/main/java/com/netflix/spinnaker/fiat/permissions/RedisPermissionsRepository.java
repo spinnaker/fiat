@@ -88,7 +88,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private final LoadingCache<String, UserPermission> unrestrictedPermission =
       Caffeine.newBuilder()
           .expireAfterAccess(Duration.ofSeconds(10))
-          .build(k -> reloadUnrestricted(k));
+          .build(this::reloadUnrestricted);
 
   private final String prefix;
 
@@ -321,20 +321,11 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       return new HashMap<>(0);
     }
 
-    RawUserPermission rawUnrestricted = getRawUserPermissionsFromRedis(UNRESTRICTED);
-    UserPermission unrestrictedUser = getUserPermission(UNRESTRICTED, rawUnrestricted);
-    Set<String> adminSet = getAllAdmins();
-
     return allUsers.stream()
-        .map(userId -> getRawUserPermissionsFromRedis(userId))
-        .map(
-            rawUser -> {
-              rawUser.isAdmin = adminSet.contains(rawUser.userId);
-              return getUserPermission(rawUser.userId, rawUser);
-            })
-        .collect(
-            Collectors.toMap(
-                UserPermission::getId, permission -> permission.merge(unrestrictedUser)));
+        .map(this::get)
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .collect(Collectors.toMap(UserPermission::getId, p -> p));
   }
 
   @Override
@@ -351,57 +342,18 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       return new HashMap<>();
     }
 
-    final Set<String> dedupedUsernames = new HashSet<>();
+    final Set<String> uniqueUsernames = new HashSet<>();
     for (String role : new HashSet<>(anyRoles)) {
-      dedupedUsernames.addAll(
+      uniqueUsernames.addAll(
           scanSet(roleKey(role)).stream().map(String::toLowerCase).collect(Collectors.toSet()));
     }
-    dedupedUsernames.add(UNRESTRICTED);
+    uniqueUsernames.add(UNRESTRICTED);
 
-    RawUserPermission rawUnrestricted = getRawUserPermissionsFromRedis(UNRESTRICTED);
-    UserPermission unrestrictedUser = getUserPermission(UNRESTRICTED, rawUnrestricted);
-    Set<String> adminSet = getAllAdmins();
-
-    return dedupedUsernames.stream()
-        .map(userId -> getRawUserPermissionsFromRedis(userId))
-        .map(
-            rawUser -> {
-              rawUser.isAdmin = adminSet.contains(rawUser.userId);
-              return getUserPermission(rawUser.userId, rawUser);
-            })
-        .collect(
-            Collectors.toMap(
-                UserPermission::getId, permission -> permission.merge(unrestrictedUser)));
-  }
-
-  private UserPermission getUserPermission(String userId, RawUserPermission raw) {
-
-    UserPermission permission = new UserPermission().setId(userId);
-
-    for (Map.Entry<ResourceType, Response<Map<String, String>>> entry : raw.entrySet()) {
-      ResourceType r = entry.getKey();
-
-      Map<String /*resourceName*/, String /*resource json*/> resourceMap = entry.getValue().get();
-      permission.addResources(extractResources(r, resourceMap));
-    }
-    permission.setAdmin(raw.isAdmin);
-
-    return permission;
-  }
-
-  private RawUserPermission getRawUserPermissionsFromRedis(String userId) {
-    Map<ResourceType, Response<Map<String, String>>> user =
-        new HashMap<>((int) resources.stream().map(Resource::getResourceType).count());
-    redisClientDelegate.withMultiKeyPipeline(
-        p -> {
-          resources.stream()
-              .map(Resource::getResourceType)
-              .forEach(r -> user.put(r, p.hgetAll(userKey(userId, r))));
-          p.sync();
-        });
-    val raw = new RawUserPermission(user);
-    raw.userId = userId;
-    return raw;
+    return uniqueUsernames.stream()
+        .map(this::get)
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .collect(Collectors.toMap(UserPermission::getId, p -> p));
   }
 
   @Override
@@ -420,12 +372,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
               p.srem(roleKey(roleName), id);
             }
 
-            resources.stream()
-                .map(Resource::getResourceType)
-                .forEach(
-                    r -> {
-                      p.del(userKey(id, r));
-                    });
+            resources.stream().map(Resource::getResourceType).forEach(r -> p.del(userKey(id, r)));
             p.srem(adminKey(), id);
             p.sync();
           });
@@ -449,16 +396,8 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     return results;
   }
 
-  private Set<String> getAllAdmins() {
-    return scanSet(adminKey());
-  }
-
   private String allUsersKey() {
     return String.format("%s:%s", prefix, KEY_ALL_USERS);
-  }
-
-  private String unrestrictedUserKey(ResourceType r) {
-    return userKey(UNRESTRICTED, r);
   }
 
   private String userKey(String userId, ResourceType r) {
@@ -513,21 +452,6 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     }
 
     R applyThrows(T t) throws Exception;
-  }
-
-  private class RawUserPermission extends HashMap<ResourceType, Response<Map<String, String>>> {
-
-    private String userId = "";
-
-    private boolean isAdmin = false;
-
-    RawUserPermission() {
-      super();
-    }
-
-    RawUserPermission(Map<ResourceType, Response<Map<String, String>>> source) {
-      super(source);
-    }
   }
 
   /**
