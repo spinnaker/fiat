@@ -16,19 +16,20 @@
 
 package com.netflix.spinnaker.fiat.roles.ldap;
 
-import com.netflix.spinnaker.fiat.config.LdapConfig;
+import com.netflix.spinnaker.fiat.config.LdapConfigV2;
 import com.netflix.spinnaker.fiat.model.resources.Role;
 import com.netflix.spinnaker.fiat.permissions.ExternalUser;
 import com.netflix.spinnaker.fiat.roles.UserRolesProvider;
 import java.text.MessageFormat;
-import java.text.ParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 import javax.naming.InvalidNameException;
 import javax.naming.Name;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
+import javax.naming.ldap.LdapName;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -46,18 +47,25 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(value = "auth.group-membership.service", havingValue = "ldap")
-public class LdapUserRolesProvider implements UserRolesProvider {
+@ConditionalOnProperty(value = "auth.group-membership.service", havingValue = "ldapv2")
+public class LdapUserRolesProviderV2 implements UserRolesProvider {
 
-  @Autowired @Setter private SpringSecurityLdapTemplate ldapTemplate;
+  @Setter private SpringSecurityLdapTemplate ldapTemplate;
 
-  @Autowired @Setter private LdapConfig.ConfigProps configProps;
+  @Setter private LdapConfigV2.ConfigProps configProps;
+
+  public LdapUserRolesProviderV2(
+      @Autowired SpringSecurityLdapTemplate ldapTemplate,
+      @Autowired LdapConfigV2.ConfigProps configProps) {
+    this.ldapTemplate = ldapTemplate;
+    this.configProps = configProps;
+  }
 
   @Override
   public List<Role> loadRoles(ExternalUser user) {
     String userId = user.getId();
 
-    log.debug("loadRoles for user " + userId);
+    log.debug("loadRoles for user {}", userId);
     if (StringUtils.isEmpty(configProps.getGroupSearchBase())) {
       return new ArrayList<>();
     }
@@ -71,20 +79,12 @@ public class LdapUserRolesProvider implements UserRolesProvider {
     }
 
     String[] params = new String[] {fullUserDn, userId};
+    log.debug("Searching for groups using \ngroupSearchBase: {}\ngroupSearchFilter: {}\nparams: {}\ngroupRoleAttributes: {}",
+            configProps.getGroupSearchBase(),
+            configProps.getGroupSearchFilter(),
+            StringUtils.join(params, " :: "),
+            configProps.getGroupRoleAttributes());
 
-    if (log.isDebugEnabled()) {
-      log.debug(
-          new StringBuilder("Searching for groups using ")
-              .append("\ngroupSearchBase: ")
-              .append(configProps.getGroupSearchBase())
-              .append("\ngroupSearchFilter: ")
-              .append(configProps.getGroupSearchFilter())
-              .append("\nparams: ")
-              .append(StringUtils.join(params, " :: "))
-              .append("\ngroupRoleAttributes: ")
-              .append(configProps.getGroupRoleAttributes())
-              .toString());
-    }
 
     // Copied from org.springframework.security.ldap.userdetails.DefaultLdapAuthoritiesPopulator.
     Set<String> userRoles =
@@ -94,30 +94,39 @@ public class LdapUserRolesProvider implements UserRolesProvider {
             params,
             configProps.getGroupRoleAttributes());
 
-    if (log.isDebugEnabled()) {
-      log.debug("Got roles for user " + userId + ": " + userRoles);
-    }
+    log.debug("Got roles for user {}: {}", userId, userRoles);
     return userRoles.stream()
         .map(role -> new Role(role).setSource(Role.Source.LDAP))
         .collect(Collectors.toList());
   }
 
-  private class UserGroupMapper implements AttributesMapper<List<Pair<String, Role>>> {
-    public List<Pair<String, Role>> mapFromAttributes(Attributes attrs) throws NamingException {
-      String group = attrs.get(configProps.getGroupRoleAttributes()).get().toString();
-      Role role = new Role(group).setSource(Role.Source.LDAP);
-      List<Pair<String, Role>> member = new ArrayList<>();
-      for (NamingEnumeration<?> members = attrs.get(configProps.getGroupUserAttributes()).getAll();
-          members.hasMore(); ) {
-        try {
-          String user =
-              String.valueOf(configProps.getUserDnPattern().parse(members.next().toString())[0]);
-          member.add(Pair.of(user, role));
-        } catch (ParseException e) {
-          e.printStackTrace();
+  private class RoleFullDNtoUserRoleMapper implements AttributesMapper<Role> {
+    @Override
+    public Role mapFromAttributes(Attributes attrs) throws NamingException {
+      return new Role(attrs.get(configProps.getGroupRoleAttributes()).get().toString())
+          .setSource(Role.Source.LDAP);
+    }
+  }
+
+  private class UserRoleMapper implements AttributesMapper<Pair<String, Collection<Role>>> {
+    @Override
+    public Pair<String, Collection<Role>> mapFromAttributes(Attributes attrs)
+        throws NamingException {
+      List<Role> roles = new ArrayList<>();
+      Attribute memberOfAttribute = attrs.get("memberOf");
+      if (memberOfAttribute != null) {
+        for (NamingEnumeration<?> memberOf = memberOfAttribute.getAll(); memberOf.hasMore(); ) {
+          String roleDN = memberOf.next().toString();
+          LdapName ln = org.springframework.ldap.support.LdapUtils.newLdapName(roleDN);
+          String role =
+              org.springframework.ldap.support.LdapUtils.getStringValue(
+                  ln, configProps.getGroupRoleAttributes());
+          roles.add(new Role(role).setSource(Role.Source.LDAP));
         }
       }
-      return member;
+
+      return Pair.of(
+          attrs.get(configProps.getUserIdAttributes()).get().toString().toLowerCase(), roles);
     }
   }
 
@@ -126,37 +135,40 @@ public class LdapUserRolesProvider implements UserRolesProvider {
     if (StringUtils.isEmpty(configProps.getGroupSearchBase())) {
       return new HashMap<>();
     }
+    StringBuilder filter = new StringBuilder();
+    filter.append("(|");
+    users.forEach(
+        u -> filter.append(MessageFormat.format(configProps.getUserSearchFilter(), u.getId())));
+    filter.append(")");
 
-    if (users.size() > configProps.getThresholdToUseGroupMembership()
-        && StringUtils.isNotEmpty(configProps.getGroupUserAttributes())) {
-      Set<String> userIds = users.stream().map(ExternalUser::getId).collect(Collectors.toSet());
-      return ldapTemplate
-          .search(
-              configProps.getGroupSearchBase(),
-              MessageFormat.format(
-                  configProps.getGroupSearchFilter(),
-                  "*",
-                  "*"), // Passing two wildcard params like loadRoles
-              new UserGroupMapper())
-          .stream()
-          .flatMap(List::stream)
-          .filter(p -> userIds.contains(p.getKey()))
-          .collect(
-              Collectors.groupingBy(
-                  Pair::getKey,
-                  Collectors.mapping(Pair::getValue, Collectors.toCollection(ArrayList::new))));
-    }
+    Map<String, List<ExternalUser>> userIds =
+        users.stream().collect(Collectors.groupingBy(e -> e.getId().toLowerCase()));
+    List<Role> roles =
+        ldapTemplate.search(
+            configProps.getGroupSearchBase(),
+            MessageFormat.format(configProps.getGroupSearchFilter(), "*", "*"),
+            new RoleFullDNtoUserRoleMapper());
 
-    // ExternalUser is used here as a simple data type to hold the username/roles combination.
-    return users.stream()
-        .map(u -> new ExternalUser().setId(u.getId()).setExternalRoles(loadRoles(u)))
-        .collect(Collectors.toMap(ExternalUser::getId, ExternalUser::getExternalRoles));
+    return ldapTemplate
+        .search(configProps.getUserSearchBase(), filter.toString(), new UserRoleMapper())
+        .stream()
+        .flatMap(
+            p -> {
+              List<ExternalUser> sameUsers = userIds.get(p.getKey().toLowerCase());
+              return sameUsers.stream()
+                  .flatMap(it -> p.getValue().stream().map(role -> Pair.of(it.getId(), role)));
+            })
+        .filter(p -> roles.contains(p.getValue()))
+        .collect(
+            Collectors.groupingBy(
+                Pair::getKey,
+                Collectors.mapping(Pair::getValue, Collectors.toCollection(ArrayList::new))));
   }
 
   private String getUserFullDn(String userId) {
     String rootDn = LdapUtils.parseRootDnFromUrl(configProps.getUrl());
     DistinguishedName root = new DistinguishedName(rootDn);
-    log.debug("Root DN: " + root.toString());
+    log.debug("Root DN: {}", root.toString());
 
     String[] formatArgs = new String[] {LdapEncoder.nameEncode(userId)};
 
@@ -168,7 +180,7 @@ public class LdapUserRolesProvider implements UserRolesProvider {
                 configProps.getUserSearchBase(), configProps.getUserSearchFilter(), formatArgs);
         partialUserDn = res.getDn().toString();
       } catch (IncorrectResultSizeDataAccessException e) {
-        log.error("Unable to find a single user entry for {}", userId, e);
+        log.error("Unable to find a single user entry", e);
         return null;
       }
     } else {
@@ -176,11 +188,11 @@ public class LdapUserRolesProvider implements UserRolesProvider {
     }
 
     DistinguishedName user = new DistinguishedName(partialUserDn);
-    log.debug("User portion: " + user.toString());
+    log.debug("User portion: {}", user.toString());
 
     try {
       Name fullUser = root.addAll(user);
-      log.debug("Full user DN: " + fullUser.toString());
+      log.debug("Full user DN: {}", fullUser.toString());
       return fullUser.toString();
     } catch (InvalidNameException ine) {
       log.error("Could not assemble full userDn", ine);
