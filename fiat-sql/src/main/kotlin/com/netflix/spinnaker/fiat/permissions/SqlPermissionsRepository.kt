@@ -83,6 +83,12 @@ class SqlPermissionsRepository(
                     ))
                     .execute()
 
+                // Clear existing permissions
+                ctx
+                    .deleteFrom(Table.PERMISSION)
+                    .where(Permission.USER_ID.eq(userId))
+                    .execute()
+
                 // Update permissions
                 permission.allResources.forEach { r ->
                         val body = objectMapper.writeValueAsString(r)
@@ -95,33 +101,7 @@ class SqlPermissionsRepository(
                                 Permission.BODY
                             )
                             .values(userId, r.name, r.resourceType.toString(), body)
-                            .onConflict(
-                                Permission.USER_ID,
-                                Permission.RESOURCE_NAME,
-                                Permission.RESOURCE_TYPE
-                            )
-                            .doUpdate()
-                            .set(Permission.BODY, body)
                             .execute()
-                }
-
-                // Delete dangling permissions
-                val namesByType = permission.allResources.groupBy(
-                    { it.resourceType.toString() },
-                    { it.name }
-                )
-
-                resourceTypes.forEach { type ->
-                    var filter = Permission.RESOURCE_TYPE.eq(type.toString())
-
-                    val names = namesByType.getOrDefault(type.toString(), Collections.emptyList())
-                    if (names.isNotEmpty()) {
-                        filter = filter.and(Permission.RESOURCE_NAME.notIn(names))
-                    }
-
-                    ctx.deleteFrom(Table.PERMISSION)
-                        .where(filter)
-                        .execute()
                 }
             }
         }
