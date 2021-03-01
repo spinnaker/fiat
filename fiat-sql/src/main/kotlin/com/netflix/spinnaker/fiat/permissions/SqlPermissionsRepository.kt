@@ -34,8 +34,7 @@ import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
-import java.util.Optional
+import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 
 
@@ -61,6 +60,8 @@ class SqlPermissionsRepository(
     }
 
     override fun put(permission: UserPermission): PermissionsRepository {
+        val resourceTypes = resources.map { r -> r.resourceType }.distinct().toSet();
+
         withPool(poolName) {
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 val userId = permission.id
@@ -82,30 +83,44 @@ class SqlPermissionsRepository(
                     ))
                     .execute()
 
-                // Wipe current permissions
-                ctx.delete(Table.PERMISSION)
-                    .where(Permission.USER_ID.eq(userId))
-                    .execute()
+                // Update permissions
+                permission.allResources.forEach { r ->
+                        val body = objectMapper.writeValueAsString(r)
+                        ctx
+                            .insertInto(
+                                Table.PERMISSION,
+                                Permission.USER_ID,
+                                Permission.RESOURCE_NAME,
+                                Permission.RESOURCE_TYPE,
+                                Permission.BODY
+                            )
+                            .values(userId, r.name, r.resourceType.toString(), body)
+                            .onConflict(
+                                Permission.USER_ID,
+                                Permission.RESOURCE_NAME,
+                                Permission.RESOURCE_TYPE
+                            )
+                            .doUpdate()
+                            .set(Permission.BODY, body)
+                            .execute()
+                }
 
-                // Update permissions table
-                permission.allResources.forEach { resource ->
-                    val body = objectMapper.writeValueAsString(resource)
-                    ctx
-                        .insertInto(
-                            Table.PERMISSION,
-                            Permission.USER_ID,
-                            Permission.RESOURCE_NAME,
-                            Permission.RESOURCE_TYPE,
-                            Permission.BODY
-                        )
-                        .values(userId, resource.name, resource.resourceType.toString(), body)
-                        .onConflict(
-                            Permission.USER_ID,
-                            Permission.RESOURCE_NAME,
-                            Permission.RESOURCE_TYPE
-                        )
-                        .doUpdate()
-                        .set(Permission.BODY, body)
+                // Delete dangling permissions
+                val namesByType = permission.allResources.groupBy(
+                    { it.resourceType.toString() },
+                    { it.name }
+                )
+
+                resourceTypes.forEach { type ->
+                    var filter = Permission.RESOURCE_TYPE.eq(type.toString())
+
+                    val names = namesByType.getOrDefault(type.toString(), Collections.emptyList())
+                    if (names.isNotEmpty()) {
+                        filter = filter.and(Permission.RESOURCE_NAME.notIn(names))
+                    }
+
+                    ctx.deleteFrom(Table.PERMISSION)
+                        .where(filter)
                         .execute()
                 }
             }

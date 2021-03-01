@@ -176,7 +176,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                         .from(Table.PERMISSION)
                         .where(
                             Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq("account")
+                                Permission.RESOURCE_TYPE.eq(ResourceType.ACCOUNT.toString())
                             )
                         )
                         .fetchOne(field("body", String::class.java))
@@ -186,7 +186,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                         .from(Table.PERMISSION)
                         .where(
                             Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq("application")
+                                Permission.RESOURCE_TYPE.eq(ResourceType.APPLICATION.toString())
                             )
                         )
                         .fetchOne(field("body", String::class.java))
@@ -196,7 +196,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                         .from(Table.PERMISSION)
                         .where(
                             Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq("service_account")
+                                Permission.RESOURCE_TYPE.eq(ResourceType.SERVICE_ACCOUNT.toString())
                             )
                         )
                         .fetchOne(field("body", String::class.java))
@@ -206,7 +206,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                         .from(Table.PERMISSION)
                         .where(
                             Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq("role")
+                                Permission.RESOURCE_TYPE.eq(ResourceType.ROLE.toString())
                             )
                         )
                         .fetchOne(field("body", String::class.java))
@@ -218,10 +218,10 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .values("testuser", false, clock.millis())
                     .execute()
                 jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("testuser", "account", "account", """{"name":"account","permissions":{}}""")
-                    .values("testuser", "app", "app", """{"name":"app","permissions":{}}""")
-                    .values("testuser", "service_account", "serviceAccount", """{"name":"serviceAccount","permissions":{}}""")
-                    .values("testuser", "role", "role1", """{"name":"role1"}""")
+                    .values("testuser", ResourceType.ACCOUNT.toString(), "account", """{"name":"account","permissions":{}}""")
+                    .values("testuser", ResourceType.APPLICATION.toString(), "app", """{"name":"app","permissions":{}}""")
+                    .values("testuser", ResourceType.SERVICE_ACCOUNT.toString(), "serviceAccount", """{"name":"serviceAccount","permissions":{}}""")
+                    .values("testuser", ResourceType.ROLE.toString(), "role1", """{"name":"role1"}""")
                     .execute()
 
                 sqlPermissionsRepository.put(UserPermission()
@@ -241,9 +241,9 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .values("testuser", false, clock.millis())
                     .execute()
                 jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("testuser", "account", "account","""{"name":"account","permissions":{"READ":["abc"]}}""")
-                    .values("testuser", "application", "app", """{"name":"app","permissions":{"READ":["abc"]}}""")
-                    .values("testuser", "service_account", "serviceAccount", """{"name":"serviceAccount"}""")
+                    .values("testuser", ResourceType.ACCOUNT.toString(), "account","""{"name":"account","permissions":{"READ":["abc"]}}""")
+                    .values("testuser", ResourceType.APPLICATION.toString(), "app", """{"name":"app","permissions":{"READ":["abc"]}}""")
+                    .values("testuser", ResourceType.SERVICE_ACCOUNT.toString(), "serviceAccount", """{"name":"serviceAccount"}""")
                     .execute()
 
                 var result = sqlPermissionsRepository.get("testuser").get()
