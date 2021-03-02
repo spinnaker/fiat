@@ -90,19 +90,21 @@ class SqlPermissionsRepository(
                     .execute()
 
                 // Update permissions
-                permission.allResources.forEach { r ->
-                        val body = objectMapper.writeValueAsString(r)
-                        ctx
-                            .insertInto(
-                                Table.PERMISSION,
-                                Permission.USER_ID,
-                                Permission.RESOURCE_NAME,
-                                Permission.RESOURCE_TYPE,
-                                Permission.BODY
-                            )
-                            .values(userId, r.name, r.resourceType.toString(), body)
-                            .execute()
+                val insertInto =
+                    ctx.insertInto(
+                        Table.PERMISSION,
+                        Permission.USER_ID,
+                        Permission.RESOURCE_NAME,
+                        Permission.RESOURCE_TYPE,
+                        Permission.BODY
+                    )
+
+                permission.allResources.map { r ->
+                    val body = objectMapper.writeValueAsString(r)
+                    insertInto.values(userId, r.name, r.resourceType.toString(), body)
                 }
+
+                insertInto.execute()
             }
         }
 

@@ -236,6 +236,44 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 ).isEqualTo(0)
             }
 
+            test("should delete and update the right permissions") {
+                jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
+                    .values("testuser", false, clock.millis())
+                    .execute()
+                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
+                    .values("testuser", ResourceType.ACCOUNT.toString(), "account", """{"name":"account","permissions":{}}""")
+                    .values("testuser", ResourceType.APPLICATION.toString(), "app", """{"name":"app","permissions":{}}""")
+                    .values("testuser", ResourceType.SERVICE_ACCOUNT.toString(), "serviceAccount", """{"name":"serviceAccount","permissions":{}}""")
+                    .values("testuser", ResourceType.ROLE.toString(), "role1", """{"name":"role1"}""")
+                    .execute()
+
+                val abcRead = Permissions.Builder().add(Authorization.READ, "abc").build()
+
+                val account1 = Account().setName("account").setPermissions(abcRead)
+
+                sqlPermissionsRepository.put(UserPermission()
+                    .setId("testUser")
+                    .setAccounts(setOf(account1))
+                    .setApplications(setOf())
+                    .setServiceAccounts(setOf())
+                    .setRoles(setOf()))
+
+                expectThat(
+                    jooq.select(count()).from(Table.PERMISSION).fetchOne(count())
+                ).isEqualTo(1)
+                expectThat(
+                    jooq.select(Permission.BODY)
+                        .from(Table.PERMISSION)
+                        .where(
+                            Permission.USER_ID.eq("testuser").and(
+                                Permission.RESOURCE_TYPE.eq(ResourceType.ACCOUNT.toString())
+                            )
+                        )
+                        .fetchOne(field("body", String::class.java))
+                ).isEqualTo("""{"name":"account","permissions":{"READ":["abc"]}}""")
+            }
+
+
             test("should get the permission out of the database") {
                 jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
                     .values("testuser", false, clock.millis())
