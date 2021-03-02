@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
+import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.permissions.sql.Table
 import com.netflix.spinnaker.fiat.permissions.sql.Permission
 import com.netflix.spinnaker.fiat.permissions.sql.User
@@ -60,8 +61,6 @@ class SqlPermissionsRepository(
     }
 
     override fun put(permission: UserPermission): PermissionsRepository {
-        val resourceTypes = resources.map { r -> r.resourceType }.distinct().toSet();
-
         withPool(poolName) {
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 val userId = permission.id
@@ -119,55 +118,77 @@ class SqlPermissionsRepository(
     }
 
     override fun getAllById(): Map<String, UserPermission> {
+        val resourceTypes = resources.associateBy { r -> r.resourceType.toString() }.toMap()
+
+        val unrestrictedUser = getUnrestrictedUserPermission()
+
         return withPool(poolName) {
             jooq.withRetry(sqlRetryProperties.reads) { ctx ->
-                ctx.select(User.ID)
+                ctx.select(User.ID, User.ADMIN, Permission.RESOURCE_TYPE, Permission.BODY)
                     .from(Table.USER)
-                    .distinct()
+                    .leftJoin(Table.PERMISSION)
+                    .on(User.ID.eq(Permission.USER_ID))
+                    .fetch()
+                    .groupingBy { r -> r.get(User.ID) }
+                    .fold (
+                        { k, e -> UserPermission().setId(k).setAdmin(e.get(User.ADMIN)).merge(unrestrictedUser) },
+                        { _, acc, e ->
+                            val resourceType = resourceTypes[e.get(Permission.RESOURCE_TYPE)]
+                            if (resourceType != null) {
+                                val resource = objectMapper.readValue(e.get(Permission.BODY), resourceType.javaClass)
+                                acc.addResource(resource)
+                            }
+                            acc
+                        }
+                    )
             }
         }
-            .asSequence()
-            .map { row -> row.get(User.ID) }
-            .map { id -> get(id) }
-            .filter { o -> o.isPresent }
-            .map { o -> o.get() }
-            .map { p -> p.id to p }
-            .toList()
-            .toMap()
     }
 
     override fun getAllByRoles(anyRoles: List<String>?): Map<String, UserPermission> {
         if (anyRoles == null) {
             return getAllById()
-        } else if (anyRoles.isEmpty()) {
-            val unrestricted = getFromDatabase(UNRESTRICTED_USERNAME)
-            if (unrestricted.isPresent) {
-                return mutableMapOf(UNRESTRICTED_USERNAME to unrestricted.get())
-            }
-            return mutableMapOf()
         }
+
+        val result = mutableMapOf<String, UserPermission>()
+
+        val unrestricted = getFromDatabase(UNRESTRICTED_USERNAME)
+        if (unrestricted.isPresent) {
+            result[UNRESTRICTED_USERNAME] = unrestricted.get()
+        }
+
+        if (anyRoles.isEmpty()) {
+            return result
+        }
+
+        val resourceTypes = resources.associateBy { r -> r.resourceType.toString() }.toMap()
 
         return withPool(poolName) {
             jooq.withRetry(sqlRetryProperties.reads) { ctx ->
-                ctx.select(Permission.USER_ID)
-                    .from(Table.PERMISSION)
-                    .where(
-                        Permission.RESOURCE_TYPE.eq(ResourceType.ROLE.toString()).and(
-                            Permission.RESOURCE_NAME.`in`(anyRoles)
-                        )
+                ctx.select(User.ID, User.ADMIN, Permission.RESOURCE_TYPE, Permission.BODY)
+                    .from(Table.USER)
+                    .join(Table.PERMISSION)
+                    .on(User.ID.eq(Permission.USER_ID))
+                    .where(User.ID.`in`(
+                        ctx.select(Permission.USER_ID).from(Table.PERMISSION)
+                            .where(Permission.RESOURCE_TYPE.eq(ResourceType.ROLE.toString()).and(Permission.RESOURCE_NAME.`in`(anyRoles)))
+                    ))
+                    .fetch()
+                    .groupingBy { r -> r.get(User.ID) }
+                    .foldTo (
+                        result,
+                        { k, e -> UserPermission().setId(k).setAdmin(e.get(User.ADMIN)).merge(unrestricted.get()) },
+                        { _, acc, e ->
+                            val resourceType = resourceTypes[e.get(Permission.RESOURCE_TYPE)]
+                            if (resourceType != null) {
+                                val resource = objectMapper.readValue(e.get(Permission.BODY), resourceType.javaClass)
+                                acc.addResource(resource)
+                            }
+                            acc
+                        }
                     )
-                    .distinct()
             }
         }
-            .asSequence()
-            .map { row -> row.get(Permission.USER_ID) }
-            .plus(UNRESTRICTED_USERNAME)
-            .map { id -> get(id) }
-            .filter { o -> o.isPresent }
-            .map { o -> o.get() }
-            .map { p -> p.id to p }
-            .toList()
-            .toMap()
     }
 
     override fun remove(id: String) {
