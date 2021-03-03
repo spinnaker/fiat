@@ -31,8 +31,12 @@ import com.netflix.spinnaker.kork.jedis.EmbeddedRedis
 import com.netflix.spinnaker.kork.jedis.JedisClientDelegate
 import com.netflix.spinnaker.kork.jedis.RedisClientDelegate
 import io.github.resilience4j.retry.RetryRegistry
+import net.jpountz.lz4.LZ4CompressorWithLength
+import net.jpountz.lz4.LZ4DecompressorWithLength
+import net.jpountz.lz4.LZ4Factory
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPool
+import redis.clients.jedis.util.SafeEncoder
 import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
@@ -70,6 +74,12 @@ class RedisPermissionsRepositorySpec extends Specification {
   @Shared
   PausableRedisClientDelegate redisClientDelegate
 
+  @Shared
+  LZ4CompressorWithLength lz4compressor
+
+  @Shared
+  LZ4DecompressorWithLength lz4decompressor
+
   @Subject
   RedisPermissionsRepository repo
 
@@ -80,6 +90,9 @@ class RedisPermissionsRepositorySpec extends Specification {
     jedis = embeddedRedis.jedis
     jedis.flushDB()
     redisClientDelegate = new PausableRedisClientDelegate(new JedisClientDelegate(embeddedRedis.pool as JedisPool))
+    LZ4Factory factory = LZ4Factory.fastestInstance()
+    lz4compressor = new LZ4CompressorWithLength(factory.fastCompressor())
+    lz4decompressor = new LZ4DecompressorWithLength(factory.fastDecompressor())
   }
 
   private static class TestClock extends Clock {
@@ -171,6 +184,23 @@ class RedisPermissionsRepositorySpec extends Specification {
     jedis.flushDB()
   }
 
+  def setCompressed(String key, String value) {
+    byte[] k = SafeEncoder.encode(key)
+    byte[] v = lz4compressor.compress(SafeEncoder.encode(value))
+    jedis.set(k, v)
+  }
+
+  String getCompressed(String key) {
+    byte[] k = SafeEncoder.encode(key)
+    def val = jedis.get(k)
+
+    if (val == null) {
+      return null
+    }
+
+    return SafeEncoder.encode(lz4decompressor.decompress(val))
+  }
+
   def "should fail if timeout is exceeded"() {
     given:
     repo.put(new UserPermission().setId("foo"))
@@ -233,14 +263,14 @@ class RedisPermissionsRepositorySpec extends Specification {
     jedis.smembers("unittests:users") == ["testuser"] as Set
     jedis.smembers("unittests:roles:role1") == ["testuser"] as Set
 
-    jedis.hgetAll("unittests:permissions:testuser:accounts") ==
-        ['account': /{"name":"account","permissions":$EMPTY_PERM_JSON}/.toString()]
-    jedis.hgetAll("unittests:permissions:testuser:applications") ==
-        ['app': /{"name":"app","permissions":$EMPTY_PERM_JSON,"details":{}}/.toString()]
-    jedis.hgetAll("unittests:permissions:testuser:service_accounts") ==
-        ['serviceAccount': '{"name":"serviceAccount","memberOf":["role1"]}']
-    jedis.hgetAll("unittests:permissions:testuser:roles") ==
-        ['role1': '{"name":"role1"}']
+    getCompressed("unittests:permissions-lz4:testuser:accounts") ==
+        '{"account":{"name":"account","permissions":{}}}'
+    getCompressed("unittests:permissions-lz4:testuser:applications") ==
+        '{"app":{"name":"app","permissions":{},"details":{}}}'
+    getCompressed("unittests:permissions-lz4:testuser:service_accounts") ==
+        '{"serviceAccount":{"name":"serviceAccount","memberOf":["role1"]}}'
+    getCompressed("unittests:permissions-lz4:testuser:roles") ==
+        '{"role1":{"name":"role1"}}'
     !jedis.sismember ("unittests:permissions:admin","testUser")
   }
 
@@ -248,18 +278,10 @@ class RedisPermissionsRepositorySpec extends Specification {
     setup:
     jedis.sadd("unittests:users", "testuser")
     jedis.sadd("unittests:roles:role1", "testuser")
-    jedis.hset("unittests:permissions:testuser:accounts",
-               "account",
-               '{"name":"account","permissions":{}}')
-    jedis.hset("unittests:permissions:testuser:applications",
-               "app",
-               '{"name":"app","permissions":{}}')
-    jedis.hset("unittests:permissions:testuser:service_accounts",
-               "serviceAccount",
-               '{"name":"serviceAccount"}')
-    jedis.hset("unittests:permissions:testuser:roles",
-               "role1",
-               '{"name":"role1"}')
+    setCompressed("unittests:permissions-lz4:testuser:accounts", '{"account":{"name":"account","permissions":{}}}')
+    setCompressed("unittests:permissions-lz4:testuser:applications", '{"app":{"name":"app","permissions":{}}}')
+    setCompressed("unittests:permissions-lz4:testuser:service_accounts", '{"serviceAccount":{"name":"serviceAccount"}}')
+    setCompressed("unittests:permissions-lz4:testuser:roles", '{"role1":{"name":"role1"}}')
 
     when:
     repo.put(new UserPermission()
@@ -270,25 +292,22 @@ class RedisPermissionsRepositorySpec extends Specification {
                  .setRoles([] as Set))
 
     then:
-    jedis.hgetAll("unittests:permissions:testuser:accounts") == [:]
-    jedis.hgetAll("unittests:permissions:testuser:applications") == [:]
-    jedis.hgetAll("unittests:permissions:testuser:service_accounts") == [:]
-    jedis.hgetAll("unittests:permissions:testuser:roles") == [:]
+    getCompressed("unittests:permissions-lz4:testuser:accounts") == null
+    getCompressed("unittests:permissions-lz4:testuser:applications") == null
+    getCompressed("unittests:permissions-lz4:testuser:service_accounts") == null
+    getCompressed("unittests:permissions-lz4:testuser:roles") == null
     jedis.smembers("unittests:roles:role1") == [] as Set
   }
 
   def "should get the permission out of redis"() {
     setup:
     jedis.sadd("unittests:users", "testuser")
-    jedis.hset("unittests:permissions:testuser:accounts",
-               "account",
-               '{"name":"account","permissions":{"READ":["abc"]}}')
-    jedis.hset("unittests:permissions:testuser:applications",
-               "app",
-               '{"name":"app","permissions":{"READ":["abc"]}}')
-    jedis.hset("unittests:permissions:testuser:service_accounts",
-               "serviceAccount",
-               '{"name":"serviceAccount"}')
+    setCompressed("unittests:permissions-lz4:testuser:accounts",
+               '{"account":{"name":"account","permissions":{"READ":["abc"]}}}')
+    setCompressed("unittests:permissions-lz4:testuser:applications",
+               '{"app":{"name":"app","permissions":{"READ":["abc"]}}}')
+    setCompressed("unittests:permissions-lz4:testuser:service_accounts",
+               '{"serviceAccount":{"name":"serviceAccount"}}')
 
     when:
     def result = repo.get("testuser").get()
@@ -303,9 +322,8 @@ class RedisPermissionsRepositorySpec extends Specification {
     result == expected
 
     when:
-    jedis.hset("unittests:permissions:__unrestricted_user__:accounts",
-               "account",
-               '{"name":"unrestrictedAccount","permissions":{}}')
+    setCompressed("unittests:permissions-lz4:__unrestricted_user__:accounts",
+               '{"account":{"name":"unrestrictedAccount","permissions":{}}}')
     jedis.set("unittests:last_modified:__unrestricted_user__", "1")
     result = repo.get("testuser").get()
 
@@ -322,30 +340,25 @@ class RedisPermissionsRepositorySpec extends Specification {
     Account account1 = new Account().setName("account1")
     Application app1 = new Application().setName("app1")
     ServiceAccount serviceAccount1 = new ServiceAccount().setName("serviceAccount1")
-    jedis.hset("unittests:permissions:testuser1:accounts",
-               "account1",
-               '{"name":"account1","permissions":{}}')
-    jedis.hset("unittests:permissions:testuser1:applications",
-               "app1",
-               '{"name":"app1","permissions":{}}')
-    jedis.hset("unittests:permissions:testuser1:service_accounts",
-               "serviceAccount1",
-               '{"name":"serviceAccount1"}')
+
+    setCompressed("unittests:permissions-lz4:testuser1:accounts",
+               '{"account1":{"name":"account1","permissions":{}}}')
+    setCompressed("unittests:permissions-lz4:testuser1:applications",
+               '{"app1":{"name":"app1","permissions":{}}}')
+    setCompressed("unittests:permissions-lz4:testuser1:service_accounts",
+               '{"serviceAccount1":{"name":"serviceAccount1"}}')
 
     and:
     def abcRead = new Permissions.Builder().add(Authorization.READ, "abc").build()
     Account account2 = new Account().setName("account2").setPermissions(abcRead)
     Application app2 = new Application().setName("app2").setPermissions(abcRead)
     ServiceAccount serviceAccount2 = new ServiceAccount().setName("serviceAccount2")
-    jedis.hset("unittests:permissions:testuser2:accounts",
-               "account2",
-               '{"name":"account2","permissions":{"READ":["abc"]}}')
-    jedis.hset("unittests:permissions:testuser2:applications",
-               "app2",
-               '{"name":"app2","permissions":{"READ":["abc"]}}')
-    jedis.hset("unittests:permissions:testuser2:service_accounts",
-               "serviceAccount2",
-               '{"name":"serviceAccount2"}')
+    setCompressed("unittests:permissions-lz4:testuser2:accounts",
+               '{"account2":{"name":"account2","permissions":{"READ":["abc"]}}}')
+    setCompressed("unittests:permissions-lz4:testuser2:applications",
+               '{"app2":{"name":"app2","permissions":{"READ":["abc"]}}}')
+    setCompressed("unittests:permissions-lz4:testuser2:service_accounts",
+               '{"serviceAccount2":{"name":"serviceAccount2"}}')
     and:
     jedis.sadd("unittests:permissions:admin", "testuser3")
 
@@ -410,15 +423,12 @@ class RedisPermissionsRepositorySpec extends Specification {
     def user5 = new UserPermission().setId("user5").setRoles([role5] as Set)
     def unrestricted = new UserPermission().setId(UNRESTRICTED).setAccounts([acct1] as Set)
 
-    jedis.hset("unittests:permissions:user1:roles", "role1", '{"name":"role1"}')
-    jedis.hset("unittests:permissions:user1:roles", "role2", '{"name":"role2"}')
-    jedis.hset("unittests:permissions:user2:roles", "role1", '{"name":"role1"}')
-    jedis.hset("unittests:permissions:user2:roles", "role3", '{"name":"role3"}')
-    jedis.hset("unittests:permissions:user4:roles", "role4", '{"name":"role4"}')
-    jedis.hset("unittests:permissions:user5:roles", "role5", '{"name":"role5"}')
-    jedis.hset("unittests:permissions:USER5:roles", "role5", '{"name":"role5"}')
+    setCompressed("unittests:permissions-lz4:user1:roles", '{"role1":{"name":"role1"},"role2":{"name":"role2"}}')
+    setCompressed("unittests:permissions-lz4:user2:roles", '{"role1":{"name":"role1"},"role3":{"name":"role3"}}')
+    setCompressed("unittests:permissions-lz4:user4:roles", '{"role4":{"name":"role4"}}')
+    setCompressed("unittests:permissions-lz4:user5:roles", '{"role5":{"name":"role5"}}')
 
-    jedis.hset("unittests:permissions:__unrestricted_user__:accounts", "acct1", '{"name":"acct1"}')
+    setCompressed("unittests:permissions-lz4:__unrestricted_user__:accounts", '{"acct1":{"name":"acct1"}}')
 
     jedis.sadd("unittests:roles:role1", "user1", "user2")
     jedis.sadd("unittests:roles:role2", "user1")
