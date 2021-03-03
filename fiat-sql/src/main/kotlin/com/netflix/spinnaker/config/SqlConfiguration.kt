@@ -35,7 +35,7 @@ import java.time.Clock
 @Import(DefaultSqlConfiguration::class)
 class SqlConfiguration {
 
-    @ConditionalOnProperty("permission-repository.sql.enabled")
+    @ConditionalOnProperty("permissions-repository.sql.enabled")
     @Bean
     fun sqlPermissionsRepository(
         objectMapper: ObjectMapper,

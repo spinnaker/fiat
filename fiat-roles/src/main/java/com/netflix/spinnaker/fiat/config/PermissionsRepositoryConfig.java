@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties(RedisPermissionRepositoryConfigProps.class)
 public class PermissionsRepositoryConfig {
 
-  @ConditionalOnProperty(value = "permission-repository.redis.enabled", matchIfMissing = true)
+  @ConditionalOnProperty(value = "permissions-repository.redis.enabled", matchIfMissing = true)
   @Bean
   PermissionsRepository redisPermissionsRepository(
       Registry registry,
