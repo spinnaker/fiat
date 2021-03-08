@@ -86,7 +86,7 @@ public class UserRolesSyncer {
       @Value("${fiat.write-mode.sync-delay-ms:600000}") long syncDelayMs,
       @Value("${fiat.write-mode.sync-failure-delay-ms:600000}") long syncFailureDelayMs,
       @Value("${fiat.write-mode.sync-delay-timeout-ms:30000}") long syncDelayTimeoutMs,
-      @Value("${fiat.write-mode.lockName}") String lockName) {
+      @Value("${fiat.write-mode.lock-name:}") String lockName) {
     this.discoveryStatusListener = discoveryStatusListener;
 
     this.lockManager = lockManager;
