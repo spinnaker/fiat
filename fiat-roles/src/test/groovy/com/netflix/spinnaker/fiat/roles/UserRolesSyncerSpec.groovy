@@ -159,7 +159,7 @@ class UserRolesSyncerSpec extends Specification {
         1,
         1,
         1,
-            ""
+        ""
     )
 
     expect:
@@ -233,7 +233,7 @@ class UserRolesSyncerSpec extends Specification {
         1,
         1,
         1,
-            ""
+        ""
     )
 
     when:
