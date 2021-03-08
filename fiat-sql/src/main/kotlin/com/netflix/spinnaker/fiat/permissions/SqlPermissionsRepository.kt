@@ -22,16 +22,16 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
-import com.netflix.spinnaker.fiat.model.resources.Role
-import com.netflix.spinnaker.fiat.permissions.sql.Table
-import com.netflix.spinnaker.fiat.permissions.sql.Permission
-import com.netflix.spinnaker.fiat.permissions.sql.User
+import com.netflix.spinnaker.fiat.permissions.sql.*
+import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.PERMISSION
+import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.RESOURCE
+import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.USER
 import com.netflix.spinnaker.fiat.permissions.sql.transactional
 import com.netflix.spinnaker.fiat.permissions.sql.withRetry
 import com.netflix.spinnaker.kork.exceptions.IntegrationException
 import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import com.netflix.spinnaker.kork.sql.routing.withPool
-import org.jooq.DSLContext
+import org.jooq.*
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
@@ -45,12 +45,14 @@ class SqlPermissionsRepository(
     private val jooq: DSLContext,
     private val sqlRetryProperties: SqlRetryProperties,
     private val poolName: String,
-    private val resources: List<Resource>
+    private val resources: List<com.netflix.spinnaker.fiat.model.resources.Resource>
     ) : PermissionsRepository {
 
     private val unrestrictedPermission = Caffeine.newBuilder()
         .expireAfterAccess(Duration.ofSeconds(10))
         .build(this::reloadUnrestricted)
+
+    private val resourceTypes = resources.associateBy { r -> r.resourceType }.toMap()
 
     companion object {
         private val log = LoggerFactory.getLogger(SqlPermissionsRepository::class.java)
@@ -64,46 +66,69 @@ class SqlPermissionsRepository(
         withPool(poolName) {
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 val userId = permission.id
+                val now = clock.millis()
 
                 // Create or update user
                 ctx
-                    .insertInto(
-                        Table.USER,
-                        User.ID,
-                        User.ADMIN,
-                        User.UPDATED_AT
+                    .insertInto(USER,
+                        USER.ID,
+                        USER.ADMIN,
+                        USER.UPDATED_AT
                     )
                     .values(userId, permission.isAdmin, clock.millis())
-                    .onConflict(User.ID)
+                    .onConflict(USER.ID)
                     .doUpdate()
                     .set(mapOf(
-                        User.ADMIN to permission.isAdmin,
-                        User.UPDATED_AT to clock.millis(),
+                        USER.ADMIN to permission.isAdmin,
+                        USER.UPDATED_AT to now,
                     ))
                     .execute()
 
-                // Clear existing permissions
-                ctx
-                    .deleteFrom(Table.PERMISSION)
-                    .where(Permission.USER_ID.eq(userId))
-                    .execute()
-
-                // Update permissions
-                val insertInto =
-                    ctx.insertInto(
-                        Table.PERMISSION,
-                        Permission.USER_ID,
-                        Permission.RESOURCE_NAME,
-                        Permission.RESOURCE_TYPE,
-                        Permission.BODY
-                    )
-
+                // Insert or update resources and permissions
                 permission.allResources.map { r ->
                     val body = objectMapper.writeValueAsString(r)
-                    insertInto.values(userId, r.name, r.resourceType.toString(), body)
+
+                    ctx.insertInto(
+                        RESOURCE,
+                        RESOURCE.RESOURCE_TYPE,
+                        RESOURCE.RESOURCE_NAME,
+                        RESOURCE.BODY,
+                        RESOURCE.UPDATED_AT
+                    )
+                        .values(r.resourceType, r.name, body, now)
+                        .onConflict(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
+                        .doUpdate()
+                        .set(mapOf(
+                            RESOURCE.BODY to body,
+                            RESOURCE.UPDATED_AT to now
+                        ))
+                        .execute()
+
+                    ctx.insertInto(
+                        PERMISSION,
+                        PERMISSION.USER_ID,
+                        PERMISSION.RESOURCE_TYPE,
+                        PERMISSION.RESOURCE_NAME,
+                        PERMISSION.UPDATED_AT
+                    )
+                        .values(userId, r.resourceType, r.name, now)
+                        .onConflict(PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
+                        .doUpdate()
+                        .set(mapOf(
+                            PERMISSION.UPDATED_AT to now
+                        ))
+                        .execute()
                 }
 
-                insertInto.execute()
+                // Delete stale permissions
+                ctx
+                    .deleteFrom(PERMISSION)
+                    .where(
+                        PERMISSION.USER_ID.eq(userId).and(
+                            PERMISSION.UPDATED_AT.lessThan(now)
+                        )
+                    )
+                    .execute()
             }
         }
 
@@ -111,7 +136,83 @@ class SqlPermissionsRepository(
     }
 
     override fun putAllById(permissions: Map<String, UserPermission>?) {
-        permissions?.values?.forEach { permission -> put(permission) }
+        if (permissions == null || permissions.isEmpty()) {
+            return
+        }
+
+        // Build a list of all the resources
+        val allResources = permissions.values
+            .map { it.getAllResources() }
+            .flatten()
+
+        val now = clock.millis()
+
+        withPool(poolName) {
+
+            // insert/update resources
+            jooq.transactional(sqlRetryProperties.transactions) { ctx ->
+                allResources.forEach { r ->
+                    val body = objectMapper.writeValueAsString(r)
+                    ctx.insertInto(RESOURCE)
+                        .set(RESOURCE.RESOURCE_TYPE, r.resourceType)
+                        .set(RESOURCE.RESOURCE_NAME, r.name)
+                        .set(RESOURCE.UPDATED_AT, now)
+                        .set(RESOURCE.BODY, body)
+                        .onConflict(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
+                        .doUpdate()
+                        .set(
+                            mapOf(
+                                RESOURCE.BODY to body,
+                                RESOURCE.UPDATED_AT to now
+                            )
+                        )
+                        .execute()
+                }
+            }
+
+            // insert/update users and permissions
+            permissions.values.forEach { p ->
+                // transaction per-user to avoid locking too long
+                jooq.transactional(sqlRetryProperties.transactions) { ctx ->
+                    ctx.insertInto(USER)
+                        .set(USER.ID, p.id)
+                        .set(USER.ADMIN, p.isAdmin)
+                        .set(USER.UPDATED_AT, now)
+                        .onConflict(USER.ID)
+                        .doUpdate()
+                        .set(
+                            mapOf(
+                                USER.ADMIN to p.isAdmin,
+                                USER.UPDATED_AT to now
+                            )
+                        )
+                        .execute()
+
+                    p.allResources.forEach { r ->
+                        ctx.insertInto(PERMISSION)
+                            .set(PERMISSION.USER_ID, p.id)
+                            .set(PERMISSION.RESOURCE_TYPE, r.resourceType)
+                            .set(PERMISSION.RESOURCE_NAME, r.name)
+                            .set(PERMISSION.UPDATED_AT, now)
+                            .onConflict(PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
+                            .doUpdate()
+                            .set(
+                                mapOf(
+                                    PERMISSION.UPDATED_AT to now
+                                )
+                            )
+                            .execute()
+                    }
+                }
+            }
+
+            // Tidy up orphan values
+            jooq.transactional(sqlRetryProperties.transactions) { ctx ->
+                ctx.deleteFrom(PERMISSION).where(PERMISSION.UPDATED_AT.lessThan(now)).execute()
+                ctx.deleteFrom(USER).where(USER.UPDATED_AT.lessThan(now)).execute()
+                ctx.deleteFrom(RESOURCE).where(RESOURCE.UPDATED_AT.lessThan(now)).execute()
+            }
+        }
     }
 
     override fun get(id: String): Optional<UserPermission> {
@@ -122,70 +223,88 @@ class SqlPermissionsRepository(
     }
 
     override fun getAllById(): Map<String, UserPermission> {
-        val resourceTypes = resources.associateBy { r -> r.resourceType.toString() }.toMap()
-
-        val unrestrictedUser = getUnrestrictedUserPermission()
-
-        return withPool(poolName) {
-            jooq.withRetry(sqlRetryProperties.reads) { ctx ->
-                ctx.select(User.ID, User.ADMIN, Permission.RESOURCE_TYPE, Permission.BODY)
-                    .from(Table.USER)
-                    .leftJoin(Table.PERMISSION)
-                    .on(User.ID.eq(Permission.USER_ID))
-                    .fetch()
-                    .groupingBy { r -> r.get(User.ID) }
-                    .fold (
-                        { k, e -> UserPermission().setId(k).setAdmin(e.get(User.ADMIN)).merge(unrestrictedUser) },
-                        { _, acc, e ->
-                            val resourceType = resourceTypes[e.get(Permission.RESOURCE_TYPE)]
-                            if (resourceType != null) {
-                                val resource = objectMapper.readValue(e.get(Permission.BODY), resourceType.javaClass)
-                                acc.addResource(resource)
-                            }
-                            acc
-                        }
-                    )
-            }
-        }
+        return getAllByRoles(null)
     }
 
     override fun getAllByRoles(anyRoles: List<String>?): Map<String, UserPermission> {
-        if (anyRoles == null) {
-            return getAllById()
-        }
+        // If the role list is null, return every user
+        // If the role list is empty, return the unrestricted user
+        // Otherwise, return the users with the list of roles
+
+        val unrestrictedUser = getUnrestrictedUserPermission()
 
         val result = mutableMapOf<String, UserPermission>()
 
-        val unrestricted = getFromDatabase(UNRESTRICTED_USERNAME)
-        if (unrestricted.isPresent) {
-            result[UNRESTRICTED_USERNAME] = unrestricted.get()
+        if (anyRoles != null) {
+            result[UNRESTRICTED_USERNAME] = unrestrictedUser
+            if (anyRoles.isEmpty()) {
+                return result
+            }
         }
-
-        if (anyRoles.isEmpty()) {
-            return result
-        }
-
-        val resourceTypes = resources.associateBy { r -> r.resourceType.toString() }.toMap()
 
         return withPool(poolName) {
             jooq.withRetry(sqlRetryProperties.reads) { ctx ->
-                ctx.select(User.ID, User.ADMIN, Permission.RESOURCE_TYPE, Permission.BODY)
-                    .from(Table.USER)
-                    .join(Table.PERMISSION)
-                    .on(User.ID.eq(Permission.USER_ID))
-                    .where(User.ID.`in`(
-                        ctx.select(Permission.USER_ID).from(Table.PERMISSION)
-                            .where(Permission.RESOURCE_TYPE.eq(ResourceType.ROLE.toString()).and(Permission.RESOURCE_NAME.`in`(anyRoles)))
-                    ))
+                var resourceQuery = ctx
+                    .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
+                    .from(RESOURCE)
+                    .let {
+                        if (anyRoles != null) {
+                            it.join(PERMISSION)
+                                .on(PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(
+                                    PERMISSION.RESOURCE_NAME.eq(RESOURCE.RESOURCE_NAME)
+                                ))
+                                .where(PERMISSION.USER_ID.`in`(
+                                    ctx.selectDistinct(USER.ID)
+                                        .from(USER)
+                                        .join(PERMISSION)
+                                        .on(USER.ID.eq(PERMISSION.USER_ID))
+                                        .where(PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE).and(
+                                            PERMISSION.RESOURCE_NAME.`in`(anyRoles)
+                                        ))
+                                ))
+                        }
+                        it
+                    }
+
+                val existingResources = resourceQuery
+                    .groupBy(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
                     .fetch()
-                    .groupingBy { r -> r.get(User.ID) }
+                    .intoGroups(RESOURCE.RESOURCE_TYPE)
+                    .mapValues { e ->
+                        e.value.intoMap(RESOURCE.RESOURCE_NAME).mapValues { v ->
+                            objectMapper.readValue(v.value.get(RESOURCE.BODY), resourceTypes[e.key]!!.javaClass)
+                        }
+                    }
+
+                // Read in all the users with the role and combine with resources
+                ctx.select(USER.ID, USER.ADMIN, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
+                    .from(USER)
+                    .leftJoin(PERMISSION)
+                    .on(USER.ID.eq(PERMISSION.USER_ID))
+                    .let {
+                        if (anyRoles != null) {
+                            it.where(PERMISSION.USER_ID.`in`(
+                                    ctx.selectDistinct(USER.ID)
+                                        .from(USER)
+                                        .join(PERMISSION)
+                                        .on(USER.ID.eq(PERMISSION.USER_ID))
+                                        .where(PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE).and(
+                                            PERMISSION.RESOURCE_NAME.`in`(anyRoles)
+                                        ))
+                                )
+                            )
+                        }
+                        it
+                    }
+                    .fetch()
+                    .groupingBy { r -> r.get(USER.ID) }
                     .foldTo (
                         result,
-                        { k, e -> UserPermission().setId(k).setAdmin(e.get(User.ADMIN)).merge(unrestricted.get()) },
+                        { k, e -> UserPermission().setId(k).setAdmin(e.get(USER.ADMIN)).merge(unrestrictedUser) },
                         { _, acc, e ->
-                            val resourceType = resourceTypes[e.get(Permission.RESOURCE_TYPE)]
-                            if (resourceType != null) {
-                                val resource = objectMapper.readValue(e.get(Permission.BODY), resourceType.javaClass)
+                            val resourcesForType = existingResources.getOrDefault(e.get(PERMISSION.RESOURCE_TYPE), emptyMap())
+                            val resource = resourcesForType[e.get(PERMISSION.RESOURCE_NAME)]
+                            if (resource != null) {
                                 acc.addResource(resource)
                             }
                             acc
@@ -199,13 +318,13 @@ class SqlPermissionsRepository(
         withPool(poolName) {
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 // Delete permissions
-                jooq.delete(Table.PERMISSION)
-                    .where(Permission.USER_ID.eq(id))
+                jooq.delete(PERMISSION)
+                    .where(PERMISSION.USER_ID.eq(id))
                     .execute()
 
                 // Delete user
-                ctx.delete(Table.USER)
-                    .where(User.ID.eq(id))
+                ctx.delete(USER)
+                    .where(USER.ID.eq(id))
                     .execute()
             }
         }
@@ -218,9 +337,9 @@ class SqlPermissionsRepository(
         if (id != UNRESTRICTED_USERNAME) {
             val result = withPool(poolName) {
                 jooq.withRetry(sqlRetryProperties.reads) { ctx ->
-                    ctx.select(User.ADMIN)
-                        .from(Table.USER)
-                        .where(User.ID.eq(id))
+                    ctx.select(USER.ADMIN)
+                        .from(USER)
+                        .where(USER.ID.eq(id))
                         .fetchOne()
                 }
             }
@@ -230,23 +349,29 @@ class SqlPermissionsRepository(
                 return Optional.empty()
             }
 
-            userPermission.isAdmin = result.get(User.ADMIN)
+            userPermission.isAdmin = result.get(USER.ADMIN)
         }
 
         withPool(poolName) {
             jooq.withRetry(sqlRetryProperties.reads) { ctx ->
                 resources.forEach { r ->
                     val userResources = ctx
-                        .select(
-                            Permission.RESOURCE_TYPE,
-                            Permission.RESOURCE_NAME,
-                            Permission.BODY
+                        .select(RESOURCE.BODY)
+                        .from(RESOURCE)
+                        .join(PERMISSION)
+                        .on(
+                            PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(
+                                PERMISSION.RESOURCE_NAME.eq(RESOURCE.RESOURCE_NAME)
+                            )
                         )
-                        .from(Table.PERMISSION)
-                        .where(Permission.USER_ID.eq(id).and(Permission.RESOURCE_TYPE.eq(r.resourceType.toString())))
+                        .join(USER)
+                        .on(USER.ID.eq(PERMISSION.USER_ID))
+                        .where(USER.ID.eq(id).and(
+                            PERMISSION.RESOURCE_TYPE.eq(r.resourceType))
+                        )
                         .fetch()
                         .map { record ->
-                            objectMapper.readValue(record.get(Permission.BODY), r.javaClass)
+                            objectMapper.readValue(record.get(RESOURCE.BODY), r.javaClass)
                         }
                     userPermission.addResources(userResources)
                 }
@@ -263,10 +388,10 @@ class SqlPermissionsRepository(
     private fun getUnrestrictedUserPermission(): UserPermission {
         var serverLastModified = withPool(poolName) {
             jooq.withRetry(sqlRetryProperties.reads) { ctx ->
-                ctx.select(User.UPDATED_AT)
-                    .from(Table.USER)
-                    .where(User.ID.eq(UNRESTRICTED_USERNAME))
-                    .fetchOne(User.UPDATED_AT)
+                ctx.select(USER.UPDATED_AT)
+                    .from(USER)
+                    .where(USER.ID.eq(UNRESTRICTED_USERNAME))
+                    .fetchOne(USER.UPDATED_AT)
             }
         }
 

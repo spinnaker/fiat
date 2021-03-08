@@ -19,15 +19,22 @@ package com.netflix.spinnaker.fiat.model
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED_USERNAME
-import com.netflix.spinnaker.fiat.model.resources.*
+import com.netflix.spinnaker.fiat.model.resources.Account
+import com.netflix.spinnaker.fiat.model.resources.Application
+import com.netflix.spinnaker.fiat.model.resources.BuildService
+import com.netflix.spinnaker.fiat.model.resources.Permissions
+import com.netflix.spinnaker.fiat.model.resources.ResourceType
+import com.netflix.spinnaker.fiat.model.resources.Role
+import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
 import com.netflix.spinnaker.fiat.permissions.SqlPermissionsRepository
-import com.netflix.spinnaker.fiat.permissions.sql.Table
-import com.netflix.spinnaker.fiat.permissions.sql.User
-import com.netflix.spinnaker.fiat.permissions.sql.Permission
 import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
+import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.PERMISSION
+import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.RESOURCE
+import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.USER
 import dev.minutest.ContextBuilder
 import dev.minutest.junit.JUnit5Minutests
 import dev.minutest.rootContext
+import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL.*
 import strikt.api.expectThat
@@ -37,6 +44,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.util.*
 
 internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
@@ -131,10 +139,10 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
                 sqlPermissionsRepository.put(user1)
 
-                val first = jooq.select(User.UPDATED_AT)
-                    .from(Table.USER)
-                    .where(User.ID.eq(user1.id))
-                    .fetchOne(User.UPDATED_AT)
+                val first = jooq.select(USER.UPDATED_AT)
+                    .from(USER)
+                    .where(USER.ID.eq(user1.id))
+                    .fetchOne(USER.UPDATED_AT)
 
                 user1.isAdmin = true
 
@@ -142,10 +150,10 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
                 sqlPermissionsRepository.put(user1)
 
-                val second = jooq.select(User.UPDATED_AT)
-                    .from(Table.USER)
-                    .where(User.ID.eq(user1.id))
-                    .fetchOne(User.UPDATED_AT)
+                val second = jooq.select(USER.UPDATED_AT)
+                    .from(USER)
+                    .where(USER.ID.eq(user1.id))
+                    .fetchOne(USER.UPDATED_AT)
 
                 expectThat(second).isGreaterThan(first)
             }
@@ -165,64 +173,40 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .setRoles(setOf(role1)))
 
                 expectThat(
-                    jooq.select(User.ADMIN)
-                        .from(Table.USER)
-                        .where(User.ID.eq("testuser"))
-                        .fetchOne(User.ADMIN)
+                    jooq.select(USER.ADMIN)
+                        .from(USER)
+                        .where(USER.ID.eq("testuser"))
+                        .fetchOne(USER.ADMIN)
                 ).isFalse()
 
-                expectThat(
-                    jooq.select(Permission.BODY)
-                        .from(Table.PERMISSION)
-                        .where(
-                            Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq(ResourceType.ACCOUNT.toString())
-                            )
-                        )
-                        .fetchOne(Permission.BODY)
-                ).isEqualTo("""{"name":"account","permissions":{}}""")
-                expectThat(
-                    jooq.select(Permission.BODY)
-                        .from(Table.PERMISSION)
-                        .where(
-                            Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq(ResourceType.APPLICATION.toString())
-                            )
-                        )
-                        .fetchOne(Permission.BODY)
-                ).isEqualTo("""{"name":"app","permissions":{},"details":{}}""")
-                expectThat(
-                    jooq.select(Permission.BODY)
-                        .from(Table.PERMISSION)
-                        .where(
-                            Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq(ResourceType.SERVICE_ACCOUNT.toString())
-                            )
-                        )
-                        .fetchOne(Permission.BODY)
-                ).isEqualTo("""{"name":"serviceAccount","memberOf":["role1"]}""")
-                expectThat(
-                    jooq.select(Permission.BODY)
-                        .from(Table.PERMISSION)
-                        .where(
-                            Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq(ResourceType.ROLE.toString())
-                            )
-                        )
-                        .fetchOne(Permission.BODY)
-                ).isEqualTo("""{"name":"role1"}""")
+                expectThat(resourceBody(jooq, "testuser", account1.resourceType, account1.name).get())
+                    .isEqualTo("""{"name":"account","permissions":{}}""")
+                expectThat(resourceBody(jooq, "testuser", app1.resourceType, app1.name).get())
+                    .isEqualTo("""{"name":"app","permissions":{},"details":{}}""")
+                expectThat(resourceBody(jooq, "testuser", serviceAccount1.resourceType, serviceAccount1.name).get())
+                    .isEqualTo("""{"name":"serviceAccount","memberOf":["role1"]}""")
+                expectThat(resourceBody(jooq, "testuser", role1.resourceType, role1.name).get())
+                    .isEqualTo("""{"name":"role1"}""")
             }
 
             test("should remove permissions that have been revoked") {
-                jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
+                jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
                     .values("testuser", false, clock.millis())
                     .execute()
-                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("testuser", ResourceType.ACCOUNT.toString(), "account", """{"name":"account","permissions":{}}""")
-                    .values("testuser", ResourceType.APPLICATION.toString(), "app", """{"name":"app","permissions":{}}""")
-                    .values("testuser", ResourceType.SERVICE_ACCOUNT.toString(), "serviceAccount", """{"name":"serviceAccount","permissions":{}}""")
-                    .values("testuser", ResourceType.ROLE.toString(), "role1", """{"name":"role1"}""")
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
+                    .values(ResourceType.ACCOUNT, "account", """{"name":"account","permissions":{}}""", clock.millis())
+                    .values(ResourceType.APPLICATION, "app", """{"name":"app","permissions":{}}""", clock.millis())
+                    .values(ResourceType.SERVICE_ACCOUNT, "serviceAccount", """{"name":"serviceAccount","permissions":{}}""", clock.millis())
+                    .values(ResourceType.ROLE, "role1", """{"name":"role1"}""", clock.millis())
                     .execute()
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME, PERMISSION.UPDATED_AT)
+                    .values("testuser", ResourceType.ACCOUNT, "account", clock.millis())
+                    .values("testuser", ResourceType.APPLICATION, "app", clock.millis())
+                    .values("testuser", ResourceType.SERVICE_ACCOUNT, "serviceAccount", clock.millis())
+                    .values("testuser", ResourceType.ROLE, "role1", clock.millis())
+                    .execute()
+
+                clock.tick(Duration.ofSeconds(1))
 
                 sqlPermissionsRepository.put(UserPermission()
                     .setId("testUser")
@@ -232,24 +216,32 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .setRoles(setOf()))
 
                 expectThat(
-                    jooq.select(count()).from(Table.PERMISSION).fetchOne(count())
+                    jooq.select(count()).from(PERMISSION).fetchOne(count())
                 ).isEqualTo(0)
             }
 
             test("should delete and update the right permissions") {
-                jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
+                jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
                     .values("testuser", false, clock.millis())
                     .execute()
-                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("testuser", ResourceType.ACCOUNT.toString(), "account", """{"name":"account","permissions":{}}""")
-                    .values("testuser", ResourceType.APPLICATION.toString(), "app", """{"name":"app","permissions":{}}""")
-                    .values("testuser", ResourceType.SERVICE_ACCOUNT.toString(), "serviceAccount", """{"name":"serviceAccount","permissions":{}}""")
-                    .values("testuser", ResourceType.ROLE.toString(), "role1", """{"name":"role1"}""")
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
+                    .values(ResourceType.ACCOUNT, "account", """{"name":"account","permissions":{}}""", clock.millis())
+                    .values(ResourceType.APPLICATION, "app", """{"name":"app","permissions":{}}""", clock.millis())
+                    .values(ResourceType.SERVICE_ACCOUNT, "serviceAccount", """{"name":"serviceAccount","permissions":{}}""", clock.millis())
+                    .values(ResourceType.ROLE, "role1", """{"name":"role1"}""", clock.millis())
+                    .execute()
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME, PERMISSION.UPDATED_AT)
+                    .values("testuser", ResourceType.ACCOUNT, "account", clock.millis())
+                    .values("testuser", ResourceType.APPLICATION, "app", clock.millis())
+                    .values("testuser", ResourceType.SERVICE_ACCOUNT, "serviceAccount", clock.millis())
+                    .values("testuser", ResourceType.ROLE, "role1", clock.millis())
                     .execute()
 
                 val abcRead = Permissions.Builder().add(Authorization.READ, "abc").build()
 
                 val account1 = Account().setName("account").setPermissions(abcRead)
+
+                clock.tick(Duration.ofSeconds(1))
 
                 sqlPermissionsRepository.put(UserPermission()
                     .setId("testUser")
@@ -258,30 +250,28 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .setServiceAccounts(setOf())
                     .setRoles(setOf()))
 
-                expectThat(
-                    jooq.select(count()).from(Table.PERMISSION).fetchOne(count())
-                ).isEqualTo(1)
-                expectThat(
-                    jooq.select(Permission.BODY)
-                        .from(Table.PERMISSION)
-                        .where(
-                            Permission.USER_ID.eq("testuser").and(
-                                Permission.RESOURCE_TYPE.eq(ResourceType.ACCOUNT.toString())
-                            )
-                        )
-                        .fetchOne(Permission.BODY)
-                ).isEqualTo("""{"name":"account","permissions":{"READ":["abc"]}}""")
+                expectThat(jooq.selectCount().from(PERMISSION).fetchOne(count()))
+                    .isEqualTo(1)
+                expectThat(resourceBody(jooq, "testuser", account1.resourceType, account1.name).get())
+                    .isEqualTo("""{"name":"account","permissions":{"READ":["abc"]}}""")
             }
 
             test("should get the permission out of the database") {
-                jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
+                jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
                     .values("testuser", false, clock.millis())
                     .execute()
-                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("testuser", ResourceType.ACCOUNT.toString(), "account","""{"name":"account","permissions":{"READ":["abc"]}}""")
-                    .values("testuser", ResourceType.APPLICATION.toString(), "app", """{"name":"app","permissions":{"READ":["abc"]}}""")
-                    .values("testuser", ResourceType.SERVICE_ACCOUNT.toString(), "serviceAccount", """{"name":"serviceAccount"}""")
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
+                    .values(ResourceType.ACCOUNT, "account", """{"name":"account","permissions":{"READ":["abc"]}}""", clock.millis())
+                    .values(ResourceType.APPLICATION, "app", """{"name":"app","permissions":{"READ":["abc"]}}""", clock.millis())
+                    .values(ResourceType.SERVICE_ACCOUNT, "serviceAccount", """{"name":"serviceAccount"}""", clock.millis())
                     .execute()
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME, PERMISSION.UPDATED_AT)
+                    .values("testuser", ResourceType.ACCOUNT, "account", clock.millis())
+                    .values("testuser", ResourceType.APPLICATION, "app", clock.millis())
+                    .values("testuser", ResourceType.SERVICE_ACCOUNT, "serviceAccount", clock.millis())
+                    .execute()
+
+                clock.tick(Duration.ofSeconds(1))
 
                 var result = sqlPermissionsRepository.get("testuser").get()
 
@@ -294,12 +284,17 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
                 expectThat(result).isEqualTo(expected)
 
-                jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
+                jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
                     .values(UNRESTRICTED_USERNAME, false, clock.millis())
                     .execute()
-                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values(UNRESTRICTED_USERNAME, "account", "unrestrictedAccount","""{"name":"unrestrictedAccount","permissions":{}}""")
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
+                    .values(ResourceType.ACCOUNT, "unrestrictedAccount", """{"name":"unrestrictedAccount","permissions":{}}""", clock.millis())
                     .execute()
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME, PERMISSION.UPDATED_AT)
+                    .values(UNRESTRICTED_USERNAME, ResourceType.ACCOUNT, "unrestrictedAccount", clock.millis())
+                    .execute()
+
+                clock.tick(Duration.ofSeconds(1))
 
                 result = sqlPermissionsRepository.get("testuser").get()
 
@@ -307,7 +302,21 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 expectThat(result).isEqualTo(expected)
             }
 
-            test("should put all users to the database") {
+            test("should put all users to the database and delete stale users and resources") {
+                jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
+                    .values("testuser", false, clock.millis())
+                    .execute()
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
+                    .values(ResourceType.ACCOUNT, "account", """{"name":"account","permissions":{"READ":["abc"]}}""", clock.millis())
+                    .values(ResourceType.APPLICATION, "app", """{"name":"app","permissions":{"READ":["abc"]}}""", clock.millis())
+                    .values(ResourceType.SERVICE_ACCOUNT, "serviceAccount", """{"name":"serviceAccount"}""", clock.millis())
+                    .execute()
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME, PERMISSION.UPDATED_AT)
+                    .values("testuser", ResourceType.ACCOUNT, "account", clock.millis())
+                    .values("testuser", ResourceType.APPLICATION, "app", clock.millis())
+                    .values("testuser", ResourceType.SERVICE_ACCOUNT, "serviceAccount", clock.millis())
+                    .execute()
+
                 val account1 = Account().setName("account1")
                 val account2 = Account().setName("account2")
 
@@ -318,6 +327,8 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val testUser3 = UserPermission().setId("testUser3")
                     .setAdmin(true)
 
+                clock.tick(Duration.ofSeconds(1))
+
                 sqlPermissionsRepository.putAllById(
                     mutableMapOf(
                         "testuser1" to testUser1,
@@ -327,45 +338,27 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 )
 
                 expectThat(
-                    jooq.selectCount().from(Table.USER).fetchOne(count())
+                    jooq.selectCount().from(USER).fetchOne(count())
                 ).isEqualTo(3)
                 expectThat(
-                    jooq.select(User.ADMIN).from(Table.USER).where(User.ID.eq("testuser3")).fetchOne(User.ADMIN)
+                    jooq.select(USER.ADMIN).from(USER).where(USER.ID.eq("testuser3")).fetchOne(USER.ADMIN)
                 ).isTrue()
                 expectThat(
-                    jooq.select(Permission.BODY)
-                        .from(Table.PERMISSION)
-                        .where(
-                            Permission.USER_ID.eq("testuser1").and(
-                                Permission.RESOURCE_TYPE.eq(ResourceType.ACCOUNT.toString())
-                            )
-                        )
-                        .fetchOne(Permission.BODY)
+                    resourceBody(jooq, "testuser1", account1.resourceType, account1.name).get()
                 ).isEqualTo("""{"name":"account1","permissions":{}}""")
                 expectThat(
-                    jooq.select(Permission.BODY)
-                        .from(Table.PERMISSION)
-                        .where(
-                            Permission.USER_ID.eq("testuser2").and(
-                                Permission.RESOURCE_TYPE.eq(ResourceType.ACCOUNT.toString())
-                            )
-                        )
-                        .fetchOne(Permission.BODY)
+                    resourceBody(jooq, "testuser2", account2.resourceType, account2.name).get()
                 ).isEqualTo("""{"name":"account2","permissions":{}}""")
                 expectThat(
-                    jooq.select(Permission.BODY)
-                        .from(Table.PERMISSION)
-                        .where(
-                            Permission.USER_ID.eq("testuser3").and(
-                                Permission.RESOURCE_TYPE.eq(ResourceType.ACCOUNT.toString())
-                            )
-                        )
-                        .fetch()
-                ).isEmpty()
+                    resourceBody(jooq, "testuser3", account1.resourceType, account1.name).isEmpty()
+                ).isTrue()
+                expectThat(
+                    resourceBody(jooq, "testuser3", account2.resourceType, account2.name).isEmpty()
+                ).isTrue()
             }
 
             test("should get all users from the database") {
-                jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
+                jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
                     .values("testuser1", false, clock.millis())
                     .values("testuser2", false, clock.millis())
                     .values("testuser3", true, clock.millis())
@@ -375,10 +368,15 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val account1 = Account().setName("account1")
                 val app1 = Application().setName("app1")
                 val serviceAccount1 = ServiceAccount().setName("serviceAccount1")
-                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("testuser1", "${account1.resourceType}", account1.name,"""{"name":"account1","permissions":{}}""")
-                    .values("testuser1", "${app1.resourceType}", app1.name, """{"name":"app1","permissions":{}}""")
-                    .values("testuser1", "${serviceAccount1.resourceType}", serviceAccount1.name, """{"name":"serviceAccount1"}""")
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
+                    .values(account1.resourceType, account1.name, """{"name":"account1","permissions":{}}""", clock.millis())
+                    .values(app1.resourceType, app1.name, """{"name":"app1","permissions":{}}""", clock.millis())
+                    .values(serviceAccount1.resourceType, serviceAccount1.name, """{"name":"serviceAccount1"}""", clock.millis())
+                    .execute()
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME, PERMISSION.UPDATED_AT)
+                    .values("testuser1", account1.resourceType, account1.name, clock.millis())
+                    .values("testuser1", app1.resourceType, app1.name, clock.millis())
+                    .values("testuser1", serviceAccount1.resourceType, serviceAccount1.name, clock.millis())
                     .execute()
 
                 // User 2
@@ -386,11 +384,18 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val account2 = Account().setName("account2").setPermissions(abcRead)
                 val app2 = Application().setName("app2").setPermissions(abcRead)
                 val serviceAccount2 = ServiceAccount().setName("serviceAccount2")
-                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("testuser2", "${account2.resourceType}", account2.name, """{"name":"account2","permissions":{"READ":["abc"]}}""")
-                    .values("testuser2", "${app2.resourceType}", app2.name, """{"name":"app2","permissions":{"READ":["abc"]}}""")
-                    .values("testuser2", "${serviceAccount2.resourceType}", serviceAccount2.name, """{"name":"serviceAccount2"}""")
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
+                    .values(account2.resourceType, account2.name, """{"name":"account2","permissions":{"READ":["abc"]}}""", clock.millis())
+                    .values(app2.resourceType, app2.name, """{"name":"app2","permissions":{"READ":["abc"]}}""", clock.millis())
+                    .values(serviceAccount2.resourceType, serviceAccount2.name, """{"name":"serviceAccount2"}""", clock.millis())
                     .execute()
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME, PERMISSION.UPDATED_AT)
+                    .values("testuser2", account2.resourceType, account2.name, clock.millis())
+                    .values("testuser2", app2.resourceType, app2.name, clock.millis())
+                    .values("testuser2", serviceAccount2.resourceType, serviceAccount2.name, clock.millis())
+                    .execute()
+
+                clock.tick(Duration.ofSeconds(1))
 
                 val result = sqlPermissionsRepository.getAllById()
 
@@ -413,8 +418,9 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
             }
 
             test ("should delete the specified user") {
-                expectThat(jooq.select(count()).from(Table.USER).fetchOne(count())).isEqualTo(0)
-                expectThat(jooq.select(count()).from(Table.PERMISSION).fetchOne(count())).isEqualTo(0)
+                expectThat(jooq.selectCount().from(USER).fetchOne(count())).isEqualTo(0)
+                expectThat(jooq.selectCount().from(RESOURCE).fetchOne(count())).isEqualTo(0)
+                expectThat(jooq.selectCount().from(PERMISSION).fetchOne(count())).isEqualTo(0)
 
                 val account1 = Account().setName("account")
                 val app1 = Application().setName("app")
@@ -428,13 +434,15 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .setAdmin(true)
                 )
 
-                expectThat(jooq.select(count()).from(Table.USER).fetchOne(count())).isEqualTo(1)                // accounts, applications, roles
-                expectThat(jooq.select(count()).from(Table.PERMISSION).fetchOne(count())).isEqualTo(3)
+                expectThat(jooq.selectCount().from(USER).fetchOne(count())).isEqualTo(1)
+                expectThat(jooq.selectCount().from(RESOURCE).fetchOne(count())).isEqualTo(3)
+                expectThat(jooq.selectCount().from(PERMISSION).fetchOne(count())).isEqualTo(3)
 
                 sqlPermissionsRepository.remove("testuser")
 
-                expectThat(jooq.select(count()).from(Table.USER).fetchOne(count())).isEqualTo(0)
-                expectThat(jooq.select(count()).from(Table.PERMISSION).fetchOne(count())).isEqualTo(0)
+                expectThat(jooq.selectCount().from(USER).fetchOne(count())).isEqualTo(0)
+                expectThat(jooq.selectCount().from(RESOURCE).fetchOne(count())).isEqualTo(3)
+                expectThat(jooq.selectCount().from(PERMISSION).fetchOne(count())).isEqualTo(0)
             }
 
             test ("should get all by roles") {
@@ -453,20 +461,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val user5 = UserPermission().setId("user5").setRoles(setOf(role5))
                 val unrestricted = UserPermission().setId(UNRESTRICTED_USERNAME).setAccounts(setOf(acct1))
 
-                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("user1", "${role1.resourceType}", role1.name, """{"name":"role1"}""")
-                    .values("user1", "${role2.resourceType}", role2.name, """{"name":"role2"}""")
-                    .values("user2", "${role1.resourceType}", role1.name, """{"name":"role1"}""")
-                    .values("user2", "${role3.resourceType}", role3.name, """{"name":"role3"}""")
-                    .values("user4", "${role4.resourceType}", role4.name, """{"name":"role4"}""")
-                    .values("user5", "${role5.resourceType}", role5.name, """{"name":"role5"}""")
-                    .values(UNRESTRICTED_USERNAME, "${acct1.resourceType}", acct1.name, """{"name":"acct1"}""")
-                    .execute()
-
-                // Otherwise value of unrestricted user is served from cache
-                clock.tick(Duration.ofSeconds(1))
-
-                jooq.insertInto(Table.USER, User.ID, User.UPDATED_AT)
+                jooq.insertInto(USER, USER.ID, USER.UPDATED_AT)
                     .values("user1", clock.millis())
                     .values("user2", clock.millis())
                     .values("user3", clock.millis())
@@ -474,6 +469,28 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .values("user5", clock.millis())
                     .values(UNRESTRICTED_USERNAME, clock.millis())
                     .execute()
+
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
+                    .values(role1.resourceType, role1.name, """{"name":"role1"}""", clock.millis())
+                    .values(role2.resourceType, role2.name, """{"name":"role2"}""", clock.millis())
+                    .values(role3.resourceType, role3.name, """{"name":"role3"}""", clock.millis())
+                    .values(role4.resourceType, role4.name, """{"name":"role4"}""", clock.millis())
+                    .values(role5.resourceType, role5.name, """{"name":"role5"}""", clock.millis())
+                    .values(acct1.resourceType, acct1.name, """{"name":"acct1"}""", clock.millis())
+                    .execute()
+
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME, PERMISSION.UPDATED_AT)
+                    .values("user1", role1.resourceType, role1.name, clock.millis())
+                    .values("user1", role2.resourceType, role2.name, clock.millis())
+                    .values("user2", role1.resourceType, role1.name, clock.millis())
+                    .values("user2", role3.resourceType, role3.name, clock.millis())
+                    .values("user4", role4.resourceType, role4.name, clock.millis())
+                    .values("user5", role5.resourceType, role5.name, clock.millis())
+                    .values(UNRESTRICTED_USERNAME, acct1.resourceType, acct1.name, clock.millis())
+                    .execute()
+
+                // Otherwise value of unrestricted user is served from cache
+                clock.tick(Duration.ofSeconds(1))
 
                 var result = sqlPermissionsRepository.getAllByRoles(listOf("role1"))
 
@@ -540,5 +557,20 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
         context("postgresql CRUD operations") {
             crudOperations(JooqConfig(SQLDialect.POSTGRES, "jdbc:tc:postgresql:12-alpine://somehostname:someport/databasename"))
         }
+    }
+
+    fun resourceBody(jooq : DSLContext, id: String, resourceType: ResourceType, resourceName: String) : Optional<String> {
+        return jooq.select(RESOURCE.BODY)
+            .from(RESOURCE)
+            .join(PERMISSION)
+            .on(PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(
+                PERMISSION.RESOURCE_NAME.eq(RESOURCE.RESOURCE_NAME)
+            ))
+            .where(PERMISSION.USER_ID.eq(id).and(
+                PERMISSION.RESOURCE_TYPE.eq(resourceType).and(
+                    PERMISSION.RESOURCE_NAME.eq(resourceName)
+                )
+            ))
+            .fetchOptional(RESOURCE.BODY)
     }
 }
