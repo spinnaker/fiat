@@ -236,7 +236,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 ).isEqualTo(0)
             }
 
-            test("should delete and update the right permissions") {
+            test("should delete and update and insert the right permissions") {
                 jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
                     .values("testuser", false, clock.millis())
                     .execute()
@@ -250,17 +250,19 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val abcRead = Permissions.Builder().add(Authorization.READ, "abc").build()
 
                 val account1 = Account().setName("account").setPermissions(abcRead)
+                val app2 = Application().setName("app2")
 
                 sqlPermissionsRepository.put(UserPermission()
                     .setId("testUser")
                     .setAccounts(setOf(account1))
-                    .setApplications(setOf())
+                    .setApplications(setOf(app2))
                     .setServiceAccounts(setOf())
                     .setRoles(setOf()))
 
                 expectThat(
                     jooq.select(count()).from(Table.PERMISSION).fetchOne(count())
-                ).isEqualTo(1)
+                ).isEqualTo(2)
+
                 expectThat(
                     jooq.select(Permission.BODY)
                         .from(Table.PERMISSION)
@@ -271,6 +273,17 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                         )
                         .fetchOne(field("body", String::class.java))
                 ).isEqualTo("""{"name":"account","permissions":{"READ":["abc"]}}""")
+
+                expectThat(
+                    jooq.select(Permission.BODY)
+                        .from(Table.PERMISSION)
+                        .where(
+                            Permission.USER_ID.eq("testuser").and(
+                                Permission.RESOURCE_TYPE.eq(ResourceType.APPLICATION.toString())
+                            )
+                        )
+                        .fetchOne(field("body", String::class.java))
+                ).isEqualTo("""{"name":"app2","permissions":{},"details":{}}""")
             }
 
 

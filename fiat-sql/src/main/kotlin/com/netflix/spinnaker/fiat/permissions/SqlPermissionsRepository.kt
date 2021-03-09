@@ -22,7 +22,6 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
-import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.permissions.sql.Table
 import com.netflix.spinnaker.fiat.permissions.sql.Permission
 import com.netflix.spinnaker.fiat.permissions.sql.User
@@ -32,6 +31,7 @@ import com.netflix.spinnaker.kork.exceptions.IntegrationException
 import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import com.netflix.spinnaker.kork.sql.routing.withPool
 import org.jooq.DSLContext
+import org.jooq.Query
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
@@ -51,6 +51,11 @@ class SqlPermissionsRepository(
     private val unrestrictedPermission = Caffeine.newBuilder()
         .expireAfterAccess(Duration.ofSeconds(10))
         .build(this::reloadUnrestricted)
+
+    private val resourceTypes = resources
+        .associateBy { "${it.resourceType}" }
+        .mapValues { (_, v) ->  v::class.java }
+        .toMap()
 
     companion object {
         private val log = LoggerFactory.getLogger(SqlPermissionsRepository::class.java)
@@ -82,28 +87,76 @@ class SqlPermissionsRepository(
                     ))
                     .execute()
 
-                // Clear existing permissions
-                ctx
-                    .deleteFrom(Table.PERMISSION)
-                    .where(Permission.USER_ID.eq(userId))
-                    .execute()
+                // Get current permissions
+                val existing = ctx
+                    .select(Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME)
+                    .from(Table.PERMISSION)
+                    .fetch()
+                    .intoGroups(Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME)
 
-                // Update permissions
-                val insertInto =
-                    ctx.insertInto(
-                        Table.PERMISSION,
-                        Permission.USER_ID,
-                        Permission.RESOURCE_NAME,
-                        Permission.RESOURCE_TYPE,
-                        Permission.BODY
-                    )
+                // Insert/update permissions in batches by resource type
+                var insertStatement = ctx.insertInto(
+                    Table.PERMISSION,
+                    Permission.USER_ID,
+                    Permission.RESOURCE_TYPE,
+                    Permission.RESOURCE_NAME,
+                    Permission.BODY
+                )
 
-                permission.allResources.map { r ->
-                    val body = objectMapper.writeValueAsString(r)
-                    insertInto.values(userId, r.name, r.resourceType.toString(), body)
+                var batchStatements = mutableListOf<Query>()
+
+                permission.allResources
+                    .groupBy { it.resourceType.toString() }
+                    .forEach { (rt, resources) ->
+                        val existingOfType = existing.getOrDefault(rt, Collections.emptyList())
+
+                        resources.forEach { resource ->
+                            val isUpdate = existingOfType.remove(resource.name)
+
+                            val body = objectMapper.writeValueAsString(resource)
+
+                            if (isUpdate) {
+                                batchStatements.add(
+                                    ctx
+                                    .update(Table.PERMISSION)
+                                    .set(Permission.BODY, body)
+                                    .where(
+                                        Permission.USER_ID.eq(userId).and(
+                                            Permission.RESOURCE_TYPE.eq(rt).and(
+                                                Permission.RESOURCE_NAME.eq(resource.name)
+                                            )
+                                        )
+                                    )
+                                )
+                            } else {
+                                insertStatement.values(userId, rt, resource.name, body)
+                            }
+                        }
+                    }
+
+                if (insertStatement.isExecutable) {
+                    insertStatement.execute()
                 }
 
-                insertInto.execute()
+                // Delete old resources
+                existing.forEach { (k, v) ->
+                    if (v.isNotEmpty()) {
+                        batchStatements.add(
+                            ctx.deleteFrom(Table.PERMISSION)
+                            .where(
+                                Permission.USER_ID.eq(userId).and(
+                                    Permission.RESOURCE_TYPE.eq(k).and(
+                                        Permission.RESOURCE_NAME.`in`(v)
+                                    )
+                                )
+                            )
+                        )
+                    }
+                }
+
+                if (batchStatements.isNotEmpty()) {
+                    ctx.batch(batchStatements).execute()
+                }
             }
         }
 
@@ -118,8 +171,6 @@ class SqlPermissionsRepository(
     }
 
     override fun getAllById(): Map<String, UserPermission> {
-        val resourceTypes = resources.associateBy { r -> r.resourceType.toString() }.toMap()
-
         val unrestrictedUser = getUnrestrictedUserPermission()
 
         return withPool(poolName) {
@@ -135,7 +186,7 @@ class SqlPermissionsRepository(
                         { _, acc, e ->
                             val resourceType = resourceTypes[e.get(Permission.RESOURCE_TYPE)]
                             if (resourceType != null) {
-                                val resource = objectMapper.readValue(e.get(Permission.BODY), resourceType.javaClass)
+                                val resource = objectMapper.readValue(e.get(Permission.BODY), resourceType)
                                 acc.addResource(resource)
                             }
                             acc
