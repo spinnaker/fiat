@@ -32,6 +32,7 @@ import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import com.netflix.spinnaker.kork.sql.routing.withPool
 import org.jooq.DSLContext
 import org.jooq.Query
+import org.jooq.impl.DSL.count
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
@@ -66,31 +67,32 @@ class SqlPermissionsRepository(
     }
 
     override fun put(permission: UserPermission): PermissionsRepository {
+        val userId = permission.id
         withPool(poolName) {
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
-                val userId = permission.id
-
-                // Create or update user
-                ctx
-                    .insertInto(
-                        Table.USER,
-                        User.ID,
-                        User.ADMIN,
-                        User.UPDATED_AT
-                    )
-                    .values(userId, permission.isAdmin, clock.millis())
-                    .onConflict(User.ID)
-                    .doUpdate()
-                    .set(mapOf(
-                        User.ADMIN to permission.isAdmin,
-                        User.UPDATED_AT to clock.millis(),
-                    ))
+                // Most of the time we'll be updating the timestamp so this is cheaper
+                val rows = ctx.update(Table.USER)
+                    .set(User.ADMIN, permission.isAdmin)
+                    .set(User.UPDATED_AT, clock.millis())
+                    .where(User.ID.eq(userId))
                     .execute()
+                if (rows == 0) {
+                    ctx
+                        .insertInto(
+                            Table.USER,
+                            User.ID,
+                            User.ADMIN,
+                            User.UPDATED_AT
+                        )
+                        .values(userId, permission.isAdmin, clock.millis())
+                        .execute()
+                }
 
-                // Get current permissions
+                // Get current permissions for user
                 val existing = ctx
                     .select(Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME)
                     .from(Table.PERMISSION)
+                    .where(Permission.USER_ID.eq(userId))
                     .fetch()
                     .intoGroups(Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME)
 

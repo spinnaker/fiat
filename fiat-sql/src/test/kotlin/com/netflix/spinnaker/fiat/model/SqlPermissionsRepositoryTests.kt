@@ -246,6 +246,12 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .values("testuser", ResourceType.SERVICE_ACCOUNT.toString(), "serviceAccount", """{"name":"serviceAccount","permissions":{}}""")
                     .values("testuser", ResourceType.ROLE.toString(), "role1", """{"name":"role1"}""")
                     .execute()
+                jooq.insertInto(Table.USER, User.ID, User.ADMIN, User.UPDATED_AT)
+                    .values("testuser2", false, clock.millis())
+                    .execute()
+                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
+                    .values("testuser2", ResourceType.ACCOUNT.toString(), "account2", """{"name":"account2","permissions":{}}""")
+                    .execute()
 
                 val abcRead = Permissions.Builder().add(Authorization.READ, "abc").build()
 
@@ -261,7 +267,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
                 expectThat(
                     jooq.select(count()).from(Table.PERMISSION).fetchOne(count())
-                ).isEqualTo(2)
+                ).isEqualTo(3)
 
                 expectThat(
                     jooq.select(Permission.BODY)
@@ -284,6 +290,17 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                         )
                         .fetchOne(field("body", String::class.java))
                 ).isEqualTo("""{"name":"app2","permissions":{},"details":{}}""")
+
+                expectThat(
+                    jooq.select(Permission.BODY)
+                        .from(Table.PERMISSION)
+                        .where(
+                            Permission.USER_ID.eq("testuser2").and(
+                                Permission.RESOURCE_TYPE.eq(ResourceType.ACCOUNT.toString())
+                            )
+                        )
+                        .fetchOne(field("body", String::class.java))
+                ).isEqualTo("""{"name":"account2","permissions":{}}""")
             }
 
 
