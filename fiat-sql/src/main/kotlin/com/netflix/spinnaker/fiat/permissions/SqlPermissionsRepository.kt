@@ -110,7 +110,7 @@ class SqlPermissionsRepository(
         return this
     }
 
-    override fun putAllById(permissions: MutableMap<String, UserPermission>?) {
+    override fun putAllById(permissions: Map<String, UserPermission>?) {
         permissions?.values?.forEach { permission -> put(permission) }
     }
 
