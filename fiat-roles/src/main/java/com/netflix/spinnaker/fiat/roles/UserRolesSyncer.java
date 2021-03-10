@@ -67,6 +67,7 @@ public class UserRolesSyncer {
   private final long syncDelayMs;
   private final long syncFailureDelayMs;
   private final long syncDelayTimeoutMs;
+  private final String lockName;
 
   private final Registry registry;
   private final Gauge userRolesSyncCount;
@@ -83,7 +84,8 @@ public class UserRolesSyncer {
       @Value("${fiat.write-mode.retry-interval-ms:10000}") long retryIntervalMs,
       @Value("${fiat.write-mode.sync-delay-ms:600000}") long syncDelayMs,
       @Value("${fiat.write-mode.sync-failure-delay-ms:600000}") long syncFailureDelayMs,
-      @Value("${fiat.write-mode.sync-delay-timeout-ms:30000}") long syncDelayTimeoutMs) {
+      @Value("${fiat.write-mode.sync-delay-timeout-ms:30000}") long syncDelayTimeoutMs,
+      @Value("${fiat.write-mode.lock-name:}") String lockName) {
     this.discoveryStatusListener = discoveryStatusListener;
 
     this.lockManager = lockManager;
@@ -96,6 +98,7 @@ public class UserRolesSyncer {
     this.syncDelayMs = syncDelayMs;
     this.syncFailureDelayMs = syncFailureDelayMs;
     this.syncDelayTimeoutMs = syncDelayTimeoutMs;
+    this.lockName = lockName;
 
     this.registry = registry;
     this.userRolesSyncCount = registry.gauge(metricName("syncCount"));
@@ -113,7 +116,10 @@ public class UserRolesSyncer {
 
     LockManager.LockOptions lockOptions =
         new LockManager.LockOptions()
-            .withLockName("Fiat.UserRolesSyncer".toLowerCase())
+            .withLockName(
+                (lockName != null && !lockName.isEmpty())
+                    ? lockName.toLowerCase()
+                    : "Fiat.UserRolesSyncer".toLowerCase())
             .withMaximumLockDuration(Duration.ofMillis(syncDelayMs + syncDelayTimeoutMs))
             .withSuccessInterval(Duration.ofMillis(syncDelayMs))
             .withFailureInterval(Duration.ofMillis(syncFailureDelayMs));
