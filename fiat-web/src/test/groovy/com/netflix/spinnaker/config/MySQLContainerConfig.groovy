@@ -17,33 +17,30 @@
 
 package com.netflix.spinnaker.config
 
-import com.netflix.spinnaker.kork.jedis.EmbeddedRedis
-import com.netflix.spinnaker.kork.jedis.JedisClientDelegate
-import com.netflix.spinnaker.kork.jedis.RedisClientDelegate
+import com.netflix.spinnaker.kork.sql.test.SqlTestUtil
+import org.jooq.DSLContext
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import redis.clients.jedis.Jedis
-import redis.clients.jedis.util.Pool
+
+import javax.sql.DataSource
 
 @Configuration
-class EmbeddedRedisConfig {
+@ConditionalOnProperty("sql.enabled")
+class MySQLContainerConfig {
 
-  @Bean(destroyMethod = "destroy")
-  EmbeddedRedis redisServer() {
-    def redis = EmbeddedRedis.embed()
-    redis.jedis.withCloseable { Jedis jedis ->
-      jedis.flushAll()
-    }
-    return redis
+  @Bean
+  SqlTestUtil.TestDatabase testDatabase() {
+    SqlTestUtil.initTcMysqlDatabase()
   }
 
   @Bean
-  Pool<Jedis> jedisPool(EmbeddedRedis embeddedRedis) {
-    embeddedRedis.pool
+  DataSource jedisPool(SqlTestUtil.TestDatabase testDatabase) {
+    testDatabase.dataSource
   }
 
   @Bean
-  RedisClientDelegate redisClientDelegate(Pool<Jedis> jedisPool) {
-    return new JedisClientDelegate(jedisPool)
+  DSLContext dslContext(SqlTestUtil.TestDatabase testDatabase) {
+    testDatabase.context
   }
 }

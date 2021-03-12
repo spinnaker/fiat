@@ -27,10 +27,11 @@ import com.netflix.spinnaker.fiat.model.resources.BuildService
 import com.netflix.spinnaker.fiat.model.resources.Permissions
 import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
-import com.netflix.spinnaker.kork.jedis.EmbeddedRedis
 import com.netflix.spinnaker.kork.jedis.JedisClientDelegate
 import com.netflix.spinnaker.kork.jedis.RedisClientDelegate
 import io.github.resilience4j.retry.RetryRegistry
+import org.testcontainers.containers.GenericContainer
+import org.testcontainers.utility.DockerImageName
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPool
 import spock.lang.AutoCleanup
@@ -56,8 +57,8 @@ class RedisPermissionsRepositorySpec extends Specification {
   private static final String UNRESTRICTED = UnrestrictedResourceConfig.UNRESTRICTED_USERNAME
 
   @Shared
-  @AutoCleanup("destroy")
-  EmbeddedRedis embeddedRedis
+  @AutoCleanup("stop")
+  GenericContainer embeddedRedis
 
   @Shared
   ObjectMapper objectMapper = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL)
@@ -76,10 +77,12 @@ class RedisPermissionsRepositorySpec extends Specification {
   Clock clock = new TestClock()
 
   def setupSpec() {
-    embeddedRedis = EmbeddedRedis.embed()
-    jedis = embeddedRedis.jedis
+    embeddedRedis = new GenericContainer(DockerImageName.parse("redis:5-alpine")).withExposedPorts(6379)
+    embeddedRedis.start()
+    def jedisPool = new JedisPool(embeddedRedis.host, embeddedRedis.getMappedPort(6379))
+    jedis = jedisPool.getResource()
     jedis.flushDB()
-    redisClientDelegate = new PausableRedisClientDelegate(new JedisClientDelegate(embeddedRedis.pool as JedisPool))
+    redisClientDelegate = new PausableRedisClientDelegate(new JedisClientDelegate(jedisPool))
   }
 
   private static class TestClock extends Clock {
@@ -314,7 +317,37 @@ class RedisPermissionsRepositorySpec extends Specification {
     result == expected
   }
 
-  def "should get all users from redis"() {
+    def "should put all users to redis"() {
+      setup:
+      def account1 = new Account().setName("account1")
+      def account2 = new Account().setName("account2")
+
+      def testUser1 = new UserPermission().setId("testUser1")
+              .setAccounts([account1] as Set)
+      def testUser2 = new UserPermission().setId("testUser2")
+              .setAccounts([account2] as Set)
+      def testUser3 = new UserPermission().setId("testUser3")
+              .setAdmin(true)
+
+      when:
+      repo.putAllById([
+        "testuser1": testUser1,
+        "testuser2": testUser2,
+        "testuser3": testUser3,
+      ])
+
+      then:
+      jedis.smembers("unittests:users") == ["testuser1", "testuser2", "testuser3"] as Set
+      jedis.sismember("unittests:permissions:admin", "testuser3")
+      jedis.hgetAll("unittests:permissions:testuser1:accounts") ==
+              ['account1': /{"name":"account1","permissions":$EMPTY_PERM_JSON}/.toString()]
+      jedis.hgetAll("unittests:permissions:testuser2:accounts") ==
+              ['account2': /{"name":"account2","permissions":$EMPTY_PERM_JSON}/.toString()]
+      jedis.hgetAll("unittests:permissions:testuser3:applications") == [:]
+
+    }
+
+    def "should get all users from redis"() {
     setup:
     jedis.sadd("unittests:users", "testuser1", "testuser2", "testuser3")
 
