@@ -453,16 +453,6 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val user5 = UserPermission().setId("user5").setRoles(setOf(role5))
                 val unrestricted = UserPermission().setId(UNRESTRICTED_USERNAME).setAccounts(setOf(acct1))
 
-                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
-                    .values("user1", "${role1.resourceType}", role1.name, """{"name":"role1"}""")
-                    .values("user1", "${role2.resourceType}", role2.name, """{"name":"role2"}""")
-                    .values("user2", "${role1.resourceType}", role1.name, """{"name":"role1"}""")
-                    .values("user2", "${role3.resourceType}", role3.name, """{"name":"role3"}""")
-                    .values("user4", "${role4.resourceType}", role4.name, """{"name":"role4"}""")
-                    .values("user5", "${role5.resourceType}", role5.name, """{"name":"role5"}""")
-                    .values(UNRESTRICTED_USERNAME, "${acct1.resourceType}", acct1.name, """{"name":"acct1"}""")
-                    .execute()
-
                 // Otherwise value of unrestricted user is served from cache
                 clock.tick(Duration.ofSeconds(1))
 
@@ -473,6 +463,16 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .values("user4", clock.millis())
                     .values("user5", clock.millis())
                     .values(UNRESTRICTED_USERNAME, clock.millis())
+                    .execute()
+
+                jooq.insertInto(Table.PERMISSION, Permission.USER_ID, Permission.RESOURCE_TYPE, Permission.RESOURCE_NAME, Permission.BODY)
+                    .values("user1", "${role1.resourceType}", role1.name, """{"name":"role1"}""")
+                    .values("user1", "${role2.resourceType}", role2.name, """{"name":"role2"}""")
+                    .values("user2", "${role1.resourceType}", role1.name, """{"name":"role1"}""")
+                    .values("user2", "${role3.resourceType}", role3.name, """{"name":"role3"}""")
+                    .values("user4", "${role4.resourceType}", role4.name, """{"name":"role4"}""")
+                    .values("user5", "${role5.resourceType}", role5.name, """{"name":"role5"}""")
+                    .values(UNRESTRICTED_USERNAME, "${acct1.resourceType}", acct1.name, """{"name":"acct1"}""")
                     .execute()
 
                 var result = sqlPermissionsRepository.getAllByRoles(listOf("role1"))

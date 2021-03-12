@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-user-table
+      author: deverton
+      changes:
+        - addForeignKeyConstraint:
+            baseColumnNames:
+              - fiat_user_id
+            baseTableName: fiat_permission
+            constraintName: fk_fiat_permission_user
+            referencedColumnNames:
+              - id
+            referencedTableName: fiat_user
