@@ -20,9 +20,7 @@ import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.netflix.spinnaker.fiat.model.UserPermission
-import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
-import com.netflix.spinnaker.fiat.permissions.sql.*
 import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.PERMISSION
 import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.RESOURCE
 import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.USER
@@ -68,8 +66,10 @@ class SqlPermissionsRepository(
                 val userId = permission.id
                 val now = clock.millis()
 
+                val batch = mutableListOf<Query>()
+
                 // Create or update user
-                ctx
+                batch += ctx
                     .insertInto(USER,
                         USER.ID,
                         USER.ADMIN,
@@ -82,13 +82,12 @@ class SqlPermissionsRepository(
                         USER.ADMIN to permission.isAdmin,
                         USER.UPDATED_AT to now,
                     ))
-                    .execute()
 
                 // Insert or update resources and permissions
                 permission.allResources.map { r ->
                     val body = objectMapper.writeValueAsString(r)
 
-                    ctx.insertInto(
+                    batch += ctx.insertInto(
                         RESOURCE,
                         RESOURCE.RESOURCE_TYPE,
                         RESOURCE.RESOURCE_NAME,
@@ -102,9 +101,8 @@ class SqlPermissionsRepository(
                             RESOURCE.BODY to body,
                             RESOURCE.UPDATED_AT to now
                         ))
-                        .execute()
 
-                    ctx.insertInto(
+                    batch += ctx.insertInto(
                         PERMISSION,
                         PERMISSION.USER_ID,
                         PERMISSION.RESOURCE_TYPE,
@@ -117,18 +115,18 @@ class SqlPermissionsRepository(
                         .set(mapOf(
                             PERMISSION.UPDATED_AT to now
                         ))
-                        .execute()
                 }
 
                 // Delete stale permissions
-                ctx
+                batch += ctx
                     .deleteFrom(PERMISSION)
                     .where(
                         PERMISSION.USER_ID.eq(userId).and(
                             PERMISSION.UPDATED_AT.lessThan(now)
                         )
                     )
-                    .execute()
+
+                ctx.batch(batch).execute()
             }
         }
 
@@ -151,9 +149,12 @@ class SqlPermissionsRepository(
 
             // insert/update resources
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
+                val batch = mutableListOf<Query>()
+
                 allResources.forEach { r ->
                     val body = objectMapper.writeValueAsString(r)
-                    ctx.insertInto(RESOURCE)
+
+                    batch += ctx.insertInto(RESOURCE)
                         .set(RESOURCE.RESOURCE_TYPE, r.resourceType)
                         .set(RESOURCE.RESOURCE_NAME, r.name)
                         .set(RESOURCE.UPDATED_AT, now)
@@ -166,15 +167,18 @@ class SqlPermissionsRepository(
                                 RESOURCE.UPDATED_AT to now
                             )
                         )
-                        .execute()
                 }
+
+                ctx.batch(batch).execute()
             }
 
             // insert/update users and permissions
             permissions.values.forEach { p ->
                 // transaction per-user to avoid locking too long
                 jooq.transactional(sqlRetryProperties.transactions) { ctx ->
-                    ctx.insertInto(USER)
+                    val batch = mutableListOf<Query>()
+
+                    batch += ctx.insertInto(USER)
                         .set(USER.ID, p.id)
                         .set(USER.ADMIN, p.isAdmin)
                         .set(USER.UPDATED_AT, now)
@@ -186,10 +190,9 @@ class SqlPermissionsRepository(
                                 USER.UPDATED_AT to now
                             )
                         )
-                        .execute()
 
                     p.allResources.forEach { r ->
-                        ctx.insertInto(PERMISSION)
+                        batch += ctx.insertInto(PERMISSION)
                             .set(PERMISSION.USER_ID, p.id)
                             .set(PERMISSION.RESOURCE_TYPE, r.resourceType)
                             .set(PERMISSION.RESOURCE_NAME, r.name)
@@ -201,16 +204,23 @@ class SqlPermissionsRepository(
                                     PERMISSION.UPDATED_AT to now
                                 )
                             )
-                            .execute()
                     }
+
+                    ctx.batch(batch).execute()
                 }
             }
 
+
+
             // Tidy up orphan values
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
-                ctx.deleteFrom(PERMISSION).where(PERMISSION.UPDATED_AT.lessThan(now)).execute()
-                ctx.deleteFrom(USER).where(USER.UPDATED_AT.lessThan(now)).execute()
-                ctx.deleteFrom(RESOURCE).where(RESOURCE.UPDATED_AT.lessThan(now)).execute()
+                val batch = mutableListOf<Query>()
+
+                batch += ctx.deleteFrom(PERMISSION).where(PERMISSION.UPDATED_AT.lessThan(now))
+                batch += ctx.deleteFrom(USER).where(USER.UPDATED_AT.lessThan(now))
+                batch += ctx.deleteFrom(RESOURCE).where(RESOURCE.UPDATED_AT.lessThan(now))
+
+                ctx.batch(batch).execute()
             }
         }
     }
