@@ -277,7 +277,6 @@ class SqlPermissionsRepository(
                     }
 
                 val existingResources = resourceQuery
-                    .groupBy(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
                     .fetch()
                     .intoGroups(RESOURCE.RESOURCE_TYPE)
                     .mapValues { e ->
