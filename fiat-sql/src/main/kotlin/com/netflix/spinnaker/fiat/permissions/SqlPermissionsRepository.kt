@@ -138,10 +138,10 @@ class SqlPermissionsRepository(
             return
         }
 
-        // Build a list of all the resources
-        val allResources = permissions.values
-            .map { it.getAllResources() }
+        val allResourcesByType = permissions.values
+            .map { it.allResources }
             .flatten()
+            .groupBy { it.resourceType }
 
         val now = clock.millis()
 
@@ -149,24 +149,43 @@ class SqlPermissionsRepository(
 
             // insert/update resources
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
+                // Get current resources
+                val existing = ctx
+                    .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
+                    .from(RESOURCE)
+                    .fetch()
+                    .intoGroups(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
+                    .mapValues { (_, v) -> v.toMutableSet() }
+
                 val batch = mutableListOf<Query>()
 
-                allResources.forEach { r ->
-                    val body = objectMapper.writeValueAsString(r)
+                val bulkInsert = ctx.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY, RESOURCE.UPDATED_AT)
 
-                    batch += ctx.insertInto(RESOURCE)
-                        .set(RESOURCE.RESOURCE_TYPE, r.resourceType)
-                        .set(RESOURCE.RESOURCE_NAME, r.name)
-                        .set(RESOURCE.UPDATED_AT, now)
-                        .set(RESOURCE.BODY, body)
-                        .onConflict(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
-                        .doUpdate()
-                        .set(
-                            mapOf(
-                                RESOURCE.BODY to body,
-                                RESOURCE.UPDATED_AT to now
-                            )
-                        )
+                allResourcesByType.forEach { (rt, resources) ->
+                    val existingOfType = existing.getOrDefault(rt, Collections.emptyList())
+
+                    resources.forEach { resource ->
+                        val isUpdate = existingOfType.remove(resource.name)
+
+                        val body = objectMapper.writeValueAsString(resource)
+
+                        if (isUpdate) {
+                            batch += ctx.update(RESOURCE)
+                                .set(RESOURCE.BODY, body)
+                                .set(RESOURCE.UPDATED_AT, now)
+                                .where(
+                                    RESOURCE.RESOURCE_TYPE.eq(resource.resourceType).and(
+                                        RESOURCE.RESOURCE_NAME.eq(resource.name)
+                                    )
+                                )
+                        } else {
+                            bulkInsert.values(resource.resourceType, resource.name, body, now)
+                        }
+                    }
+                }
+
+                if (bulkInsert.isExecutable) {
+                    batch += bulkInsert
                 }
 
                 ctx.batch(batch).execute()
@@ -174,43 +193,70 @@ class SqlPermissionsRepository(
 
             // insert/update users and permissions
             permissions.values.forEach { p ->
+                val allResourcesByTypeForUser = p.allResources.groupBy { it.resourceType }
+
                 // transaction per-user to avoid locking too long
                 jooq.transactional(sqlRetryProperties.transactions) { ctx ->
-                    val batch = mutableListOf<Query>()
-
-                    batch += ctx.insertInto(USER)
-                        .set(USER.ID, p.id)
+                    // Most of the time we'll be updating the timestamp so this is cheaper
+                    val rows = ctx.update(USER)
                         .set(USER.ADMIN, p.isAdmin)
                         .set(USER.UPDATED_AT, now)
-                        .onConflict(USER.ID)
-                        .doUpdate()
-                        .set(
-                            mapOf(
-                                USER.ADMIN to p.isAdmin,
-                                USER.UPDATED_AT to now
-                            )
-                        )
+                        .where(USER.ID.eq(p.id))
+                        .execute()
+                    if (rows == 0) {
+                        ctx.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
+                            .values(p.id, p.isAdmin, now)
+                            .execute()
+                    }
 
-                    p.allResources.forEach { r ->
-                        batch += ctx.insertInto(PERMISSION)
-                            .set(PERMISSION.USER_ID, p.id)
-                            .set(PERMISSION.RESOURCE_TYPE, r.resourceType)
-                            .set(PERMISSION.RESOURCE_NAME, r.name)
-                            .set(PERMISSION.UPDATED_AT, now)
-                            .onConflict(PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
-                            .doUpdate()
-                            .set(
-                                mapOf(
-                                    PERMISSION.UPDATED_AT to now
-                                )
-                            )
+                    // Get current permissions for user
+                    val existing = ctx
+                        .select(PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
+                        .from(PERMISSION)
+                        .where(PERMISSION.USER_ID.eq(p.id))
+                        .fetch()
+                        .intoGroups(PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
+                        .mapValues { (_, v) -> v.toMutableSet() }
+
+                    val batch = mutableListOf<Query>()
+
+                    var bulkInsert = ctx.insertInto(
+                        PERMISSION,
+                        PERMISSION.USER_ID,
+                        PERMISSION.RESOURCE_TYPE,
+                        PERMISSION.RESOURCE_NAME,
+                        PERMISSION.UPDATED_AT
+                    )
+
+                    allResourcesByTypeForUser.forEach { (rt, resources) ->
+                        val existingOfType = existing.getOrDefault(rt, Collections.emptyList())
+
+                        resources.forEach { resource ->
+                            val isUpdate = existingOfType.remove(resource.name)
+
+                            if (isUpdate) {
+                                batch += ctx.update(PERMISSION)
+                                    .set(PERMISSION.UPDATED_AT, now)
+                                    .where(
+                                        PERMISSION.USER_ID.eq(p.id).and(
+                                            PERMISSION.RESOURCE_TYPE.eq(resource.resourceType).and(
+                                                PERMISSION.RESOURCE_NAME.eq(resource.name)
+                                            )
+                                        )
+                                    )
+                            } else {
+                                bulkInsert.values(p.id, resource.resourceType, resource.name, now)
+                            }
+                        }
+                    }
+
+                    if (bulkInsert.isExecutable) {
+                        batch += bulkInsert
                     }
 
                     ctx.batch(batch).execute()
                 }
             }
-
-
 
             // Tidy up orphan values
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
