@@ -64,21 +64,25 @@ class SqlPermissionsRepository(
     override fun put(permission: UserPermission): PermissionsRepository {
         val allResourcesByType = permission.allResources
             .groupBy { it.resourceType }
-            .mapValues { (_, v) -> v.toMutableSet() }
+            .mapValues { (_, v) -> v.toSet() }
 
         val now = clock.millis()
 
         withPool(poolName) {
-            jooq.transactional(sqlRetryProperties.transactions) { ctx ->
-                putAllResources(ctx, allResourcesByType, now)
+            jooq.transactional(sqlRetryProperties.transactions) {
+                ctx ->  putAllResources(ctx, allResourcesByType, now)
+            }
 
+            jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 putUserPermission(ctx, permission.id, permission.isAdmin, now, allResourcesByType)
 
                 // Delete stale permissions
                 ctx.deleteFrom(PERMISSION)
-                    .where(PERMISSION.USER_ID.eq(permission.id).and(
-                        PERMISSION.UPDATED_AT.lessThan(now)
-                    ))
+                    .where(
+                        PERMISSION.USER_ID.eq(permission.id).and(
+                            PERMISSION.UPDATED_AT.lessThan(now)
+                        )
+                    )
                     .execute()
             }
         }
@@ -105,11 +109,17 @@ class SqlPermissionsRepository(
 
             // insert/update users and permissions
             permissions.values.forEach { p ->
-                val allResourcesByTypeForUser = p.allResources.groupBy { it.resourceType }.mapValues { (_, v) -> v.toMutableSet() }
+                val allResourcesByTypeForUser = p.allResources.groupBy { it.resourceType }.mapValues { (_, v) -> v.toSet() }
 
                 // transaction per-user to avoid locking too long
                 jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                     putUserPermission(ctx, p.id, p.isAdmin, now, allResourcesByTypeForUser)
+
+                    ctx.deleteFrom(PERMISSION).where(
+                        PERMISSION.USER_ID.eq(p.id).and(
+                            PERMISSION.UPDATED_AT.lessThan(now)
+                        )
+                    )
                 }
             }
 
@@ -117,8 +127,12 @@ class SqlPermissionsRepository(
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 val batch = mutableListOf<Query>()
 
-                batch += ctx.deleteFrom(PERMISSION).where(PERMISSION.UPDATED_AT.lessThan(now))
-                batch += ctx.deleteFrom(USER).where(USER.UPDATED_AT.lessThan(now))
+                val existingIds = ctx.select(USER.ID).from(USER).fetch(USER.ID).toSet();
+                val toDelete = existingIds.minus(permissions.keys)
+
+                batch += ctx.deleteFrom(PERMISSION).where(PERMISSION.USER_ID.`in`(toDelete))
+                batch += ctx.deleteFrom(USER).where(USER.ID.`in`(toDelete))
+
                 batch += ctx.deleteFrom(RESOURCE).where(RESOURCE.UPDATED_AT.lessThan(now))
 
                 ctx.batch(batch).execute()
@@ -239,7 +253,7 @@ class SqlPermissionsRepository(
         }
     }
 
-    private fun putUserPermission(ctx: DSLContext, id: String, admin: Boolean, now: Long, allResourcesByTypeForUser: Map<ResourceType, MutableSet<Resource>>) {
+    private fun putUserPermission(ctx: DSLContext, id: String, admin: Boolean, now: Long, allResourcesByTypeForUser: Map<ResourceType, Set<Resource>>) {
         // Most of the time we'll be updating the timestamp so this is cheaper
         val rows = ctx.update(USER)
             .set(USER.ADMIN, admin)
@@ -302,7 +316,7 @@ class SqlPermissionsRepository(
         }
     }
 
-    private fun putAllResources(ctx: DSLContext, allResourcesByType: Map<ResourceType, MutableSet<Resource>>, now: Long) {
+    private fun putAllResources(ctx: DSLContext, allResourcesByType: Map<ResourceType, Set<Resource>>, now: Long) {
         // Get current resources
         val existing = ctx
             .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
