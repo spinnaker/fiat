@@ -259,7 +259,7 @@ class SqlPermissionsRepository(
             .where(PERMISSION.USER_ID.eq(id))
             .fetch()
             .intoGroups(PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
-            .mapValues { (_, v) -> v.toMutableSet() }
+            .mapValues { (_, v) -> v.toSet() }
 
         val batch = mutableListOf<Query>()
 
@@ -272,32 +272,34 @@ class SqlPermissionsRepository(
         )
 
         allResourcesByTypeForUser.forEach { (rt, resources) ->
-            val existingOfType = existing.getOrDefault(rt, Collections.emptyList())
+            val existingOfType = existing.getOrDefault(rt, Collections.emptySet())
 
-            resources.forEach { resource ->
-                val isUpdate = existingOfType.remove(resource.name)
+            val incomingOfType = resources.map { it.name }.toSet()
 
-                if (isUpdate) {
-                    batch += ctx.update(PERMISSION)
-                        .set(PERMISSION.UPDATED_AT, now)
-                        .where(
-                            PERMISSION.USER_ID.eq(id).and(
-                                PERMISSION.RESOURCE_TYPE.eq(resource.resourceType).and(
-                                    PERMISSION.RESOURCE_NAME.eq(resource.name)
-                                )
-                            )
-                        )
-                } else {
-                    bulkInsert.values(id, resource.resourceType, resource.name, now)
-                }
+            // Inserts
+            incomingOfType.minus(existingOfType).forEach {
+                bulkInsert.values(id, rt, it, now)
             }
+
+            // Updates
+            batch += ctx.update(PERMISSION)
+                .set(PERMISSION.UPDATED_AT, now)
+                .where(
+                    PERMISSION.USER_ID.eq(id).and(
+                        PERMISSION.RESOURCE_TYPE.eq(rt).and(
+                            PERMISSION.RESOURCE_NAME.`in`(incomingOfType.intersect(existingOfType))
+                        )
+                    )
+                )
         }
 
         if (bulkInsert.isExecutable) {
             batch += bulkInsert
         }
 
-        ctx.batch(batch).execute()
+        if (batch.isNotEmpty()) {
+            ctx.batch(batch).execute()
+        }
     }
 
     private fun putAllResources(ctx: DSLContext, allResourcesByType: Map<ResourceType, MutableSet<Resource>>, now: Long) {
@@ -307,7 +309,7 @@ class SqlPermissionsRepository(
             .from(RESOURCE)
             .fetch()
             .intoGroups(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
-            .mapValues { (_, v) -> v.toMutableSet() }
+            .mapValues { (_, v) -> v.toSet() }
 
         val batch = mutableListOf<Query>()
 
@@ -320,35 +322,43 @@ class SqlPermissionsRepository(
         )
 
         allResourcesByType.forEach { (rt, resources) ->
-            val existingOfType = existing.getOrDefault(rt, Collections.emptyList())
+            val existingOfType = existing.getOrDefault(rt, Collections.emptySet())
 
-            resources.forEach { resource ->
-                val isUpdate = existingOfType.remove(resource.name)
+            val incomingOfType = resources.associateBy { it.name }
 
-                val body = objectMapper.writeValueAsString(resource)
-
-                if (isUpdate) {
-                    batch += ctx.update(RESOURCE)
-                        .set(RESOURCE.BODY, body)
-                        .set(RESOURCE.UPDATED_AT, now)
-                        .where(
-                            RESOURCE.RESOURCE_TYPE.eq(resource.resourceType).and(
-                                RESOURCE.RESOURCE_NAME.eq(resource.name)
-                            )
-                        )
-                } else {
-                    bulkInsert.values(resource.resourceType, resource.name, body, now)
-                }
+            // Inserts
+            incomingOfType.minus(existingOfType).forEach {
+                val body = objectMapper.writeValueAsString(it.value)
+                bulkInsert.values(rt, it.key, body, now)
             }
+
+            // Updates
+            incomingOfType.filterKeys { existingOfType.contains(it) }.forEach {
+                val body = objectMapper.writeValueAsString(it.value)
+
+                batch += ctx.update(RESOURCE)
+                    .set(RESOURCE.BODY, body)
+                    .set(RESOURCE.UPDATED_AT, now)
+                    .where(
+                        RESOURCE.RESOURCE_TYPE.eq(rt).and(
+                            RESOURCE.RESOURCE_NAME.eq(it.key)
+                        )
+                    )
+            }
+
+            // Can't also do deletes here as there may still be permissions pointing to those resources.
+            // They get cleaned up in `putAllbyId()`
         }
 
         if (bulkInsert.isExecutable) {
             batch += bulkInsert
         }
 
-        ctx.batch(batch).execute()
+        if (batch.isNotEmpty()) {
+            ctx.batch(batch).execute()
+        }
     }
-    
+
     private fun getFromDatabase(id: String): Optional<UserPermission> {
         val userPermission = UserPermission()
             .setId(id)
