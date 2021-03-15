@@ -255,7 +255,7 @@ class SqlPermissionsRepository(
         return withPool(poolName) {
             jooq.withRetry(sqlRetryProperties.reads) { ctx ->
                 var resourceQuery = ctx
-                    .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
+                    .selectDistinct(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
                     .from(RESOURCE)
                     .let {
                         if (anyRoles != null) {
