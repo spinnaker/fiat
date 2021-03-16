@@ -216,7 +216,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .setRoles(setOf()))
 
                 expectThat(
-                    jooq.select(count()).from(PERMISSION).fetchOne(count())
+                    jooq.selectCount().from(PERMISSION).fetchOne(count())
                 ).isEqualTo(0)
             }
 

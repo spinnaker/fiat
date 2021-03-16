@@ -69,21 +69,12 @@ class SqlPermissionsRepository(
         val now = clock.millis()
 
         withPool(poolName) {
-            jooq.transactional(sqlRetryProperties.transactions) {
-                ctx ->  putAllResources(ctx, allResourcesByType, now)
+            jooq.transactional(sqlRetryProperties.transactions) { ctx ->
+                putAllResources(ctx, allResourcesByType, now)
             }
 
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 putUserPermission(ctx, permission.id, permission.isAdmin, now, allResourcesByType)
-
-                // Delete stale permissions
-                ctx.deleteFrom(PERMISSION)
-                    .where(
-                        PERMISSION.USER_ID.eq(permission.id).and(
-                            PERMISSION.UPDATED_AT.lessThan(now)
-                        )
-                    )
-                    .execute()
             }
         }
 
@@ -105,7 +96,9 @@ class SqlPermissionsRepository(
 
         withPool(poolName) {
 
-            jooq.transactional(sqlRetryProperties.transactions) { ctx -> putAllResources(ctx, allResourcesByType, now) }
+            jooq.transactional(sqlRetryProperties.transactions) { ctx ->
+                putAllResources(ctx, allResourcesByType, now)
+            }
 
             // insert/update users and permissions
             permissions.values.forEach { p ->
@@ -114,16 +107,10 @@ class SqlPermissionsRepository(
                 // transaction per-user to avoid locking too long
                 jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                     putUserPermission(ctx, p.id, p.isAdmin, now, allResourcesByTypeForUser)
-
-                    ctx.deleteFrom(PERMISSION).where(
-                        PERMISSION.USER_ID.eq(p.id).and(
-                            PERMISSION.UPDATED_AT.lessThan(now)
-                        )
-                    )
                 }
             }
 
-            // Tidy up orphan values
+            // Tidy up deleted users and permissions
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 val batch = mutableListOf<Query>()
 
@@ -133,7 +120,24 @@ class SqlPermissionsRepository(
                 batch += ctx.deleteFrom(PERMISSION).where(PERMISSION.USER_ID.`in`(toDelete))
                 batch += ctx.deleteFrom(USER).where(USER.ID.`in`(toDelete))
 
-                batch += ctx.deleteFrom(RESOURCE).where(RESOURCE.UPDATED_AT.lessThan(now))
+                ctx.batch(batch).execute()
+            }
+
+            // Tidy up unreferenced resources
+            jooq.transactional(sqlRetryProperties.transactions) { ctx ->
+                val batch = mutableListOf<Query>()
+
+                resourceTypes.forEach { (rt, r) ->
+                    batch += ctx.deleteFrom(RESOURCE).where(
+                        RESOURCE.RESOURCE_TYPE.eq(rt).and(
+                            RESOURCE.RESOURCE_NAME.notIn(
+                                ctx.selectDistinct(PERMISSION.RESOURCE_NAME)
+                                    .from(PERMISSION)
+                                    .where(PERMISSION.RESOURCE_TYPE.eq(rt))
+                            )
+                        )
+                    )
+                }
 
                 ctx.batch(batch).execute()
             }
@@ -241,7 +245,7 @@ class SqlPermissionsRepository(
         withPool(poolName) {
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 // Delete permissions
-                jooq.delete(PERMISSION)
+                ctx.delete(PERMISSION)
                     .where(PERMISSION.USER_ID.eq(id))
                     .execute()
 
@@ -305,7 +309,23 @@ class SqlPermissionsRepository(
                         )
                     )
                 )
+
+            // Deletes
+            batch += ctx.delete(PERMISSION)
+                .where(
+                    PERMISSION.USER_ID.eq(id).and(
+                        PERMISSION.RESOURCE_TYPE.eq(rt).and(
+                            PERMISSION.RESOURCE_NAME.`in`(existingOfType.minus(incomingOfType))
+                        )
+                    )
+                )
         }
+
+        // Special case if the user has lost access to all resources of a specific type
+        batch += ctx.delete(PERMISSION)
+                .where(PERMISSION.USER_ID.eq(id).and(
+                    PERMISSION.RESOURCE_TYPE.`in`(resourceTypes.keys.minus(allResourcesByTypeForUser.keys))
+                ))
 
         if (bulkInsert.isExecutable) {
             batch += bulkInsert
