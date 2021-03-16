@@ -111,10 +111,12 @@ class SqlPermissionsRepository(
                 val existingIds = ctx.select(USER.ID).from(USER).fetch(USER.ID).toSet();
                 val toDelete = existingIds.minus(permissions.keys)
 
-                batch += ctx.deleteFrom(PERMISSION).where(PERMISSION.USER_ID.`in`(toDelete))
-                batch += ctx.deleteFrom(USER).where(USER.ID.`in`(toDelete))
+                if (toDelete.isNotEmpty()) {
+                    batch += ctx.deleteFrom(PERMISSION).where(PERMISSION.USER_ID.`in`(toDelete))
+                    batch += ctx.deleteFrom(USER).where(USER.ID.`in`(toDelete))
 
-                ctx.batch(batch).execute()
+                    ctx.batch(batch).execute()
+                }
             }
 
             // Tidy up unreferenced resources
@@ -287,27 +289,33 @@ class SqlPermissionsRepository(
 
             val incomingOfType = resources.map { it.name }.toSet()
 
-            // Inserts
             incomingOfType.minus(existingOfType).forEach {
                 bulkInsert.values(id, rt, it)
             }
 
-            // Deletes
-            batch += ctx.delete(PERMISSION)
-                .where(
-                    PERMISSION.USER_ID.eq(id).and(
-                        PERMISSION.RESOURCE_TYPE.eq(rt).and(
-                            PERMISSION.RESOURCE_NAME.`in`(existingOfType.minus(incomingOfType))
+            var toDelete = existingOfType.minus(incomingOfType)
+            if (toDelete.isNotEmpty()) {
+                batch += ctx.delete(PERMISSION)
+                    .where(
+                        PERMISSION.USER_ID.eq(id).and(
+                            PERMISSION.RESOURCE_TYPE.eq(rt).and(
+                                PERMISSION.RESOURCE_NAME.`in`(toDelete)
+                            )
                         )
                     )
-                )
+            }
         }
 
         // Special case if the user has lost access to all resources of a specific type
-        batch += ctx.delete(PERMISSION)
-                .where(PERMISSION.USER_ID.eq(id).and(
-                    PERMISSION.RESOURCE_TYPE.`in`(resourceTypes.keys.minus(allResourcesByTypeForUser.keys))
-                ))
+        val toDelete = resourceTypes.keys.minus(allResourcesByTypeForUser.keys)
+        if (toDelete.isNotEmpty()) {
+            batch += ctx.delete(PERMISSION)
+                .where(
+                    PERMISSION.USER_ID.eq(id).and(
+                        PERMISSION.RESOURCE_TYPE.`in`(toDelete)
+                    )
+                )
+        }
 
         if (bulkInsert.isExecutable) {
             batch += bulkInsert
