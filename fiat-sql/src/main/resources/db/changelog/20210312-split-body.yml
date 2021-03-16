@@ -23,11 +23,6 @@ databaseChangeLog:
                   type: longtext
                   constraints:
                     nullable: false
-              - column:
-                  name: updated_at
-                  type: bigint
-                  constraints:
-                    nullable: false
         - modifySql:
             dbms: mysql
             append:
@@ -78,21 +73,3 @@ databaseChangeLog:
                 type: longtext
                 constraints:
                   nullable: false
-
-  - changeSet:
-      id: add-permission-updated-at
-      author: deverton
-      changes:
-        - addColumn:
-            tableName: fiat_permission
-            column:
-              name: updated_at
-              type: bigint
-              constraints:
-                nullable: false
-      rollback:
-        - dropColumn:
-            tableName: fiat_permission
-            columns:
-              - column:
-                  name: updated_at
