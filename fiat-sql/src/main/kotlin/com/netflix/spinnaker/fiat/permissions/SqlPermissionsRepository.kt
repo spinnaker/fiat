@@ -69,9 +69,7 @@ class SqlPermissionsRepository(
         withPool(poolName) {
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 putAllResources(ctx, allResourcesByType)
-            }
 
-            jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 putUserPermission(ctx, permission.id, permission.isAdmin, allResourcesByType)
             }
         }
