@@ -22,9 +22,9 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
-import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.PERMISSION
-import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.RESOURCE
-import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.USER
+import com.netflix.spinnaker.fiat.permissions.sql.tables.references.PERMISSION
+import com.netflix.spinnaker.fiat.permissions.sql.tables.references.RESOURCE
+import com.netflix.spinnaker.fiat.permissions.sql.tables.references.USER
 import com.netflix.spinnaker.fiat.permissions.sql.transactional
 import com.netflix.spinnaker.fiat.permissions.sql.withRetry
 import com.netflix.spinnaker.kork.exceptions.IntegrationException
@@ -36,7 +36,6 @@ import java.time.Clock
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
-
 
 class SqlPermissionsRepository(
     private val clock: Clock,
@@ -123,7 +122,7 @@ class SqlPermissionsRepository(
             jooq.transactional(sqlRetryProperties.transactions) { ctx ->
                 val batch = mutableListOf<Query>()
 
-                resourceTypes.forEach { (rt, r) ->
+                resourceTypes.forEach { (rt, _) ->
                     batch += ctx.deleteFrom(RESOURCE).where(
                         RESOURCE.RESOURCE_TYPE.eq(rt).and(
                             RESOURCE.RESOURCE_NAME.notIn(

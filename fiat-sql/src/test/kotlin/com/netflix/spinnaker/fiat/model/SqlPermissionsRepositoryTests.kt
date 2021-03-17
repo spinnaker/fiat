@@ -28,9 +28,9 @@ import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
 import com.netflix.spinnaker.fiat.permissions.SqlPermissionsRepository
 import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
-import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.PERMISSION
-import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.RESOURCE
-import com.netflix.spinnaker.fiat.permissions.sql.Tables.Companion.USER
+import com.netflix.spinnaker.fiat.permissions.sql.tables.references.PERMISSION
+import com.netflix.spinnaker.fiat.permissions.sql.tables.references.RESOURCE
+import com.netflix.spinnaker.fiat.permissions.sql.tables.references.USER
 import dev.minutest.ContextBuilder
 import dev.minutest.junit.JUnit5Minutests
 import dev.minutest.rootContext
