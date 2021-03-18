@@ -542,6 +542,38 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 ).isEqualTo("""{"name":"resource1"}""")
             }
 
+            test("should not delete the unrestricted user on put all") {
+                jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
+                    .values(UNRESTRICTED_USERNAME, false, clock.millis())
+                    .execute()
+                jooq.insertInto(RESOURCE, RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
+                    .values(ResourceType.ACCOUNT, "account1", """{"name":"account1","permissions":{}}""")
+                    .execute()
+                jooq.insertInto(PERMISSION, PERMISSION.USER_ID, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
+                    .values(UNRESTRICTED_USERNAME, ResourceType.ACCOUNT, "account1")
+                    .execute()
+
+                val account1 = Account().setName("account1")
+                val testUser = UserPermission().setId("testUser")
+
+                sqlPermissionsRepository.putAllById(mapOf("testuser" to testUser))
+
+                expectThat(jooq.selectCount().from(USER).fetchOne(count()))
+                    .isEqualTo(2)
+                expectThat(
+                    jooq.select(USER.ADMIN).from(USER).where(USER.ID.eq(testUser.id)).fetchOne(USER.ADMIN)
+                ).isFalse()
+                expectThat(
+                    jooq.select(USER.ADMIN).from(USER).where(USER.ID.eq(UNRESTRICTED_USERNAME)).fetchOne(USER.ADMIN)
+                ).isFalse()
+                expectThat(jooq.selectCount().from(PERMISSION).fetchOne(count()))
+                    .isEqualTo(1)
+                expectThat(jooq.selectCount().from(RESOURCE).fetchOne(count()))
+                    .isEqualTo(1)
+                expectThat(resourceBody(jooq, UNRESTRICTED_USERNAME, account1.resourceType, account1.name).get())
+                    .isEqualTo("""{"name":"account1","permissions":{}}""")
+            }
+
         }
 
         after {

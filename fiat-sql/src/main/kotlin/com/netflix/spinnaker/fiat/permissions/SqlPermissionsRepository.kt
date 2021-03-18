@@ -108,7 +108,10 @@ class SqlPermissionsRepository(
                 val batch = mutableListOf<Query>()
 
                 val existingIds = ctx.select(USER.ID).from(USER).fetch(USER.ID).toSet();
+
+                // The `UserRoleSyncer` doesn't pass in the unrestricted username so make sure we don't delete it
                 val toDelete = existingIds.minus(permissions.keys)
+                    .minus(UNRESTRICTED_USERNAME)
 
                 if (toDelete.isNotEmpty()) {
                     batch += ctx.deleteFrom(PERMISSION).where(PERMISSION.USER_ID.`in`(toDelete))
