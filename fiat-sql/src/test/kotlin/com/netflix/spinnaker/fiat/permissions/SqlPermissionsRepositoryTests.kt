@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Expedia, Inc.
+ * Copyright 2021 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.fiat.model
+package com.netflix.spinnaker.fiat.permissions
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED_USERNAME
+import com.netflix.spinnaker.fiat.model.Authorization
+import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Account
 import com.netflix.spinnaker.fiat.model.resources.Application
 import com.netflix.spinnaker.fiat.model.resources.BuildService
