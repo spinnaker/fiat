@@ -80,6 +80,7 @@ internal class DatabaseInitializationFailed(cause: Throwable) : RuntimeException
 internal fun DSLContext.flushAll() {
     when (configuration().family()) {
         SQLDialect.MYSQL -> execute("set foreign_key_checks=0")
+        else -> { }
     }
     try {
         val schema = select(currentSchema())
@@ -109,6 +110,7 @@ internal fun DSLContext.flushAll() {
     } finally {
         when (configuration().family()) {
             SQLDialect.MYSQL -> execute("set foreign_key_checks=1")
+            else -> { }
         }
     }
 }

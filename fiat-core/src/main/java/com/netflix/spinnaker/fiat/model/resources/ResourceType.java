@@ -33,6 +33,10 @@ public class ResourceType {
     this.name = name;
   }
 
+  public String getName() {
+    return name;
+  }
+
   // TODO(ttomsu): This is Redis-specific, so it probably shouldn't go here.
   public static ResourceType parse(String pluralOrKey) {
     if (pluralOrKey == null) {

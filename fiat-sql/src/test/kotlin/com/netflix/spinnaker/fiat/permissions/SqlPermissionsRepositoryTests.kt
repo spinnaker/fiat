@@ -21,13 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED_USERNAME
 import com.netflix.spinnaker.fiat.model.Authorization
 import com.netflix.spinnaker.fiat.model.UserPermission
-import com.netflix.spinnaker.fiat.model.resources.Account
-import com.netflix.spinnaker.fiat.model.resources.Application
-import com.netflix.spinnaker.fiat.model.resources.BuildService
-import com.netflix.spinnaker.fiat.model.resources.Permissions
-import com.netflix.spinnaker.fiat.model.resources.ResourceType
-import com.netflix.spinnaker.fiat.model.resources.Role
-import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
+import com.netflix.spinnaker.fiat.model.resources.*
 import com.netflix.spinnaker.fiat.permissions.SqlPermissionsRepository
 import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.PERMISSION
@@ -84,13 +78,20 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
         val objectMapper = ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL)
 
+        val extensionResourceType = ResourceType("extension_resource")
+
+        val extensionResource = object : Resource {
+            override fun getName() = null
+            override fun getResourceType() = extensionResourceType
+        }
+
         val sqlPermissionsRepository = SqlPermissionsRepository(
             clock,
             objectMapper,
             jooq,
             SqlRetryProperties(),
             "default",
-            listOf(Application(), Account(), BuildService(), ServiceAccount(), Role())
+            listOf(Application(), Account(), BuildService(), ServiceAccount(), Role(), extensionResource)
         )
 
         context("For ${jooqConfig.dialect}") {
@@ -523,6 +524,22 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     "user5" to user5.merge(unrestricted),
                     UNRESTRICTED_USERNAME to unrestricted
                 ))
+            }
+
+            test("should handle storing extension resources") {
+                val resource1 = object : Resource {
+                    override fun getName() = "resource1"
+                    override fun getResourceType() = extensionResourceType
+                }
+
+                sqlPermissionsRepository.put(UserPermission()
+                    .setId("testuser")
+                    .setExtensionResources(setOf(resource1))
+                )
+
+                expectThat(
+                    resourceBody(jooq, "testuser", resource1.resourceType, resource1.name).get()
+                ).isEqualTo("""{"name":"resource1"}""")
             }
 
         }

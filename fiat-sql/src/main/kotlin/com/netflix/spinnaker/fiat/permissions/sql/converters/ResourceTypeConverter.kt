@@ -18,23 +18,27 @@ package com.netflix.spinnaker.fiat.permissions.sql.converters
 
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
 import org.jooq.impl.AbstractConverter
+import java.lang.IllegalArgumentException
 
 class ResourceTypeConverter : AbstractConverter<String, ResourceType>(String::class.java, ResourceType::class.java) {
 
     override fun from(databaseObject: String?): ResourceType? {
         return when (databaseObject) {
             null -> null
+            "" -> throw IllegalArgumentException("resource type name cannot be empty")
             "${ResourceType.ACCOUNT}" -> ResourceType.ACCOUNT
             "${ResourceType.APPLICATION}" -> ResourceType.APPLICATION
             "${ResourceType.BUILD_SERVICE}" -> ResourceType.BUILD_SERVICE
             "${ResourceType.ROLE}" -> ResourceType.ROLE
             "${ResourceType.SERVICE_ACCOUNT}" -> ResourceType.SERVICE_ACCOUNT
-            else -> throw IllegalArgumentException("unknown resource type $databaseObject")
+            else -> ResourceType(databaseObject)
         }
     }
 
     override fun to(userObject: ResourceType?): String? {
-        return userObject?.toString()
+        if (userObject == null) return null
+        if (userObject.name == "") throw IllegalArgumentException("resource type name cannot be empty")
+        return userObject.name.toLowerCase()
     }
 
 }
