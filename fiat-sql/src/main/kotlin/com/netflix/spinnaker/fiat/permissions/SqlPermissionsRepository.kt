@@ -377,6 +377,7 @@ class SqlPermissionsRepository(
 
                 batch += ctx.update(RESOURCE)
                     .set(RESOURCE.BODY, body)
+                    .set(RESOURCE.UPDATED_AT, clock.millis())
                     .where(
                         RESOURCE.RESOURCE_TYPE.eq(rt).and(
                             RESOURCE.RESOURCE_NAME.eq(it.key).and(

@@ -161,6 +161,37 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 expectThat(second).isGreaterThan(first)
             }
 
+            test("should set updated at for resource on insert and update") {
+                val account1 = Account().setName("account1")
+                val user1 = UserPermission()
+                    .setId("testUser")
+                    .setAccounts(setOf(account1))
+
+                // insert
+                sqlPermissionsRepository.put(user1)
+
+                val first =  jooq.select(RESOURCE.UPDATED_AT)
+                    .from(RESOURCE).where(
+                        RESOURCE.RESOURCE_TYPE.eq(account1.resourceType).and(
+                            RESOURCE.RESOURCE_NAME.eq(account1.name)
+                        )
+                    ).fetchOne(RESOURCE.UPDATED_AT)
+
+                clock.tick(Duration.ofSeconds(1))
+
+                // update
+                sqlPermissionsRepository.put(user1)
+
+                val second =  jooq.select(RESOURCE.UPDATED_AT)
+                    .from(RESOURCE).where(
+                        RESOURCE.RESOURCE_TYPE.eq(account1.resourceType).and(
+                            RESOURCE.RESOURCE_NAME.eq(account1.name)
+                        )
+                    ).fetchOne(RESOURCE.UPDATED_AT)
+
+                expectThat(second).isGreaterThan(first)
+            }
+
             test("should put the specified permission in the database") {
                 val account1 = Account().setName("account")
                 val app1 = Application().setName("app")
