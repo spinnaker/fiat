@@ -54,6 +54,7 @@ class ResourceTable(
     val RESOURCE_TYPE: TableField<ResourceTableRecord, ResourceType> = createField(DSL.name("resource_type"), SQLDataType.VARCHAR(255).nullable(false), this, "", ResourceTypeConverter())
     val RESOURCE_NAME: TableField<ResourceTableRecord, String> = createField(DSL.name("resource_name"), SQLDataType.VARCHAR(255).nullable(false), this, "")
     val BODY: TableField<ResourceTableRecord, String> = createField(DSL.name("body"), SQLDataType.LONGVARCHAR.nullable(false), this, "")
+    val UPDATED_AT: TableField<ResourceTableRecord, Long> = createField(DSL.name("updated_at"), SQLDataType.BIGINT.nullable(false), this, "")
 
     private constructor(alias: Name, aliased: Table<ResourceTableRecord>?): this(alias, null, null, aliased, null)
 

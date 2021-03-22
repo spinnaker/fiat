@@ -5,3 +5,6 @@ databaseChangeLog:
   - include:
       file: changelog/20210312-split-body.yml
       relativeToChangelogFile: true
+  - include:
+      file: changelog/20210322-optimistic-resource-update.yml
+      relativeToChangelogFile: true

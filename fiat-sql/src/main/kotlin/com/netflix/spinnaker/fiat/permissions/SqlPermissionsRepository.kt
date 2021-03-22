@@ -256,15 +256,21 @@ class SqlPermissionsRepository(
     }
 
     private fun putUserPermission(ctx: DSLContext, id: String, admin: Boolean, allResourcesByTypeForUser: Map<ResourceType, Set<Resource>>) {
-        // Most of the time we'll be updating the timestamp so this is cheaper
-        val rows = ctx.update(USER)
-            .set(USER.ADMIN, admin)
-            .set(USER.UPDATED_AT, clock.millis())
+        // Lock the user record so that concurrent updates (say a put in the middle of a sync) wait for each other
+        val user = ctx.select()
+            .from(USER)
             .where(USER.ID.eq(id))
-            .execute()
-        if (rows == 0) {
+            .forUpdate()
+            .fetch()
+        if (user.isEmpty()) {
             ctx.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
                 .values(id, admin, clock.millis())
+                .execute()
+        } else {
+            ctx.update(USER)
+                .set(USER.ADMIN, admin)
+                .set(USER.UPDATED_AT, clock.millis())
+                .where(USER.ID.eq(id))
                 .execute()
         }
 
@@ -329,13 +335,20 @@ class SqlPermissionsRepository(
     }
 
     private fun putAllResources(ctx: DSLContext, allResourcesByType: Map<ResourceType, Set<Resource>>) {
-        // Get current resources
+        // Get current resources with a timestamp for optimistic updates. Assumption is that if the
+        // resource record is updated outside of this transaction, then it is a more up-to-date version
         val existing = ctx
-            .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
+            .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.UPDATED_AT)
             .from(RESOURCE)
             .fetch()
-            .intoGroups(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
-            .mapValues { (_, v) -> v.toSet() }
+            .groupingBy { it.get(RESOURCE.RESOURCE_TYPE) }
+            .fold (
+                { _, v -> mutableMapOf(v.get(RESOURCE.RESOURCE_NAME) to v.get(RESOURCE.UPDATED_AT)) },
+                { _, acc, v ->
+                    acc[v.get(RESOURCE.RESOURCE_NAME)] = v.get(RESOURCE.UPDATED_AT)
+                    acc
+                }
+            )
 
         val batch = mutableListOf<Query>()
 
@@ -343,29 +356,32 @@ class SqlPermissionsRepository(
             RESOURCE,
             RESOURCE.RESOURCE_TYPE,
             RESOURCE.RESOURCE_NAME,
-            RESOURCE.BODY
+            RESOURCE.BODY,
+            RESOURCE.UPDATED_AT
         )
 
         allResourcesByType.forEach { (rt, resources) ->
-            val existingOfType = existing.getOrDefault(rt, Collections.emptySet())
+            val existingOfType = existing.getOrDefault(rt, Collections.emptyMap())
 
             val incomingOfType = resources.associateBy { it.name }
 
             // Inserts
-            incomingOfType.minus(existingOfType).forEach {
+            incomingOfType.minus(existingOfType.keys).forEach {
                 val body = objectMapper.writeValueAsString(it.value)
-                bulkInsert.values(rt, it.key, body)
+                bulkInsert.values(rt, it.key, body, clock.millis())
             }
 
             // Updates
-            incomingOfType.filterKeys { existingOfType.contains(it) }.forEach {
+            incomingOfType.filterKeys { existingOfType.keys.contains(it) }.forEach {
                 val body = objectMapper.writeValueAsString(it.value)
 
                 batch += ctx.update(RESOURCE)
                     .set(RESOURCE.BODY, body)
                     .where(
                         RESOURCE.RESOURCE_TYPE.eq(rt).and(
-                            RESOURCE.RESOURCE_NAME.eq(it.key)
+                            RESOURCE.RESOURCE_NAME.eq(it.key).and(
+                                RESOURCE.UPDATED_AT.eq(existingOfType[it.key])
+                            )
                         )
                     )
             }
