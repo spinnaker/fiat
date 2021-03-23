@@ -1,11 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
         <option name="distributionType" value="DEFAULT_WRAPPED" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="useAutoImport" value="true" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/fiat-api" />
+            <option value="$PROJECT_DIR$/fiat-bom" />
+            <option value="$PROJECT_DIR$/fiat-core" />
+            <option value="$PROJECT_DIR$/fiat-file" />
+            <option value="$PROJECT_DIR$/fiat-github" />
+            <option value="$PROJECT_DIR$/fiat-google-groups" />
+            <option value="$PROJECT_DIR$/fiat-ldap" />
+            <option value="$PROJECT_DIR$/fiat-roles" />
+            <option value="$PROJECT_DIR$/fiat-sql" />
+            <option value="$PROJECT_DIR$/fiat-sql-mysql" />
+            <option value="$PROJECT_DIR$/fiat-sql-postgres" />
+            <option value="$PROJECT_DIR$/fiat-web" />
+          </set>
+        </option>
       </GradleProjectSettings>
     </option>
   </component>

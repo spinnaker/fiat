@@ -20,9 +20,12 @@ import com.netflix.spinnaker.fiat.model.resources.ResourceType
 import com.netflix.spinnaker.fiat.permissions.sql.converters.ResourceTypeConverter
 import org.jooq.*
 import org.jooq.impl.DSL
+import org.jooq.impl.Internal
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 import org.jooq.impl.TableRecordImpl
+
+val PERMISSION_PKEY: UniqueKey<PermissionTableRecord> =  Internal.createUniqueKey(PermissionTable.PERMISSION, "permission_pkey", arrayOf(PermissionTable.PERMISSION.USER_ID, PermissionTable.PERMISSION.RESOURCE_TYPE, PermissionTable.PERMISSION.RESOURCE_NAME), true)
 
 class PermissionTableRecord() : TableRecordImpl<PermissionTableRecord>(PermissionTable.PERMISSION) {
 
@@ -59,6 +62,8 @@ class PermissionTable(
 
     constructor(): this(DSL.name("fiat_permission"), null)
 
+    override fun getPrimaryKey(): UniqueKey<PermissionTableRecord> = PERMISSION_PKEY
+    override fun getKeys(): List<UniqueKey<PermissionTableRecord>> = listOf(PERMISSION_PKEY)
     override fun `as`(alias: String): PermissionTable = PermissionTable(DSL.name(alias), this)
     override fun `as`(alias: Name): PermissionTable = PermissionTable(alias, this)
 }

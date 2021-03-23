@@ -18,9 +18,12 @@ package com.netflix.spinnaker.fiat.permissions.sql.tables
 
 import org.jooq.*
 import org.jooq.impl.DSL
+import org.jooq.impl.Internal
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 import org.jooq.impl.TableRecordImpl
+
+val USER_PKEY: UniqueKey<UserTableRecord> =  Internal.createUniqueKey(UserTable.USER, "user_pkey", arrayOf(UserTable.USER.ID), true)
 
 class UserTableRecord() : TableRecordImpl<UserTableRecord>(UserTable.USER) {
 
@@ -57,6 +60,8 @@ class UserTable(
 
     constructor(): this(DSL.name("fiat_user"), null)
 
+    override fun getPrimaryKey(): UniqueKey<UserTableRecord> = USER_PKEY
+    override fun getKeys(): List<UniqueKey<UserTableRecord>> = listOf(USER_PKEY)
     override fun `as`(alias: String): UserTable = UserTable(DSL.name(alias), this)
     override fun `as`(alias: Name): UserTable = UserTable(alias, this)
 }

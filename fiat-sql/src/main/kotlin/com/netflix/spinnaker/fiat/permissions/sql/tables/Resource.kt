@@ -20,9 +20,12 @@ import com.netflix.spinnaker.fiat.model.resources.ResourceType
 import com.netflix.spinnaker.fiat.permissions.sql.converters.ResourceTypeConverter
 import org.jooq.*
 import org.jooq.impl.DSL
+import org.jooq.impl.Internal
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 import org.jooq.impl.TableRecordImpl
+
+val RESOURCE_PKEY: UniqueKey<ResourceTableRecord> =  Internal.createUniqueKey(ResourceTable.RESOURCE, "resource_pkey", arrayOf(ResourceTable.RESOURCE.RESOURCE_TYPE, ResourceTable.RESOURCE.RESOURCE_NAME), true)
 
 class ResourceTableRecord() : TableRecordImpl<ResourceTableRecord>(ResourceTable.RESOURCE) {
 
@@ -54,12 +57,15 @@ class ResourceTable(
     val RESOURCE_TYPE: TableField<ResourceTableRecord, ResourceType> = createField(DSL.name("resource_type"), SQLDataType.VARCHAR(255).nullable(false), this, "", ResourceTypeConverter())
     val RESOURCE_NAME: TableField<ResourceTableRecord, String> = createField(DSL.name("resource_name"), SQLDataType.VARCHAR(255).nullable(false), this, "")
     val BODY: TableField<ResourceTableRecord, String> = createField(DSL.name("body"), SQLDataType.LONGVARCHAR.nullable(false), this, "")
+    val BODY_HASH: TableField<ResourceTableRecord, String> = createField(DSL.name("body_hash"), SQLDataType.VARCHAR(64).nullable(false), this, "")
     val UPDATED_AT: TableField<ResourceTableRecord, Long> = createField(DSL.name("updated_at"), SQLDataType.BIGINT.nullable(false), this, "")
 
     private constructor(alias: Name, aliased: Table<ResourceTableRecord>?): this(alias, null, null, aliased, null)
 
     constructor(): this(DSL.name("fiat_resource"), null)
 
+    override fun getPrimaryKey(): UniqueKey<ResourceTableRecord> = RESOURCE_PKEY
+    override fun getKeys(): List<UniqueKey<ResourceTableRecord>> = listOf(RESOURCE_PKEY)
     override fun `as`(alias: String): ResourceTable = ResourceTable(DSL.name(alias), this)
     override fun `as`(alias: Name): ResourceTable = ResourceTable(alias, this)
 }

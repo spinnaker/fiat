@@ -3,6 +3,76 @@
   <component name="CompilerConfiguration">
     <annotationProcessing>
       <profile default="true" name="Default" enabled="true" />
+      <profile name="Gradle Imported" enabled="true">
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.12/48e4e5d60309ebd833bc528dcf77668eab3cd72c/lombok-1.18.12.jar" />
+        </processorPath>
+        <module name="fiat.fiat-google-groups.test" />
+        <module name="fiat.fiat-web.test" />
+        <module name="fiat.fiat-api.test" />
+        <module name="fiat.fiat-ldap.test" />
+        <module name="spinnaker-services.fiat.fiat-sql-postgres.test" />
+        <module name="fiat.fiat-core.test" />
+        <module name="spinnaker-services.fiat.fiat-sql.test" />
+        <module name="fiat.fiat-file.test" />
+        <module name="fiat.fiat-github.test" />
+        <module name="fiat.fiat-roles.test" />
+        <module name="spinnaker-services.fiat.fiat-sql-mysql.test" />
+      </profile>
+      <profile name="Gradle Imported" enabled="true">
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.12/48e4e5d60309ebd833bc528dcf77668eab3cd72c/lombok-1.18.12.jar" />
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.springframework.boot/spring-boot-configuration-processor/2.2.5.RELEASE/3426cb36706915047406da672b7ee9628f5f47d6/spring-boot-configuration-processor-2.2.5.RELEASE.jar" />
+        </processorPath>
+        <module name="fiat.fiat-roles.main" />
+        <module name="spinnaker-services.fiat.fiat-sql-mysql.main" />
+        <module name="spinnaker-services.fiat.fiat-sql.main" />
+        <module name="fiat.fiat-web.main" />
+        <module name="fiat.fiat-github.main" />
+        <module name="fiat.fiat-file.main" />
+        <module name="fiat.fiat-ldap.main" />
+        <module name="spinnaker-services.fiat.fiat-sql-postgres.main" />
+        <module name="fiat.fiat-core.main" />
+        <module name="fiat.fiat-google-groups.main" />
+        <module name="fiat.fiat-api.main" />
+      </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="fiat.fiat-api" target="11" />
+      <module name="fiat.fiat-api.main" target="11" />
+      <module name="fiat.fiat-api.test" target="11" />
+      <module name="fiat.fiat-core" target="11" />
+      <module name="fiat.fiat-core.main" target="11" />
+      <module name="fiat.fiat-core.test" target="11" />
+      <module name="fiat.fiat-file" target="11" />
+      <module name="fiat.fiat-file.main" target="11" />
+      <module name="fiat.fiat-file.test" target="11" />
+      <module name="fiat.fiat-github" target="11" />
+      <module name="fiat.fiat-github.main" target="11" />
+      <module name="fiat.fiat-github.test" target="11" />
+      <module name="fiat.fiat-google-groups" target="11" />
+      <module name="fiat.fiat-google-groups.main" target="11" />
+      <module name="fiat.fiat-google-groups.test" target="11" />
+      <module name="fiat.fiat-ldap" target="11" />
+      <module name="fiat.fiat-ldap.main" target="11" />
+      <module name="fiat.fiat-ldap.test" target="11" />
+      <module name="fiat.fiat-roles" target="11" />
+      <module name="fiat.fiat-roles.main" target="11" />
+      <module name="fiat.fiat-roles.test" target="11" />
+      <module name="fiat.fiat-sql" target="11" />
+      <module name="fiat.fiat-sql-mysql" target="11" />
+      <module name="fiat.fiat-sql-postgres" target="11" />
+      <module name="fiat.fiat-web" target="11" />
+      <module name="fiat.fiat-web.main" target="11" />
+      <module name="fiat.fiat-web.test" target="11" />
+      <module name="spinnaker-services.fiat.fiat-sql-mysql.main" target="11" />
+      <module name="spinnaker-services.fiat.fiat-sql-mysql.test" target="11" />
+      <module name="spinnaker-services.fiat.fiat-sql-postgres.main" target="11" />
+      <module name="spinnaker-services.fiat.fiat-sql-postgres.test" target="11" />
+      <module name="spinnaker-services.fiat.fiat-sql.main" target="11" />
+      <module name="spinnaker-services.fiat.fiat-sql.test" target="11" />
+    </bytecodeTargetLevel>
   </component>
 </project>

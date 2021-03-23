@@ -42,17 +42,14 @@ class SqlConfiguration {
         registry: Registry,
         jooq: DSLContext,
         sqlProperties: SqlProperties,
-        resources: List<Resource>
+        resources: List<Resource>,
     ): PermissionsRepository =
         SqlPermissionsRepository(
             Clock.systemUTC(),
             objectMapper,
             jooq,
             sqlProperties.retries,
-            if (sqlProperties.connectionPools.keys.size > 1)
-                sqlProperties.connectionPools.filter { it.value.default }.keys.first() else sqlProperties.connectionPools.keys.first()
-            ,
-            resources
+            resources,
         ).let {
             InstrumentedProxy.proxy(registry, it, "permissionsRepository", mapOf(Pair("repositoryType", "sql"))) as PermissionsRepository
         }
