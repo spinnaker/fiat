@@ -76,20 +76,6 @@ class SqlPermissionsRepository(
             return
         }
 
-        // Tidy up deleted users and permissions
-        withRetry(RetryCategory.WRITE) {
-            val existingIds = jooq.select(USER.ID).from(USER).fetch(USER.ID).toSet()
-
-            // The `UserRoleSyncer` doesn't pass in the unrestricted username so make sure we don't delete it
-            val toDelete = existingIds.minus(permissions.keys)
-                .minus(UNRESTRICTED_USERNAME)
-
-            if (toDelete.isNotEmpty()) {
-                jooq.deleteFrom(PERMISSION).where(PERMISSION.USER_ID.`in`(toDelete)).execute()
-                jooq.deleteFrom(USER).where(USER.ID.`in`(toDelete)).execute()
-            }
-        }
-
         val allResources = permissions.values.map { it.allResources }.flatten().toSet()
 
         putResources(allResources)

@@ -317,15 +317,21 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 expectThat(result).isEqualTo(expected)
             }
 
-            test("should put all users to the database and delete stale users and resources") {
+            test("should put all users to the database and update existing ones") {
                 val abcRead = Permissions.Builder().add(Authorization.READ, "abc").build()
-                val existing = UserPermission()
+                val testUser = UserPermission()
                     .setId("testUser")
                     .setAccounts(mutableSetOf(Account().setName("account").setPermissions(abcRead)))
                     .setApplications(mutableSetOf(Application().setName("app").setPermissions(abcRead)))
                     .setServiceAccounts(mutableSetOf(ServiceAccount().setName("serviceAccount")))
 
-                sqlPermissionsRepository.put(existing)
+                sqlPermissionsRepository.put(testUser)
+
+                expectThat(
+                    jooq.select(USER.ADMIN).from(USER).where(USER.ID.eq("testuser")).fetchOne(USER.ADMIN)
+                ).isFalse()
+
+                testUser.setAdmin(true)
 
                 val account1 = Account().setName("account1")
                 val account2 = Account().setName("account2")
@@ -339,6 +345,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
                 sqlPermissionsRepository.putAllById(
                     mutableMapOf(
+                        "testuser" to testUser,
                         "testuser1" to testUser1,
                         "testuser2" to testUser2,
                         "testuser3" to testUser3,
@@ -347,7 +354,10 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
                 expectThat(
                     jooq.selectCount().from(USER).fetchOne(count())
-                ).isEqualTo(3)
+                ).isEqualTo(4)
+                expectThat(
+                    jooq.select(USER.ADMIN).from(USER).where(USER.ID.eq("testuser")).fetchOne(USER.ADMIN)
+                ).isTrue()
                 expectThat(
                     jooq.select(USER.ADMIN).from(USER).where(USER.ID.eq("testuser3")).fetchOne(USER.ADMIN)
                 ).isTrue()
