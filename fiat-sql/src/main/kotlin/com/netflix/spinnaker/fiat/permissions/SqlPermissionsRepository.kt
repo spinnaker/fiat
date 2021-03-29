@@ -487,7 +487,13 @@ class SqlPermissionsRepository(
                 .select(RESOURCE.RESOURCE_TYPE, RESOURCE.BODY)
                 .from(RESOURCE)
                 .leftSemiJoin(PERMISSION)
-                .on(PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(PERMISSION.USER_ID.eq(id)))
+                .on(
+                    PERMISSION.USER_ID.eq(id).and(
+                        PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(
+                            PERMISSION.RESOURCE_NAME.eq(RESOURCE.RESOURCE_NAME)
+                        )
+                    )
+                )
                 .fetch()
                 .intoGroups(RESOURCE.RESOURCE_TYPE, RESOURCE.BODY)
         }.forEach { (rt, bodies) ->

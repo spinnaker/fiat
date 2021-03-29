@@ -545,6 +545,52 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .isEqualTo("""{"name":"account1","permissions":{}}""")
             }
 
+            test("handle put of multiple user accounts") {
+                val roleA = Role("roleA")
+                val roleB = Role("roleB").setSource(Role.Source.EXTERNAL)
+
+                val unrestrictedApp = Application().setName("unrestrictedApp")
+
+                val restrictedApp = Application().setName("restrictedApp")
+                    .setPermissions(Permissions.Builder().add(Authorization.READ, roleA.name)
+                        .build())
+
+                val unrestrictedAccount = Account().setName("unrestrictedAcct")
+
+                val restrictedAccount = Account().setName("restrictedAcct")
+                    .setPermissions(Permissions.Builder().add(Authorization.READ, roleB.name)
+                        .build())
+
+                val unrestrictedUser = UserPermission().setId(UNRESTRICTED_USERNAME)
+                    .setAccounts(mutableSetOf(unrestrictedAccount))
+                    .setApplications(mutableSetOf(unrestrictedApp))
+
+                val roleAUser = UserPermission().setId("roleAUser")
+                    .setRoles(mutableSetOf(roleA))
+                    .setApplications(mutableSetOf(restrictedApp))
+
+                val roleBUser = UserPermission().setId("roleBUser")
+                    .setRoles(mutableSetOf(roleB))
+                    .setAccounts(mutableSetOf(restrictedAccount))
+
+                val roleAroleBUser = UserPermission().setId("roleAroleBUser")
+                    .setRoles(mutableSetOf(roleA, roleB))
+                    .setAccounts(mutableSetOf(restrictedAccount))
+                    .setApplications(mutableSetOf(restrictedApp))
+
+                sqlPermissionsRepository.put(unrestrictedUser)
+                sqlPermissionsRepository.put(roleAUser)
+                sqlPermissionsRepository.put(roleBUser)
+                sqlPermissionsRepository.put(roleAroleBUser)
+
+                clock.tick(Duration.ofSeconds(1))
+
+                expectThat(sqlPermissionsRepository.get(UNRESTRICTED_USERNAME).get()).isEqualTo(unrestrictedUser)
+                expectThat(sqlPermissionsRepository.get("roleauser").get()).isEqualTo(roleAUser.merge(unrestrictedUser))
+                expectThat(sqlPermissionsRepository.get("rolebuser").get()).isEqualTo(roleBUser.merge(unrestrictedUser))
+                expectThat(sqlPermissionsRepository.get("rolearolebuser").get()).isEqualTo(roleAroleBUser.merge(unrestrictedUser))
+            }
+
             test("should handle concurrent write operations without dead lock") {
                 val accounts1 = (1..16).asSequence().map { Account().setName("account$it") }.toSet()
                 val accounts2 = (8..24).asSequence().map { Account().setName("account$it") }.toSet()
