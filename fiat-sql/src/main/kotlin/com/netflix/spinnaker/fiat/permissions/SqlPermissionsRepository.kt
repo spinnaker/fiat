@@ -105,83 +105,59 @@ class SqlPermissionsRepository(
         return getFromDatabase(id)
     }
 
-    override fun getAllById() = this.getAllByRoles(null)
-
-    override fun getAllByRoles(anyRoles: List<String>?): Map<String, UserPermission> {
-        // If the role list is null, return every user
-        // If the role list is empty, return the unrestricted user
-        // Otherwise, return the users with the list of roles
-
+    override fun getAllById(): Map<String, UserPermission> {
         val unrestrictedUser = getUnrestrictedUserPermission()
 
-        val result = mutableMapOf<String, UserPermission>()
-
-        if (anyRoles != null) {
-            result[UNRESTRICTED_USERNAME] = unrestrictedUser
-            if (anyRoles.isEmpty()) {
-                return result
-            }
+        val resourceRecords = withRetry(RetryCategory.READ) {
+            jooq
+                .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
+                .from(RESOURCE)
+                .fetch()
         }
 
-        // These queries take a long time so try and do as little as possible within the SQL context
-        return withRetry(RetryCategory.READ) {
-            val existingResources =
-                jooq
-                    .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
-                    .from(RESOURCE)
-                    .let {
-                        if (anyRoles != null) {
-                            it.join(PERMISSION)
-                                .on(
-                                    PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(
-                                        PERMISSION.RESOURCE_NAME.eq(RESOURCE.RESOURCE_NAME)
-                                    )
-                                )
-                                .where(
-                                    PERMISSION.USER_ID.`in`(
-                                        jooq.selectDistinct(USER.ID)
-                                            .from(USER)
-                                            .join(PERMISSION)
-                                            .on(USER.ID.eq(PERMISSION.USER_ID))
-                                            .where(
-                                                PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE).and(
-                                                    PERMISSION.RESOURCE_NAME.`in`(anyRoles)
-                                                )
-                                            )
-                                    )
-                                )
-                        }
-                        it
-                    }
-                    .fetch()
-                    .groupingBy { r -> r.get(RESOURCE.RESOURCE_TYPE) }
-                    .fold(
-                        { k, e ->
-                            mutableMapOf(
-                                e.get(RESOURCE.RESOURCE_NAME) to parseResourceBody(
-                                    k,
-                                    e.get(RESOURCE.BODY)
-                                )
-                            )
-                        },
-                        { k, acc, e ->
-                            acc[e.get(RESOURCE.RESOURCE_NAME)] = parseResourceBody(k, e.get(RESOURCE.BODY))
-                            acc
-                        },
-                    )
+        val existingResources = parseResourceRecords(resourceRecords)
 
-            // Read in all the users with the role and combine with resources
+        val userRecords = withRetry(RetryCategory.READ) {
             jooq.select(USER.ID, USER.ADMIN, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
                 .from(USER)
                 .leftJoin(PERMISSION)
                 .on(USER.ID.eq(PERMISSION.USER_ID))
-                .let {
-                    if (anyRoles != null) {
-                        it.where(
+                .fetch()
+        }
+
+        return parseAndCombineUserRecords(userRecords, unrestrictedUser, existingResources)
+    }
+
+    override fun getAllByRoles(anyRoles: List<String>?): Map<String, UserPermission> {
+        if (anyRoles == null) {
+            return getAllById()
+        } else if (anyRoles.isEmpty()) {
+            val unrestricted = getFromDatabase(UNRESTRICTED_USERNAME)
+            if (unrestricted.isPresent) {
+                return mapOf(UNRESTRICTED_USERNAME to unrestricted.get())
+            }
+            return mapOf()
+        }
+
+        val unrestrictedUser = getUnrestrictedUserPermission()
+
+        val resourceRecords = withRetry(RetryCategory.READ) {
+            val outerResource = RESOURCE.`as`("r")
+            val outerResourceType = outerResource.field(RESOURCE.RESOURCE_TYPE)
+            val outerResourceName = outerResource.field(RESOURCE.RESOURCE_NAME)
+            val outerResourceBody = outerResource.field(RESOURCE.BODY)
+
+            jooq
+                .select(outerResourceType, outerResourceName, outerResourceBody)
+                .from(outerResource)
+                .leftSemiJoin(PERMISSION)
+                .on(
+                    outerResourceType.eq(PERMISSION.RESOURCE_TYPE).and(outerResourceName.eq(PERMISSION.RESOURCE_NAME))
+                        .and(
                             PERMISSION.USER_ID.`in`(
-                                jooq.selectDistinct(USER.ID)
-                                    .from(USER)
-                                    .join(PERMISSION)
+                                jooq.select(USER.ID)
+                                    .from(PERMISSION)
+                                    .join(USER)
                                     .on(USER.ID.eq(PERMISSION.USER_ID))
                                     .where(
                                         PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE).and(
@@ -190,25 +166,38 @@ class SqlPermissionsRepository(
                                     )
                             )
                         )
-                    }
-                    it
-                }
-                .fetch()
-                .groupingBy { r -> r.get(USER.ID) }
-                .foldTo(
-                    result,
-                    { k, e -> UserPermission().setId(k).setAdmin(e.get(USER.ADMIN)).merge(unrestrictedUser) },
-                    { _, acc, e ->
-                        val resourcesForType =
-                            existingResources.getOrDefault(e.get(PERMISSION.RESOURCE_TYPE), emptyMap())
-                        val resource = resourcesForType[e.get(PERMISSION.RESOURCE_NAME)]
-                        if (resource != null) {
-                            acc.addResource(resource)
-                        }
-                        acc
-                    }
                 )
+                .fetch()
         }
+
+        val existingResources = parseResourceRecords(resourceRecords)
+
+        val userRecords = withRetry(RetryCategory.READ) {
+            jooq.select(USER.ID, USER.ADMIN, PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
+                .from(USER)
+                .leftJoin(PERMISSION)
+                .on(USER.ID.eq(PERMISSION.USER_ID))
+                .where(
+                    PERMISSION.USER_ID.`in`(
+                        jooq.select(USER.ID)
+                            .from(PERMISSION)
+                            .join(USER)
+                            .on(USER.ID.eq(PERMISSION.USER_ID))
+                            .where(
+                                PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE).and(
+                                    PERMISSION.RESOURCE_NAME.`in`(anyRoles)
+                                )
+                            )
+                    )
+                )
+                .fetch()
+        }
+
+        val userPermissions = parseAndCombineUserRecords(userRecords, unrestrictedUser, existingResources)
+
+        userPermissions[UNRESTRICTED_USERNAME] = unrestrictedUser
+
+        return userPermissions
     }
 
     override fun remove(id: String) {
@@ -223,6 +212,46 @@ class SqlPermissionsRepository(
                 .where(USER.ID.eq(id))
                 .execute()
         }
+    }
+
+    private fun parseResourceRecords(records: Result<Record3<ResourceType, String, String>>): Map<ResourceType, MutableMap<String, Resource>> {
+        return records
+            .groupingBy { r -> r.get(RESOURCE.RESOURCE_TYPE) }
+            .fold(
+                { k, e ->
+                    mutableMapOf(
+                        e.get(RESOURCE.RESOURCE_NAME) to parseResourceBody(
+                            k,
+                            e.get(RESOURCE.BODY)
+                        )
+                    )
+                },
+                { k, acc, e ->
+                    acc[e.get(RESOURCE.RESOURCE_NAME)] = parseResourceBody(k, e.get(RESOURCE.BODY))
+                    acc
+                },
+            )
+    }
+
+    private fun parseAndCombineUserRecords(
+        users: Result<Record4<String, Boolean, ResourceType, String>>,
+        unrestrictedUser: UserPermission,
+        existingResources: Map<ResourceType, MutableMap<String, Resource>>
+    ): MutableMap<String, UserPermission> {
+        return users
+            .groupingBy { r -> r.get(USER.ID) }
+            .fold (
+                { k, e -> UserPermission().setId(k).setAdmin(e.get(USER.ADMIN)).merge(unrestrictedUser) },
+                { _, acc, e ->
+                    val resourcesForType =
+                        existingResources.getOrDefault(e.get(PERMISSION.RESOURCE_TYPE), emptyMap())
+                    val resource = resourcesForType[e.get(PERMISSION.RESOURCE_NAME)]
+                    if (resource != null) {
+                        acc.addResource(resource)
+                    }
+                    acc
+                }
+            ).toMutableMap()
     }
 
     private fun putUserPermission(permission: UserPermission) {
