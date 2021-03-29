@@ -486,15 +486,8 @@ class SqlPermissionsRepository(
             jooq
                 .select(RESOURCE.RESOURCE_TYPE, RESOURCE.BODY)
                 .from(RESOURCE)
-                .join(PERMISSION)
-                .on(
-                    PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(
-                        PERMISSION.RESOURCE_NAME.eq(RESOURCE.RESOURCE_NAME)
-                    )
-                )
-                .join(USER)
-                .on(USER.ID.eq(PERMISSION.USER_ID))
-                .where(USER.ID.eq(id))
+                .leftSemiJoin(PERMISSION)
+                .on(PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(PERMISSION.USER_ID.eq(id)))
                 .fetch()
                 .intoGroups(RESOURCE.RESOURCE_TYPE, RESOURCE.BODY)
         }.forEach { (rt, bodies) ->
