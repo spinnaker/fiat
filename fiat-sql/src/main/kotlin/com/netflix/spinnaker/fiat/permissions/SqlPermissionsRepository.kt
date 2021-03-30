@@ -128,27 +128,24 @@ class SqlPermissionsRepository(
         val unrestrictedUser = getUnrestrictedUserPermission()
 
         val resourceRecords = withRetry(RetryCategory.READ) {
-            val outerResource = RESOURCE.`as`("r")
-            val outerResourceType = outerResource.field(RESOURCE.RESOURCE_TYPE)
-            val outerResourceName = outerResource.field(RESOURCE.RESOURCE_NAME)
-            val outerResourceBody = outerResource.field(RESOURCE.BODY)
-
             jooq
-                .select(outerResourceType, outerResourceName, outerResourceBody)
-                .from(outerResource)
+                .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
+                .from(RESOURCE)
                 .leftSemiJoin(PERMISSION)
                 .on(
-                    outerResourceType.eq(PERMISSION.RESOURCE_TYPE).and(outerResourceName.eq(PERMISSION.RESOURCE_NAME))
+                    RESOURCE.RESOURCE_TYPE
+                        .eq(PERMISSION.RESOURCE_TYPE)
+                        .and(RESOURCE.RESOURCE_NAME.eq(PERMISSION.RESOURCE_NAME))
                         .and(
                             PERMISSION.USER_ID.`in`(
                                 jooq.select(USER.ID)
-                                    .from(PERMISSION)
-                                    .join(USER)
-                                    .on(USER.ID.eq(PERMISSION.USER_ID))
-                                    .where(
-                                        PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE).and(
-                                            PERMISSION.RESOURCE_NAME.`in`(anyRoles)
-                                        )
+                                    .from(USER)
+                                    .leftSemiJoin(PERMISSION)
+                                    .on(
+                                        PERMISSION.USER_ID
+                                            .eq(USER.ID)
+                                            .and(PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE))
+                                            .and(PERMISSION.RESOURCE_NAME.`in`(anyRoles))
                                     )
                             )
                         )
@@ -166,13 +163,13 @@ class SqlPermissionsRepository(
                 .where(
                     PERMISSION.USER_ID.`in`(
                         jooq.select(USER.ID)
-                            .from(PERMISSION)
-                            .join(USER)
-                            .on(USER.ID.eq(PERMISSION.USER_ID))
-                            .where(
-                                PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE).and(
-                                    PERMISSION.RESOURCE_NAME.`in`(anyRoles)
-                                )
+                            .from(USER)
+                            .leftSemiJoin(PERMISSION)
+                            .on(
+                                PERMISSION.USER_ID
+                                    .eq(USER.ID)
+                                    .and(PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE))
+                                    .and(PERMISSION.RESOURCE_NAME.`in`(anyRoles))
                             )
                     )
                 )
