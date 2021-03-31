@@ -223,8 +223,16 @@ class SqlPermissionsRepository(
     ): MutableMap<String, UserPermission> {
         return users
             .groupingBy { r -> r.get(USER.ID) }
-            .fold (
-                { k, e -> UserPermission().setId(k).setAdmin(e.get(USER.ADMIN)).merge(unrestrictedUser) },
+            .fold(
+                { k, e ->
+                    val permission = UserPermission()
+                        .setId(k)
+                        .setAdmin(e.get(USER.ADMIN))
+                    if (UNRESTRICTED_USERNAME != k) {
+                        permission.merge(unrestrictedUser)
+                    }
+                    permission
+                },
                 { _, acc, e ->
                     val resourcesForType =
                         existingResources.getOrDefault(e.get(PERMISSION.RESOURCE_TYPE), emptyMap())
@@ -400,7 +408,6 @@ class SqlPermissionsRepository(
             }
         }
 
-
         if (cleanup) {
             val toDelete = existingIds
                 .asSequence()
@@ -451,10 +458,10 @@ class SqlPermissionsRepository(
 
         if (id != UNRESTRICTED_USERNAME) {
             val result = withRetry(RetryCategory.READ) {
-                    jooq.select(USER.ADMIN)
-                        .from(USER)
-                        .where(USER.ID.eq(id))
-                        .fetchOne()
+                jooq.select(USER.ADMIN)
+                    .from(USER)
+                    .where(USER.ID.eq(id))
+                    .fetchOne()
             }
 
             if (result == null) {
@@ -465,9 +472,9 @@ class SqlPermissionsRepository(
             userPermission.isAdmin = result.get(USER.ADMIN)
         }
 
-        withRetry(RetryCategory.READ) {
+        val resourceRecords = withRetry(RetryCategory.READ) {
             jooq
-                .select(RESOURCE.RESOURCE_TYPE, RESOURCE.BODY)
+                .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
                 .from(RESOURCE)
                 .leftSemiJoin(PERMISSION)
                 .on(
@@ -478,10 +485,12 @@ class SqlPermissionsRepository(
                     )
                 )
                 .fetch()
-                .intoGroups(RESOURCE.RESOURCE_TYPE, RESOURCE.BODY)
-        }.forEach { (rt, bodies) ->
-            val resourcesForType = bodies.map { parseResourceBody(rt, it) }
-            userPermission.addResources(resourcesForType)
+        }
+
+        val existingResources = parseResourceRecords(resourceRecords)
+
+        existingResources.values.forEach {
+            userPermission.addResources(it.values)
         }
 
         if (UNRESTRICTED_USERNAME != id) {
@@ -494,9 +503,9 @@ class SqlPermissionsRepository(
     private fun getUnrestrictedUserPermission(): UserPermission {
         var serverLastModified = withRetry(RetryCategory.READ) {
             jooq.select(USER.UPDATED_AT)
-                    .from(USER)
-                    .where(USER.ID.eq(UNRESTRICTED_USERNAME))
-                    .fetchOne(USER.UPDATED_AT)
+                .from(USER)
+                .where(USER.ID.eq(UNRESTRICTED_USERNAME))
+                .fetchOne(USER.UPDATED_AT)
         }
 
         if (serverLastModified == null) {
