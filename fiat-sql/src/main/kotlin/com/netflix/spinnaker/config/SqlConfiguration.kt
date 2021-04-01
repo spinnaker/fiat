@@ -55,7 +55,7 @@ class SqlConfiguration {
         jooq: DSLContext,
         sqlProperties: SqlProperties,
         resources: List<Resource>,
-        @Value("\${permissions-repository.sql..async-pool-size:0}") poolSize: Int
+        @Value("\${permissions-repository.sql.async-pool-size:0}") poolSize: Int
     ): PermissionsRepository {
 
         /**
