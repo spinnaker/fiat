@@ -23,34 +23,72 @@ import com.netflix.spinnaker.fiat.permissions.SqlPermissionsRepository
 import com.netflix.spinnaker.kork.sql.config.DefaultSqlConfiguration
 import com.netflix.spinnaker.kork.sql.config.SqlProperties
 import com.netflix.spinnaker.kork.telemetry.InstrumentedProxy
+import kotlinx.coroutines.ObsoleteCoroutinesApi
+import kotlinx.coroutines.newFixedThreadPoolContext
+import kotlinx.coroutines.slf4j.MDCContext
 import org.jooq.DSLContext
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import java.time.Clock
 
+const val coroutineThreadPrefix = "sql"
+
 @Configuration
 @ConditionalOnProperty("sql.enabled")
 @Import(DefaultSqlConfiguration::class)
 class SqlConfiguration {
 
+    companion object {
+        private val log = LoggerFactory.getLogger(SqlConfiguration::class.java)
+    }
+
     @ConditionalOnProperty("permissions-repository.sql.enabled")
     @Bean
+    @ObsoleteCoroutinesApi
     fun sqlPermissionsRepository(
         objectMapper: ObjectMapper,
         registry: Registry,
         jooq: DSLContext,
         sqlProperties: SqlProperties,
         resources: List<Resource>,
-    ): PermissionsRepository =
-        SqlPermissionsRepository(
+        @Value("\${permissions-repository.sql..async-pool-size:0}") poolSize: Int
+    ): PermissionsRepository {
+
+        /**
+         * newFixedThreadPoolContext was marked obsolete in Oct 2018, to be reimplemented as a new
+         * concurrency limiting threaded context factory with reduced context switch overhead. As of
+         * Feb 2019, the new implementation is unreleased. See: https://github.com/Kotlin/kotlinx.coroutines/issues/261
+         *
+         * TODO: switch to newFixedThreadPoolContext's replacement when ready
+         */
+        val dispatcher = if (poolSize < 1) {
+            null
+        } else {
+            newFixedThreadPoolContext(nThreads = poolSize, name = coroutineThreadPrefix) + MDCContext()
+        }
+
+        if (dispatcher != null) {
+            log.info("Configured coroutine context with newFixedThreadPoolContext of $poolSize threads")
+        }
+
+        return SqlPermissionsRepository(
             Clock.systemUTC(),
             objectMapper,
             jooq,
             sqlProperties.retries,
             resources,
+            dispatcher
         ).let {
-            InstrumentedProxy.proxy(registry, it, "permissionsRepository", mapOf(Pair("repositoryType", "sql"))) as PermissionsRepository
+            InstrumentedProxy.proxy(
+                registry,
+                it,
+                "permissionsRepository",
+                mapOf(Pair("repositoryType", "sql"))
+            ) as PermissionsRepository
         }
+    }
 }

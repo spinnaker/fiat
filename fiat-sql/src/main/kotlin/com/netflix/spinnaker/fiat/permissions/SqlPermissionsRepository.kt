@@ -16,9 +16,9 @@
 
 package com.netflix.spinnaker.fiat.permissions
 
-import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED_USERNAME
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED_USERNAME
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
@@ -31,6 +31,8 @@ import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import io.github.resilience4j.retry.Retry
 import io.github.resilience4j.retry.RetryConfig
 import io.vavr.control.Try
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.runBlocking
 import org.jooq.*
 import org.jooq.exception.SQLDialectNotSupportedException
 import org.jooq.impl.DSL.field
@@ -42,13 +44,15 @@ import java.time.Clock
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.CoroutineContext
 
 class SqlPermissionsRepository(
     private val clock: Clock,
     private val objectMapper: ObjectMapper,
     private val jooq: DSLContext,
     private val sqlRetryProperties: SqlRetryProperties,
-    resources: List<Resource>
+    resources: List<Resource>,
+    private val dispatcher: CoroutineContext?
 ) : PermissionsRepository {
 
     private val unrestrictedPermission = Caffeine.newBuilder()
@@ -198,51 +202,96 @@ class SqlPermissionsRepository(
     }
 
     private fun parseResourceRecords(records: Result<Record3<ResourceType, String, String>>): Map<ResourceType, MutableMap<String, Resource>> {
-        return records
-            .groupingBy { r -> r.get(RESOURCE.RESOURCE_TYPE) }
-            .fold(
-                { k, e ->
-                    mutableMapOf(
-                        e.get(RESOURCE.RESOURCE_NAME) to parseResourceBody(
-                            k,
-                            e.get(RESOURCE.BODY)
-                        )
-                    )
-                },
-                { k, acc, e ->
-                    acc[e.get(RESOURCE.RESOURCE_NAME)] = parseResourceBody(k, e.get(RESOURCE.BODY))
-                    acc
-                },
-            )
+        val resources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
+
+        if (dispatcher != null) {
+            runBlocking {
+                records
+                    .asFlow()
+                    .map { record -> parseResourceRecord(record) }
+                    .flowOn(dispatcher)
+                    .collect {
+                        var resourcesForType = resources.getOrPut(it.first) { mutableMapOf() }
+                        resourcesForType[it.second.first] = it.second.second
+                    }
+            }
+        } else {
+            records
+                .map { record -> parseResourceRecord(record) }
+                .forEach {
+                    var resourcesForType = resources.getOrPut(it.first) { mutableMapOf() }
+                    resourcesForType[it.second.first] = it.second.second
+                }
+        }
+
+        return resources
+    }
+
+    private fun parseResourceRecord(record: Record3<ResourceType, String, String>): Pair<ResourceType, Pair<String, Resource>> {
+        val rt = record.get(RESOURCE.RESOURCE_TYPE)
+        val name = record.get(RESOURCE.RESOURCE_NAME)
+        val body = record.get(RESOURCE.BODY)
+        val value = objectMapper.readValue(body, resourceTypes[rt]!!.javaClass)
+
+        return rt to (name to value)
     }
 
     private fun parseAndCombineUserRecords(
-        users: Result<Record4<String, Boolean, ResourceType, String>>,
+        records: Result<Record4<String, Boolean, ResourceType, String>>,
         unrestrictedUser: UserPermission,
         existingResources: Map<ResourceType, MutableMap<String, Resource>>
     ): MutableMap<String, UserPermission> {
-        return users
-            .groupingBy { r -> r.get(USER.ID) }
-            .fold(
-                { k, e ->
-                    val permission = UserPermission()
-                        .setId(k)
-                        .setAdmin(e.get(USER.ADMIN))
-                    if (UNRESTRICTED_USERNAME != k) {
-                        permission.merge(unrestrictedUser)
+        val users = mutableMapOf<String, UserPermission>()
+
+        if (dispatcher != null) {
+            runBlocking {
+                records.intoGroups(USER.ID)
+                    .asSequence()
+                    .asFlow()
+                    .map { record -> parseUserRecord(record.value, unrestrictedUser, existingResources) }
+                    .flowOn(dispatcher)
+                    .collect {
+                        users[it.id] = it
                     }
-                    permission
-                },
-                { _, acc, e ->
-                    val resourcesForType =
-                        existingResources.getOrDefault(e.get(PERMISSION.RESOURCE_TYPE), emptyMap())
-                    val resource = resourcesForType[e.get(PERMISSION.RESOURCE_NAME)]
-                    if (resource != null) {
-                        acc.addResource(resource)
-                    }
-                    acc
+            }
+        } else {
+            records.intoGroups(USER.ID)
+                .asSequence()
+                .map { record -> parseUserRecord(record.value, unrestrictedUser, existingResources) }
+                .forEach {
+                    users[it.id] = it
                 }
-            ).toMutableMap()
+        }
+
+        return users
+    }
+
+    private fun parseUserRecord(
+        record: Result<Record4<String, Boolean, ResourceType, String>>,
+        unrestrictedUser: UserPermission,
+        existingResources: Map<ResourceType, MutableMap<String, Resource>>
+    ): UserPermission {
+        val id = record.first().get(USER.ID)
+
+        val userPermission = UserPermission()
+            .setAdmin(record.first().get(USER.ADMIN))
+            .setId(id)
+
+        record.forEach {
+            val type = it.get(PERMISSION.RESOURCE_TYPE)
+            val name = it.get(PERMISSION.RESOURCE_NAME)
+            val resourcesByType = existingResources.getOrDefault(type, emptyMap())
+            val resource = resourcesByType[name]
+            if (resource != null) {
+                userPermission.addResource(resource)
+            }
+        }
+
+        if (UNRESTRICTED_USERNAME != id) {
+            userPermission.merge(unrestrictedUser)
+        }
+
+        return userPermission
     }
 
     private fun putUserPermission(permission: UserPermission) {
@@ -286,10 +335,12 @@ class SqlPermissionsRepository(
             }
         }
 
-        val insert = jooq.insertInto(PERMISSION,
+        val insert = jooq.insertInto(
+            PERMISSION,
             PERMISSION.USER_ID,
             PERMISSION.RESOURCE_TYPE,
-            PERMISSION.RESOURCE_NAME)
+            PERMISSION.RESOURCE_NAME
+        )
 
         insert.apply {
             toStore.forEach { resource ->
@@ -342,7 +393,7 @@ class SqlPermissionsRepository(
                 .from(PERMISSION)
                 .where(PERMISSION.USER_ID.eq(id))
                 .fetch()
-                .map { ResourceId(it.get(PERMISSION.RESOURCE_TYPE), it.get(PERMISSION.RESOURCE_NAME))}
+                .map { ResourceId(it.get(PERMISSION.RESOURCE_TYPE), it.get(PERMISSION.RESOURCE_NAME)) }
                 .toSet()
         }
 
@@ -563,10 +614,6 @@ class SqlPermissionsRepository(
                 PermissionRepositoryException("Failed to read unrestricted user")
             }
     }
-
-    private fun parseResourceBody(type: ResourceType, body: String) =
-        objectMapper.readValue(body, resourceTypes[type]!!.javaClass)
-
 
     // Lifted from SqlCache.kt in clouddriver
 

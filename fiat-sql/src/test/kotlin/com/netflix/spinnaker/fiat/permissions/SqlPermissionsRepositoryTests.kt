@@ -30,6 +30,7 @@ import com.netflix.spinnaker.fiat.permissions.sql.tables.references.USER
 import dev.minutest.ContextBuilder
 import dev.minutest.junit.JUnit5Minutests
 import dev.minutest.rootContext
+import kotlinx.coroutines.newSingleThreadContext
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL.*
@@ -93,7 +94,8 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
             objectMapper,
             jooq,
             SqlRetryProperties(),
-            listOf(Application(), Account(), BuildService(), ServiceAccount(), Role(), extensionResource)
+            listOf(Application(), Account(), BuildService(), ServiceAccount(), Role(), extensionResource),
+            null
         )
 
         context("For ${jooqConfig.dialect}") {
