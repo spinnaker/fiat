@@ -31,8 +31,8 @@ import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import io.github.resilience4j.retry.Retry
 import io.github.resilience4j.retry.RetryConfig
 import io.vavr.control.Try
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.runBlocking
 import org.jooq.*
 import org.jooq.exception.SQLDialectNotSupportedException
 import org.jooq.impl.DSL.field
@@ -44,6 +44,7 @@ import java.time.Clock
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
+import javax.annotation.PreDestroy
 import kotlin.coroutines.CoroutineContext
 
 class SqlPermissionsRepository(
@@ -205,15 +206,15 @@ class SqlPermissionsRepository(
         val resources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
 
         if (dispatcher != null) {
+            val scope = SqlCoroutineScope(dispatcher)
+
+            val deferred = records.map { record -> scope.async { parseResourceRecord(record) } }
+
             runBlocking {
-                records
-                    .asFlow()
-                    .map { record -> parseResourceRecord(record) }
-                    .flowOn(dispatcher)
-                    .collect {
-                        var resourcesForType = resources.getOrPut(it.first) { mutableMapOf() }
-                        resourcesForType[it.second.first] = it.second.second
-                    }
+                deferred.awaitAll().forEach {
+                    var resourcesForType = resources.getOrPut(it.first) { mutableMapOf() }
+                    resourcesForType[it.second.first] = it.second.second
+                }
             }
         } else {
             records
@@ -243,19 +244,20 @@ class SqlPermissionsRepository(
     ): MutableMap<String, UserPermission> {
         val users = mutableMapOf<String, UserPermission>()
 
+        val groupedRecords = records.intoGroups(USER.ID)
+
         if (dispatcher != null) {
+            val scope = SqlCoroutineScope(dispatcher)
+
+            val deferred = groupedRecords.map { record -> scope.async { parseUserRecord(record.value, unrestrictedUser, existingResources) } }
+
             runBlocking {
-                records.intoGroups(USER.ID)
-                    .asSequence()
-                    .asFlow()
-                    .map { record -> parseUserRecord(record.value, unrestrictedUser, existingResources) }
-                    .flowOn(dispatcher)
-                    .collect {
-                        users[it.id] = it
-                    }
+                deferred.awaitAll().forEach {
+                    users[it.id] = it
+                }
             }
         } else {
-            records.intoGroups(USER.ID)
+            groupedRecords
                 .asSequence()
                 .map { record -> parseUserRecord(record.value, unrestrictedUser, existingResources) }
                 .forEach {
@@ -662,4 +664,13 @@ class SqlPermissionsRepository(
             Try.ofSupplier(Retry.decorateSupplier(retry, action)).get()
         }
     }
+
+}
+
+class SqlCoroutineScope(context: CoroutineContext) : CoroutineScope {
+    override val coroutineContext = context
+    private val jobs = Job()
+
+    @PreDestroy
+    fun killChildJobs() = jobs.cancel()
 }
