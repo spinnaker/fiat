@@ -27,6 +27,7 @@ import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.PERMISSION
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.RESOURCE
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.USER
+import com.netflix.spinnaker.kork.dynamicconfig.DynamicConfigService
 import dev.minutest.ContextBuilder
 import dev.minutest.junit.JUnit5Minutests
 import dev.minutest.rootContext
@@ -95,7 +96,8 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
             jooq,
             SqlRetryProperties(),
             listOf(Application(), Account(), BuildService(), ServiceAccount(), Role(), extensionResource),
-            null
+            null,
+            DynamicConfigService.NOOP
         )
 
         context("For ${jooqConfig.dialect}") {

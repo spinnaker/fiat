@@ -20,6 +20,7 @@ import com.netflix.spectator.api.Registry
 import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.permissions.PermissionsRepository
 import com.netflix.spinnaker.fiat.permissions.SqlPermissionsRepository
+import com.netflix.spinnaker.kork.dynamicconfig.DynamicConfigService
 import com.netflix.spinnaker.kork.sql.config.DefaultSqlConfiguration
 import com.netflix.spinnaker.kork.sql.config.SqlProperties
 import com.netflix.spinnaker.kork.telemetry.InstrumentedProxy
@@ -55,6 +56,7 @@ class SqlConfiguration {
         jooq: DSLContext,
         sqlProperties: SqlProperties,
         resources: List<Resource>,
+        dynamicConfigService: DynamicConfigService,
         @Value("\${permissions-repository.sql.async-pool-size:0}") poolSize: Int
     ): PermissionsRepository {
 
@@ -81,7 +83,8 @@ class SqlConfiguration {
             jooq,
             sqlProperties.retries,
             resources,
-            dispatcher
+            dispatcher,
+            dynamicConfigService
         ).let {
             InstrumentedProxy.proxy(
                 registry,

@@ -26,6 +26,7 @@ import com.netflix.spinnaker.fiat.permissions.sql.SqlUtil
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.PERMISSION
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.RESOURCE
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.USER
+import com.netflix.spinnaker.kork.dynamicconfig.DynamicConfigService
 import com.netflix.spinnaker.kork.exceptions.IntegrationException
 import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import io.github.resilience4j.retry.Retry
@@ -53,7 +54,8 @@ class SqlPermissionsRepository(
     private val jooq: DSLContext,
     private val sqlRetryProperties: SqlRetryProperties,
     resources: List<Resource>,
-    private val dispatcher: CoroutineContext?
+    private val dispatcher: CoroutineContext?,
+    private val dynamicConfigService: DynamicConfigService
 ) : PermissionsRepository {
 
     private val unrestrictedPermission = Caffeine.newBuilder()
@@ -84,8 +86,23 @@ class SqlPermissionsRepository(
         val allResources = permissions.values.map { it.allResources }.flatten().toSet()
 
         putResources(allResources)
-        permissions.values.forEach {
-            putUserPermission(it)
+
+        if (dispatcher != null) {
+            permissions.values.chunked(
+                dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
+            ) { batch ->
+                val scope = SqlCoroutineScope(dispatcher)
+
+                val deferred = batch.map { userPermission -> scope.async { putUserPermission(userPermission) } }
+
+                runBlocking {
+                    deferred.awaitAll()
+                }
+            }
+        } else {
+            permissions.values.forEach {
+                putUserPermission(it)
+            }
         }
     }
 
