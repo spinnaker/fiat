@@ -675,7 +675,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
         }
     }
 
-    fun resourceBody(jooq : DSLContext, id: String, resourceType: ResourceType, resourceName: String) : Optional<String> {
+    private fun resourceBody(jooq : DSLContext, id: String, resourceType: ResourceType, resourceName: String) : Optional<String> {
         return jooq.select(RESOURCE.BODY)
             .from(RESOURCE)
             .join(PERMISSION)
