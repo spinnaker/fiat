@@ -53,7 +53,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
     class TestClock(
         private var instant: Instant = Instant.now()
-    ): Clock() {
+    ) : Clock() {
 
         override fun getZone(): ZoneId {
             return ZoneId.systemDefault()
@@ -176,7 +176,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 // insert
                 sqlPermissionsRepository.put(user1)
 
-                val first =  jooq.select(RESOURCE.UPDATED_AT)
+                val first = jooq.select(RESOURCE.UPDATED_AT)
                     .from(RESOURCE).where(
                         RESOURCE.RESOURCE_TYPE.eq(account1.resourceType).and(
                             RESOURCE.RESOURCE_NAME.eq(account1.name)
@@ -188,7 +188,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 // Insert again should be no update
                 sqlPermissionsRepository.put(user1)
 
-                val same =  jooq.select(RESOURCE.UPDATED_AT)
+                val same = jooq.select(RESOURCE.UPDATED_AT)
                     .from(RESOURCE).where(
                         RESOURCE.RESOURCE_TYPE.eq(account1.resourceType).and(
                             RESOURCE.RESOURCE_NAME.eq(account1.name)
@@ -222,12 +222,14 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     .setMemberOf(listOf("role1"))
                 val role1 = Role("role1")
 
-                sqlPermissionsRepository.put(UserPermission()
-                    .setId("testUser")
-                    .setAccounts(setOf(account1))
-                    .setApplications(setOf(app1))
-                    .setServiceAccounts(setOf(serviceAccount1))
-                    .setRoles(setOf(role1)))
+                sqlPermissionsRepository.put(
+                    UserPermission()
+                        .setId("testUser")
+                        .setAccounts(setOf(account1))
+                        .setApplications(setOf(app1))
+                        .setServiceAccounts(setOf(serviceAccount1))
+                        .setRoles(setOf(role1))
+                )
 
                 expectThat(
                     jooq.select(USER.ADMIN)
@@ -282,12 +284,14 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val abcRead = Permissions.Builder().add(Authorization.READ, "abc").build()
                 val account1 = Account().setName("account").setPermissions(abcRead)
 
-                sqlPermissionsRepository.put(testUser
-                    .setId("testUser")
-                    .setAccounts(setOf(account1))
-                    .setApplications(setOf())
-                    .setServiceAccounts(setOf())
-                    .setRoles(setOf()))
+                sqlPermissionsRepository.put(
+                    testUser
+                        .setId("testUser")
+                        .setAccounts(setOf(account1))
+                        .setApplications(setOf())
+                        .setServiceAccounts(setOf())
+                        .setRoles(setOf())
+                )
 
                 expectThat(jooq.selectCount().from(PERMISSION).fetchOne(count()))
                     .isEqualTo(1)
@@ -400,24 +404,28 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val testUser3 = UserPermission().setId("testUser3")
                     .setAdmin(true)
 
-                sqlPermissionsRepository.putAllById(mapOf(
-                    "testuser1" to testUser1,
-                    "testuser2" to testUser2,
-                    "testuser3" to testUser3,
-                ))
+                sqlPermissionsRepository.putAllById(
+                    mapOf(
+                        "testuser1" to testUser1,
+                        "testuser2" to testUser2,
+                        "testuser3" to testUser3,
+                    )
+                )
 
                 clock.tick(Duration.ofSeconds(1))
 
                 val result = sqlPermissionsRepository.getAllById()
 
-                expectThat(result).isEqualTo(mapOf(
-                    "testuser1" to testUser1,
-                    "testuser2" to testUser2,
-                    "testuser3" to testUser3
-                ))
+                expectThat(result).isEqualTo(
+                    mapOf(
+                        "testuser1" to testUser1,
+                        "testuser2" to testUser2,
+                        "testuser3" to testUser3
+                    )
+                )
             }
 
-            test ("should delete the specified user") {
+            test("should delete the specified user") {
                 expectThat(jooq.selectCount().from(USER).fetchOne(count())).isEqualTo(0)
                 expectThat(jooq.selectCount().from(RESOURCE).fetchOne(count())).isEqualTo(0)
                 expectThat(jooq.selectCount().from(PERMISSION).fetchOne(count())).isEqualTo(0)
@@ -426,12 +434,13 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val app1 = Application().setName("app")
                 val role1 = Role("role1")
 
-                sqlPermissionsRepository.put(UserPermission()
-                    .setId("testUser")
-                    .setAccounts(setOf(account1))
-                    .setApplications(setOf(app1))
-                    .setRoles(setOf(role1))
-                    .setAdmin(true)
+                sqlPermissionsRepository.put(
+                    UserPermission()
+                        .setId("testUser")
+                        .setAccounts(setOf(account1))
+                        .setApplications(setOf(app1))
+                        .setRoles(setOf(role1))
+                        .setAdmin(true)
                 )
 
                 expectThat(jooq.selectCount().from(USER).fetchOne(count())).isEqualTo(1)
@@ -445,7 +454,7 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 expectThat(jooq.selectCount().from(PERMISSION).fetchOne(count())).isEqualTo(0)
             }
 
-            test ("should get all by roles") {
+            test("should get all by roles") {
                 val role1 = Role("role1")
                 val role2 = Role("role2")
                 val role3 = Role("role3")
@@ -461,57 +470,69 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val user5 = UserPermission().setId("user5").setRoles(setOf(role5))
                 val unrestricted = UserPermission().setId(UNRESTRICTED_USERNAME).setAccounts(setOf(acct1))
 
-                sqlPermissionsRepository.putAllById(mapOf(
-                    "user1" to user1,
-                    "user2" to user2,
-                    "user3" to user3,
-                    "user4" to user4,
-                    "user5" to user5,
-                    UNRESTRICTED_USERNAME to unrestricted
-                ))
+                sqlPermissionsRepository.putAllById(
+                    mapOf(
+                        "user1" to user1,
+                        "user2" to user2,
+                        "user3" to user3,
+                        "user4" to user4,
+                        "user5" to user5,
+                        UNRESTRICTED_USERNAME to unrestricted
+                    )
+                )
 
                 // Otherwise value of unrestricted user is served from cache
                 clock.tick(Duration.ofSeconds(1))
 
                 var result = sqlPermissionsRepository.getAllByRoles(listOf("role1"))
 
-                expectThat(result).isEqualTo(mapOf(
-                    "user1" to user1.merge(unrestricted),
-                    "user2" to user2.merge(unrestricted),
-                    UNRESTRICTED_USERNAME to unrestricted
-                ))
+                expectThat(result).isEqualTo(
+                    mapOf(
+                        "user1" to user1.merge(unrestricted),
+                        "user2" to user2.merge(unrestricted),
+                        UNRESTRICTED_USERNAME to unrestricted
+                    )
+                )
 
                 result = sqlPermissionsRepository.getAllByRoles(listOf("role3", "role4"))
 
-                expectThat(result).isEqualTo(mapOf(
-                    "user2" to user2.merge(unrestricted),
-                    "user4" to user4.merge(unrestricted),
-                    UNRESTRICTED_USERNAME to unrestricted
-                ))
+                expectThat(result).isEqualTo(
+                    mapOf(
+                        "user2" to user2.merge(unrestricted),
+                        "user4" to user4.merge(unrestricted),
+                        UNRESTRICTED_USERNAME to unrestricted
+                    )
+                )
 
                 result = sqlPermissionsRepository.getAllByRoles(null)
 
-                expectThat(result).isEqualTo(mapOf(
-                    "user1" to user1.merge(unrestricted),
-                    "user2" to user2.merge(unrestricted),
-                    "user3" to user3.merge(unrestricted),
-                    "user4" to user4.merge(unrestricted),
-                    "user5" to user5.merge(unrestricted),
-                    UNRESTRICTED_USERNAME to unrestricted
-                ))
+                expectThat(result).isEqualTo(
+                    mapOf(
+                        "user1" to user1.merge(unrestricted),
+                        "user2" to user2.merge(unrestricted),
+                        "user3" to user3.merge(unrestricted),
+                        "user4" to user4.merge(unrestricted),
+                        "user5" to user5.merge(unrestricted),
+                        UNRESTRICTED_USERNAME to unrestricted
+                    )
+                )
 
                 result = sqlPermissionsRepository.getAllByRoles(listOf())
 
-                expectThat(result).isEqualTo(mapOf(
-                    UNRESTRICTED_USERNAME to unrestricted
-                ))
+                expectThat(result).isEqualTo(
+                    mapOf(
+                        UNRESTRICTED_USERNAME to unrestricted
+                    )
+                )
 
                 result = sqlPermissionsRepository.getAllByRoles(listOf("role5"))
 
-                expectThat(result).isEqualTo(mapOf(
-                    "user5" to user5.merge(unrestricted),
-                    UNRESTRICTED_USERNAME to unrestricted
-                ))
+                expectThat(result).isEqualTo(
+                    mapOf(
+                        "user5" to user5.merge(unrestricted),
+                        UNRESTRICTED_USERNAME to unrestricted
+                    )
+                )
             }
 
             test("should handle storing extension resources") {
@@ -520,9 +541,10 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                     override fun getResourceType() = extensionResourceType
                 }
 
-                sqlPermissionsRepository.put(UserPermission()
-                    .setId("testuser")
-                    .setExtensionResources(setOf(resource1))
+                sqlPermissionsRepository.put(
+                    UserPermission()
+                        .setId("testuser")
+                        .setExtensionResources(setOf(resource1))
                 )
 
                 expectThat(
@@ -566,14 +588,18 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val unrestrictedApp = Application().setName("unrestrictedApp")
 
                 val restrictedApp = Application().setName("restrictedApp")
-                    .setPermissions(Permissions.Builder().add(Authorization.READ, roleA.name)
-                        .build())
+                    .setPermissions(
+                        Permissions.Builder().add(Authorization.READ, roleA.name)
+                            .build()
+                    )
 
                 val unrestrictedAccount = Account().setName("unrestrictedAcct")
 
                 val restrictedAccount = Account().setName("restrictedAcct")
-                    .setPermissions(Permissions.Builder().add(Authorization.READ, roleB.name)
-                        .build())
+                    .setPermissions(
+                        Permissions.Builder().add(Authorization.READ, roleB.name)
+                            .build()
+                    )
 
                 val unrestrictedUser = UserPermission().setId(UNRESTRICTED_USERNAME)
                     .setAccounts(mutableSetOf(unrestrictedAccount))
@@ -602,14 +628,19 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 expectThat(sqlPermissionsRepository.get(UNRESTRICTED_USERNAME).get()).isEqualTo(unrestrictedUser)
                 expectThat(sqlPermissionsRepository.get("roleauser").get()).isEqualTo(roleAUser.merge(unrestrictedUser))
                 expectThat(sqlPermissionsRepository.get("rolebuser").get()).isEqualTo(roleBUser.merge(unrestrictedUser))
-                expectThat(sqlPermissionsRepository.get("rolearolebuser").get()).isEqualTo(roleAroleBUser.merge(unrestrictedUser))
+                expectThat(sqlPermissionsRepository.get("rolearolebuser").get()).isEqualTo(
+                    roleAroleBUser.merge(
+                        unrestrictedUser
+                    )
+                )
             }
 
             test("should handle concurrent write operations without dead lock") {
                 val accounts1 = (1..16).asSequence().map { Account().setName("account$it") }.toSet()
                 val accounts2 = (8..24).asSequence().map { Account().setName("account$it") }.toSet()
                 val apps = (1..16).asSequence().map { Application().setName("app$it") }.toSet()
-                val serviceAccounts = (1..16).asSequence().map { ServiceAccount().setName("service_account$it") }.toSet()
+                val serviceAccounts =
+                    (1..16).asSequence().map { ServiceAccount().setName("service_account$it") }.toSet()
                 val buildServices = (1..16).asSequence().map { BuildService().setName("service_account$it") }.toSet()
                 val roles = (1..16).asSequence().map { Role().setName("role$it") }.toSet()
                 val userPermission1 = UserPermission()
@@ -631,10 +662,12 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 val callables: MutableList<Callable<Void>> = (1..16).asSequence().map {
                     java.util.concurrent.Callable<Void> {
                         sqlPermissionsRepository.put(userPermission1)
-                        sqlPermissionsRepository.putAllById(mutableMapOf(
-                            "testuser1" to userPermission1,
-                            "testuser2" to userPermission2,
-                        ))
+                        sqlPermissionsRepository.putAllById(
+                            mutableMapOf(
+                                "testuser1" to userPermission1,
+                                "testuser2" to userPermission2,
+                            )
+                        )
                         null
                     }
                 }.toMutableList()
@@ -671,22 +704,36 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
         }
 
         context("postgresql CRUD operations") {
-            crudOperations(JooqConfig(SQLDialect.POSTGRES, "jdbc:tc:postgresql:12-alpine://somehostname:someport/databasename"))
+            crudOperations(
+                JooqConfig(
+                    SQLDialect.POSTGRES,
+                    "jdbc:tc:postgresql:12-alpine://somehostname:someport/databasename"
+                )
+            )
         }
     }
 
-    private fun resourceBody(jooq : DSLContext, id: String, resourceType: ResourceType, resourceName: String) : Optional<String> {
+    private fun resourceBody(
+        jooq: DSLContext,
+        id: String,
+        resourceType: ResourceType,
+        resourceName: String
+    ): Optional<String> {
         return jooq.select(RESOURCE.BODY)
             .from(RESOURCE)
             .join(PERMISSION)
-            .on(PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(
-                PERMISSION.RESOURCE_NAME.eq(RESOURCE.RESOURCE_NAME)
-            ))
-            .where(PERMISSION.USER_ID.eq(id).and(
-                PERMISSION.RESOURCE_TYPE.eq(resourceType).and(
-                    PERMISSION.RESOURCE_NAME.eq(resourceName)
+            .on(
+                PERMISSION.RESOURCE_TYPE.eq(RESOURCE.RESOURCE_TYPE).and(
+                    PERMISSION.RESOURCE_NAME.eq(RESOURCE.RESOURCE_NAME)
                 )
-            ))
+            )
+            .where(
+                PERMISSION.USER_ID.eq(id).and(
+                    PERMISSION.RESOURCE_TYPE.eq(resourceType).and(
+                        PERMISSION.RESOURCE_NAME.eq(resourceName)
+                    )
+                )
+            )
             .fetchOptional(RESOURCE.BODY)
     }
 }
