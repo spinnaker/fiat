@@ -18,6 +18,7 @@ package com.netflix.spinnaker.fiat.permissions
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.google.common.hash.Hashing
 import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED_USERNAME
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Resource
@@ -41,21 +42,23 @@ import org.jooq.impl.DSL.field
 import org.jooq.impl.SQLDataType
 import org.jooq.util.mysql.MySQLDSL
 import org.slf4j.LoggerFactory
-import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 import javax.annotation.PreDestroy
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
 import kotlin.coroutines.CoroutineContext
 
+@ExperimentalContracts
 class SqlPermissionsRepository(
     private val clock: Clock,
     private val objectMapper: ObjectMapper,
     private val jooq: DSLContext,
     private val sqlRetryProperties: SqlRetryProperties,
     resources: List<Resource>,
-    private val dispatcher: CoroutineContext?,
+    private val coroutineContext: CoroutineContext?,
     private val dynamicConfigService: DynamicConfigService
 ) : PermissionsRepository {
 
@@ -91,11 +94,11 @@ class SqlPermissionsRepository(
 
         putResources(allResources)
 
-        if (dispatcher != null) {
+        if (coroutineContext.useAsync(this::asyncEnabled)) {
             permissions.values.chunked(
                 dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
             ).forEach { chunk ->
-                val scope = SqlCoroutineScope(dispatcher)
+                val scope = SqlCoroutineScope(coroutineContext)
 
                 val deferred = chunk.map {
                     scope.async { putUserPermission(it) }
@@ -175,11 +178,11 @@ class SqlPermissionsRepository(
 
         val existingResources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
 
-        if (dispatcher != null) {
+        if (coroutineContext.useAsync(resourceIds.size, this::useAsync)) {
             resourceIds.chunked(batchSize).chunked(
                 dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
             ) { batch ->
-                val scope = SqlCoroutineScope(dispatcher)
+                val scope = SqlCoroutineScope(coroutineContext)
 
                 val deferred = batch.map { chunk ->
                     scope.async { fetchResourceRecord(chunk) }
@@ -207,11 +210,11 @@ class SqlPermissionsRepository(
             }
         }
 
-        if (dispatcher != null) {
+        if (coroutineContext.useAsync(ids.size, this::useAsync)) {
             ids.chunked(batchSize).chunked(
                 dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
             ) { batch ->
-                val scope = SqlCoroutineScope(dispatcher)
+                val scope = SqlCoroutineScope(coroutineContext)
 
                 val deferred = batch.map { chunk ->
                     scope.async { fetchUserRecords(chunk) }
@@ -650,22 +653,15 @@ class SqlPermissionsRepository(
         }
     }
 
-    // Lifted from SqlCache.kt in clouddriver
-
     private fun getHash(body: String?): String? {
         if (body.isNullOrBlank()) {
             return null
         }
-        return try {
-            val digest = MessageDigest.getInstance("SHA-256").digest(body.toByteArray())
-            digest.fold("") { str, it ->
-                str + "%02x".format(it)
-            }
-        } catch (e: Exception) {
-            log.error("error calculating hash for body: $body", e)
-            null
-        }
+
+        return Hashing.sha256().hashString(body, Charsets.UTF_8).toString()
     }
+
+    // Lifted from SqlCache.kt in clouddriver
 
     // TODO: Does this belong in kork-sql?
     private enum class RetryCategory {
@@ -698,6 +694,34 @@ class SqlPermissionsRepository(
         }
     }
 
+    @ExperimentalContracts
+    private fun useAsync(items: Int): Boolean {
+        return dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4) > 1 &&
+                items > dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.read-batch-size", 500) * 2
+    }
+
+    @ExperimentalContracts
+    private fun asyncEnabled(): Boolean {
+        return dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4) > 1
+    }
+}
+
+@ExperimentalContracts
+fun CoroutineContext?.useAsync(size: Int, useAsync: (size: Int) -> Boolean): Boolean {
+    contract {
+        returns(true) implies (this@useAsync is CoroutineContext)
+    }
+
+    return this != null && useAsync.invoke(size)
+}
+
+@ExperimentalContracts
+fun CoroutineContext?.useAsync(useAsync: () -> Boolean): Boolean {
+    contract {
+        returns(true) implies (this@useAsync is CoroutineContext)
+    }
+
+    return this != null && useAsync.invoke()
 }
 
 class SqlCoroutineScope(context: CoroutineContext) : CoroutineScope {

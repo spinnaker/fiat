@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.netflix.spinnaker.fiat.permissions
 
 import com.fasterxml.jackson.annotation.JsonInclude
@@ -45,8 +44,9 @@ import java.time.Instant
 import java.time.ZoneId
 import java.util.*
 import java.util.concurrent.*
+import kotlin.contracts.ExperimentalContracts
 
-
+@ExperimentalContracts
 internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
 
     class JooqConfig(val dialect: SQLDialect, val jdbcUrl: String)

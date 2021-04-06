@@ -35,9 +35,11 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import java.time.Clock
+import kotlin.contracts.ExperimentalContracts
 
 const val coroutineThreadPrefix = "sql"
 
+@ExperimentalContracts
 @Configuration
 @ConditionalOnProperty("sql.enabled")
 @Import(DefaultSqlConfiguration::class)
@@ -47,6 +49,12 @@ class SqlConfiguration {
         private val log = LoggerFactory.getLogger(SqlConfiguration::class.java)
     }
 
+    /*
+     * permissionsRepository.sql.asyncPoolSize: If set to a positive integer, a fixed thread pool of this size is created
+     * as part of a coroutineContext. If permissionsRepository.sql.maxQueryConcurrency is also >1 (default value: 4),
+     * sql queries to fetch > 2 * permissionsRepository.sql.readBatchSize values will be made asynchronously in batches of
+     * maxQueryConcurrency size.
+     */
     @ConditionalOnProperty("permissions-repository.sql.enabled")
     @Bean
     @ObsoleteCoroutinesApi
