@@ -86,13 +86,33 @@ class SqlPermissionsRepository(
             return
         }
 
+        val batchSize = dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.write-batch-size", 100)
+
         // NOTE: This is potentially very slow since `allResources` creates a set from five other sets per-user
         val allResources = permissions.values
-                .asSequence()
+            .asSequence()
             .flatMap { it.allResources }
             .toSet()
 
         putResources(allResources)
+
+        if (coroutineContext.useAsync(permissions.size, this::useAsync)) {
+            permissions.values.chunked(batchSize).chunked(
+                dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
+            ).forEach { chunk ->
+                val scope = SqlCoroutineScope(coroutineContext)
+
+                val deferred = chunk.map {
+                    scope.async { putUsers(it) }
+                }
+
+                runBlocking {
+                    deferred.awaitAll()
+                }
+            }
+        } else {
+            permissions.values.chunked(batchSize).forEach { putUsers(it) }
+        }
 
         if (coroutineContext.useAsync(this::asyncEnabled)) {
             permissions.values.chunked(
@@ -101,7 +121,7 @@ class SqlPermissionsRepository(
                 val scope = SqlCoroutineScope(coroutineContext)
 
                 val deferred = chunk.map {
-                    scope.async { putUserPermission(it) }
+                    scope.async { putUserPermissions(it.id, it.allResources) }
                 }
 
                 runBlocking {
@@ -109,7 +129,7 @@ class SqlPermissionsRepository(
                 }
             }
         } else {
-            permissions.values.forEach { putUserPermission(it) }
+            permissions.values.forEach { putUserPermissions(it.id, it.allResources) }
         }
     }
 
@@ -353,30 +373,32 @@ class SqlPermissionsRepository(
         }
     }
 
-    private fun putUserPermission(permission: UserPermission) {
+    private fun putUsers(users: Collection<UserPermission>) {
+        val now = clock.millis()
+
         val insert = jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
 
         insert.apply {
-            values(permission.id, permission.isAdmin, clock.millis())
-            // https://github.com/jOOQ/jOOQ/issues/5975 means we have to duplicate field names here
-            when (jooq.dialect()) {
-                SQLDialect.POSTGRES ->
-                    onConflict(USER.ID)
-                        .doUpdate()
-                        .set(USER.ADMIN, SqlUtil.excluded(field("admin", SQLDataType.BOOLEAN)))
-                        .set(USER.UPDATED_AT, SqlUtil.excluded(field("updated_at", SQLDataType.BIGINT)))
-                else ->
-                    onDuplicateKeyUpdate()
-                        .set(USER.ADMIN, MySQLDSL.values(field("admin", SQLDataType.BOOLEAN)))
-                        .set(USER.UPDATED_AT, MySQLDSL.values(field("updated_at", SQLDataType.BIGINT)))
+            users.forEach { user ->
+                values(user.id, user.isAdmin, now)
+                // https://github.com/jOOQ/jOOQ/issues/5975 means we have to duplicate field names here
+                when (jooq.dialect()) {
+                    SQLDialect.POSTGRES ->
+                        onConflict(USER.ID)
+                            .doUpdate()
+                            .set(USER.ADMIN, SqlUtil.excluded(field("admin", SQLDataType.BOOLEAN)))
+                            .set(USER.UPDATED_AT, SqlUtil.excluded(field("updated_at", SQLDataType.BIGINT)))
+                    else ->
+                        onDuplicateKeyUpdate()
+                            .set(USER.ADMIN, MySQLDSL.values(field("admin", SQLDataType.BOOLEAN)))
+                            .set(USER.UPDATED_AT, MySQLDSL.values(field("updated_at", SQLDataType.BIGINT)))
+                }
             }
         }
 
         withRetry(RetryCategory.WRITE) {
             insert.execute()
         }
-
-        putUserPermissions(permission.id, permission.allResources)
     }
 
     private fun putUserPermissions(id: String, resources: Set<Resource>) {
