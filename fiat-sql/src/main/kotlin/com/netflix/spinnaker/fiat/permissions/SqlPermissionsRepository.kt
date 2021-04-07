@@ -88,7 +88,7 @@ class SqlPermissionsRepository(
 
         // NOTE: This is potentially very slow since `allResources` creates a set from five other sets per-user
         val allResources = permissions.values
-            .asSequence()
+                .asSequence()
             .flatMap { it.allResources }
             .toSet()
 
@@ -455,11 +455,16 @@ class SqlPermissionsRepository(
     private fun getUserPermissionsRecords(ids: Collection<String>) =
         withRetry(RetryCategory.READ) {
             jooq
-                .select(PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
-                .from(PERMISSION)
-                .where(PERMISSION.USER_ID.`in`(*ids.toTypedArray()))
+                .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME)
+                .from(RESOURCE)
+                .leftSemiJoin(PERMISSION)
+                .on(
+                    RESOURCE.RESOURCE_TYPE.eq(PERMISSION.RESOURCE_TYPE).and(
+                        RESOURCE.RESOURCE_NAME.eq(PERMISSION.RESOURCE_NAME).and(
+                            PERMISSION.USER_ID.`in`(*ids.toTypedArray())))
+                )
                 .fetch()
-                .map { ResourceId(it.get(PERMISSION.RESOURCE_TYPE), it.get(PERMISSION.RESOURCE_NAME)) }
+                .map { ResourceId(it.get(RESOURCE.RESOURCE_TYPE), it.get(RESOURCE.RESOURCE_NAME)) }
                 .toSet()
         }
 
