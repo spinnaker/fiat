@@ -170,14 +170,32 @@ class SqlPermissionsRepository(
     }
 
     private fun getUserPermissions(ids: Set<String>, unrestrictedUser: UserPermission?): Map<String, UserPermission> {
-        val userPermissions = mutableMapOf<String, UserPermission>()
-        val batchSize =
-            dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.read-batch-size", 500)
+        val batchSize = dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.read-batch-size", 500)
 
-        val resourceIds = getUserPermissionsRecords(ids)
+        val resourceIds = mutableSetOf<ResourceId>()
+        if (coroutineContext.useAsync(ids.size, this::useAsync)) {
+            ids.chunked(batchSize).chunked(
+                dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
+            ) { batch ->
+                val scope = SqlCoroutineScope(coroutineContext)
+
+                val deferred = batch.map { chunk ->
+                    scope.async { getUserPermissionsRecords(chunk) }
+                }
+
+                runBlocking {
+                    deferred.awaitAll()
+                }.forEach {
+                    resourceIds += it
+                }
+            }
+        } else {
+            ids.chunked(batchSize) { chunk ->
+                resourceIds += getUserPermissionsRecords(chunk)
+            }
+        }
 
         val existingResources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
-
         if (coroutineContext.useAsync(resourceIds.size, this::useAsync)) {
             resourceIds.chunked(batchSize).chunked(
                 dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
@@ -210,6 +228,7 @@ class SqlPermissionsRepository(
             }
         }
 
+        val userPermissions = mutableMapOf<String, UserPermission>()
         if (coroutineContext.useAsync(ids.size, this::useAsync)) {
             ids.chunked(batchSize).chunked(
                 dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
