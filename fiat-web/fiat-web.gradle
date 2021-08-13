@@ -43,8 +43,8 @@ dependencies {
     implementation project(it)
   }
 
-  testImplementation "com.netflix.spinnaker.kork:kork-jedis"
-  testImplementation "com.netflix.spinnaker.kork:kork-jedis-test"
+  testImplementation "io.spinnaker.kork:kork-jedis"
+  testImplementation "io.spinnaker.kork:kork-jedis-test"
 }
 
 applicationName = 'fiat'
