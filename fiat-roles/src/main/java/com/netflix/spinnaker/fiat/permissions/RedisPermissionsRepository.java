@@ -64,7 +64,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private static final String REDIS_READ_RETRY = "permissionsRepositoryRedisRead";
 
   private static final String KEY_PERMISSIONS = "permissions";
-  private static final String KEY_PERMISSIONS_LZ4 = "permissions-lz4";
+  private static final String KEY_PERMISSIONS_V2 = "permissions-v2";
   private static final String KEY_ROLES = "roles";
   private static final String KEY_ALL_USERS = "users";
   private static final String KEY_ADMIN = "admin";
@@ -470,7 +470,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
   private byte[] userKey(String userId, ResourceType r) {
     return SafeEncoder.encode(
-        String.format("%s:%s:%s:%s", prefix, KEY_PERMISSIONS_LZ4, userId, r.keySuffix()));
+        String.format("%s:%s:%s:%s", prefix, KEY_PERMISSIONS_V2, userId, r.keySuffix()));
   }
 
   private byte[] roleKey(Role role) {
