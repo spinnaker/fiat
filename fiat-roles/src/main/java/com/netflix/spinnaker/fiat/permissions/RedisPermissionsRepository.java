@@ -332,7 +332,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   }
 
   @Override
-  public Map<String, UserPermission> getAllById() {
+  public Map<String, Set<Role>> getAllById() {
     Set<String> allUsers =
         scanSet(SafeEncoder.encode(allUsersKey)).stream()
             .map(String::toLowerCase)
@@ -346,18 +346,18 @@ public class RedisPermissionsRepository implements PermissionsRepository {
         .map(this::get)
         .filter(Optional::isPresent)
         .map(Optional::get)
-        .collect(Collectors.toMap(UserPermission::getId, p -> p));
+        .collect(Collectors.toMap(UserPermission::getId, p -> p.getRoles()));
   }
 
   @Override
-  public Map<String, UserPermission> getAllByRoles(List<String> anyRoles) {
+  public Map<String, Set<Role>> getAllByRoles(List<String> anyRoles) {
     if (anyRoles == null) {
       return getAllById();
     } else if (anyRoles.isEmpty()) {
       val unrestricted = getFromRedis(UNRESTRICTED);
       if (unrestricted.isPresent()) {
-        val map = new HashMap<String, UserPermission>();
-        map.put(UNRESTRICTED, unrestricted.get());
+        val map = new HashMap<String, Set<Role>>();
+        map.put(UNRESTRICTED, unrestricted.get().getRoles());
         return map;
       }
       return new HashMap<>();
@@ -374,7 +374,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
         .map(this::get)
         .filter(Optional::isPresent)
         .map(Optional::get)
-        .collect(Collectors.toMap(UserPermission::getId, p -> p));
+        .collect(Collectors.toMap(UserPermission::getId, p -> p.getRoles()));
   }
 
   @Override

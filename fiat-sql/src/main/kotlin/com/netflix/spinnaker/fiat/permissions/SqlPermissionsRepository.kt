@@ -23,6 +23,7 @@ import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.Resource
 import com.netflix.spinnaker.fiat.model.resources.ResourceType
+import com.netflix.spinnaker.fiat.model.resources.Role
 import com.netflix.spinnaker.fiat.permissions.sql.SqlUtil
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.PERMISSION
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.RESOURCE
@@ -118,23 +119,46 @@ class SqlPermissionsRepository(
         if (UNRESTRICTED_USERNAME == id) {
             return Optional.of(unrestricted)
         }
-
-        val userPermissions = getUserPermissions(setOf(id), unrestricted)
-        return Optional.ofNullable(userPermissions[id])
+        return getUserPermissions(id, unrestricted)
     }
 
-    override fun getAllById(): Map<String, UserPermission> {
+    private fun getUserPermissions(id: String, unrestrictedUser: UserPermission?): Optional<UserPermission> {
+        // Check if the user exists and if they do are they an admin
+        val isAdmin = withRetry(RetryCategory.READ) {
+            jooq.select(USER.ADMIN)
+                .from(USER)
+                .where(USER.ID.eq(id))
+                .fetchOne(USER.ADMIN)
+        } ?: return Optional.empty()
+
+        val userPermission = UserPermission()
+            .setId(id)
+            .setAdmin(isAdmin)
+
+        val resourceIds = getUserPermissionsRecords(id)
+        val resourceRecords = fetchResourceRecord(resourceIds)
+
+        val existingResources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
+        parseResourceRecords(resourceRecords).forEach { (type, values) ->
+            val foo = existingResources[type] ?: mutableMapOf()
+            foo += values
+            existingResources[type] = foo
+        }
+
+        return combineResourceAndUserRecords(userPermission, resourceIds, unrestrictedUser, existingResources)
+    }
+
+    override fun getAllById(): Map<String, Set<Role>> {
         val unrestricted = getUnrestrictedUserPermission()
-        val ids = jooq.select(USER.ID).from(USER).fetch().intoSet(USER.ID)
-        return this.getUserPermissions(ids, unrestricted)
+        return this.getUserRoles(emptySet(), unrestricted.roles)
     }
 
-    override fun getAllByRoles(anyRoles: List<String>?): Map<String, UserPermission> {
+    override fun getAllByRoles(anyRoles: List<String>?): Map<String, Set<Role>> {
         if (anyRoles == null) {
             return getAllById()
         } else if (anyRoles.isEmpty()) {
             val unrestricted = getUnrestrictedUserPermission()
-            return mapOf(UNRESTRICTED_USERNAME to unrestricted)
+            return mapOf(UNRESTRICTED_USERNAME to unrestricted.roles)
         }
 
         val unrestricted = getUnrestrictedUserPermission()
@@ -152,7 +176,7 @@ class SqlPermissionsRepository(
             .intoSet(USER.ID)
             .plus(UNRESTRICTED_USERNAME) // ensure unrestricted user is included in results
 
-        return getUserPermissions(idsWithRoles, unrestricted)
+        return getUserRoles(idsWithRoles, unrestricted.roles)
     }
 
     override fun remove(id: String) {
@@ -169,91 +193,38 @@ class SqlPermissionsRepository(
         }
     }
 
-    private fun getUserPermissions(ids: Set<String>, unrestrictedUser: UserPermission?): Map<String, UserPermission> {
-        val batchSize = dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.read-batch-size", 500)
+    private fun getUserRoles(ids: Set<String>, unrestrictedUser: Set<Role>?): Map<String, Set<Role>> {
+        val allRoles = withRetry(RetryCategory.READ) {
+            jooq.select(RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
+                .from(RESOURCE)
+                .where(RESOURCE.RESOURCE_TYPE.eq(ResourceType.ROLE))
+                .fetch()
+        }
+            .intoMap(RESOURCE.RESOURCE_NAME)
+            .mapValues { objectMapper.readValue(it.value.get(RESOURCE.BODY), Role::class.java) }
 
-        val resourceIds = mutableSetOf<ResourceId>()
-        if (coroutineContext.useAsync(ids.size, this::useAsync)) {
-            ids.chunked(batchSize).chunked(
-                dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
-            ) { batch ->
-                val scope = SqlCoroutineScope(coroutineContext)
-
-                val deferred = batch.map { chunk ->
-                    scope.async { getUserPermissionsRecords(chunk) }
-                }
-
-                runBlocking {
-                    deferred.awaitAll()
-                }.forEach {
-                    resourceIds += it
-                }
+        if (ids.isEmpty()) {
+            return withRetry(RetryCategory.READ) {
+                jooq.select(USER.ID, PERMISSION.RESOURCE_NAME)
+                    .from(USER)
+                    .leftJoin(PERMISSION)
+                    .on(USER.ID.eq(PERMISSION.USER_ID).and(PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE)))
+                    .fetch()
             }
-        } else {
-            ids.chunked(batchSize) { chunk ->
-                resourceIds += getUserPermissionsRecords(chunk)
-            }
+                .intoGroups(USER.ID)
+                .mapValues { record -> record.value.map { it.get(PERMISSION.RESOURCE_NAME) }.mapNotNull { allRoles[it] }.toSet() }
         }
 
-        val existingResources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
-        if (coroutineContext.useAsync(resourceIds.size, this::useAsync)) {
-            resourceIds.chunked(batchSize).chunked(
-                dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
-            ) { batch ->
-                val scope = SqlCoroutineScope(coroutineContext)
-
-                val deferred = batch.map { chunk ->
-                    scope.async { fetchResourceRecord(chunk) }
-                }
-
-                runBlocking {
-                    deferred.awaitAll()
-                }.forEach { resourceRecords ->
-                    parseResourceRecords(resourceRecords).forEach { (type, values) ->
-                        val foo = existingResources[type] ?: mutableMapOf()
-                        foo += values
-                        existingResources[type] = foo
-                    }
-                }
-            }
-        } else {
-            resourceIds.chunked(batchSize) { chunk ->
-                val resourceRecords = fetchResourceRecord(chunk)
-
-                parseResourceRecords(resourceRecords).forEach { (type, values) ->
-                    val foo = existingResources[type] ?: mutableMapOf()
-                    foo += values
-                    existingResources[type] = foo
-                }
-            }
+        return withRetry(RetryCategory.READ) {
+            jooq.select(USER.ID, PERMISSION.RESOURCE_NAME)
+                .from(USER)
+                .leftJoin(PERMISSION)
+                .on(USER.ID.eq(PERMISSION.USER_ID).and(PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE)))
+                .where(USER.ID.`in`(ids))
+                .fetch()
         }
-
-        val userPermissions = mutableMapOf<String, UserPermission>()
-        if (coroutineContext.useAsync(ids.size, this::useAsync)) {
-            ids.chunked(batchSize).chunked(
-                dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
-            ) { batch ->
-                val scope = SqlCoroutineScope(coroutineContext)
-
-                val deferred = batch.map { chunk ->
-                    scope.async { fetchUserRecords(chunk) }
-                }
-
-                runBlocking {
-                    deferred.awaitAll()
-                }.forEach { userRecords ->
-                    userPermissions += parseAndCombineUserRecords(userRecords, unrestrictedUser, existingResources)
-                }
-            }
-        } else {
-            ids.chunked(batchSize) { chunk ->
-                val userRecords = fetchUserRecords(chunk)
-
-                userPermissions += parseAndCombineUserRecords(userRecords, unrestrictedUser, existingResources)
-            }
-        }
-
-        return userPermissions
+            .intoGroups(USER.ID)
+            .mapValues { record -> record.value.map { it.get(PERMISSION.RESOURCE_NAME) }.mapNotNull { allRoles[it] }.toSet() }
     }
 
     private fun fetchResourceRecord(ids: Collection<ResourceId>): Result<Record3<ResourceType, String, String>> {
@@ -278,7 +249,6 @@ class SqlPermissionsRepository(
 
     private fun parseResourceRecords(records: Result<Record3<ResourceType, String, String>>): Map<ResourceType, MutableMap<String, Resource>> {
         val resources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
-
         records
             .asSequence()
             .mapNotNull { record -> parseResourceRecord(record) }
@@ -304,55 +274,15 @@ class SqlPermissionsRepository(
         return rt to (name to value)
     }
 
-    private fun fetchUserRecords(ids: Collection<String>): Result<Record4<String, Boolean, ResourceType, String>> {
-        return withRetry(RetryCategory.READ) {
-            jooq.select(
-                USER.ID,
-                USER.ADMIN,
-                PERMISSION.RESOURCE_TYPE,
-                PERMISSION.RESOURCE_NAME
-            )
-                .from(USER)
-                .leftJoin(PERMISSION)
-                .on(USER.ID.eq(PERMISSION.USER_ID))
-                .where(USER.ID.`in`(*ids.toTypedArray()))
-                .fetch()
-        }
-    }
-
-    private fun parseAndCombineUserRecords(
-        records: Result<Record4<String, Boolean, ResourceType, String>>,
+    private fun combineResourceAndUserRecords(
+        userPermission: UserPermission,
+        resourceIds: Set<ResourceId>,
         unrestrictedUser: UserPermission?,
         existingResources: Map<ResourceType, MutableMap<String, Resource>>
-    ): MutableMap<String, UserPermission> {
-        val users = mutableMapOf<String, UserPermission>()
-
-        records.intoGroups(USER.ID)
-            .asSequence()
-            .map { record -> parseUserRecord(record.value, unrestrictedUser, existingResources) }
-            .forEach {
-                users[it.id] = it
-            }
-
-        return users
-    }
-
-    private fun parseUserRecord(
-        record: Result<Record4<String, Boolean, ResourceType, String>>,
-        unrestrictedUser: UserPermission?,
-        existingResources: Map<ResourceType, MutableMap<String, Resource>>
-    ): UserPermission {
-        val id = record.first().get(USER.ID)
-
-        val userPermission = UserPermission()
-            .setAdmin(record.first().get(USER.ADMIN))
-            .setId(id)
-
-        record.forEach {
-            val type = it.get(PERMISSION.RESOURCE_TYPE)
-            val name = it.get(PERMISSION.RESOURCE_NAME)
-            val resourcesByType = existingResources.getOrDefault(type, emptyMap())
-            val resource = resourcesByType[name]
+    ): Optional<UserPermission> {
+        resourceIds.forEach {
+            val resourcesByType = existingResources.getOrDefault(it.type, emptyMap())
+            val resource = resourcesByType[it.name]
             if (resource != null) {
                 userPermission.addResource(resource)
             }
@@ -362,7 +292,7 @@ class SqlPermissionsRepository(
             userPermission.merge(unrestrictedUser)
         }
 
-        return userPermission
+        return Optional.of(userPermission)
     }
 
     private fun putUserPermission(permission: UserPermission) {
@@ -392,7 +322,7 @@ class SqlPermissionsRepository(
     }
 
     private fun putUserPermissions(id: String, resources: Set<Resource>) {
-        val existingPermissions = getUserPermissionsRecords(setOf(id))
+        val existingPermissions = getUserPermissionsRecords(id)
 
         val currentPermissions = mutableSetOf<ResourceId>() // current permissions from request
         val toStore = mutableListOf<ResourceId>() // ids that are new or changed
@@ -471,12 +401,12 @@ class SqlPermissionsRepository(
         }
     }
 
-    private fun getUserPermissionsRecords(ids: Collection<String>) =
+    private fun getUserPermissionsRecords(id: String) =
         withRetry(RetryCategory.READ) {
             jooq
                 .select(PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
                 .from(PERMISSION)
-                .where(PERMISSION.USER_ID.`in`(*ids.toTypedArray()))
+                .where(PERMISSION.USER_ID.eq(id))
                 .fetch()
                 .map { ResourceId(it.get(PERMISSION.RESOURCE_TYPE), it.get(PERMISSION.RESOURCE_NAME)) }
                 .toSet()
@@ -655,20 +585,20 @@ class SqlPermissionsRepository(
 
     private fun reloadUnrestricted(cacheKey: Long): UserPermission {
         try {
-            val userPermissions = getUserPermissions(setOf(UNRESTRICTED_USERNAME), null)
-            val unrestricted = userPermissions[UNRESTRICTED_USERNAME]
-            if (unrestricted != null) {
+            val unrestricted = getUserPermissions(UNRESTRICTED_USERNAME, null)
+            if (!unrestricted.isEmpty) {
                 log.debug("reloaded user {} for key {} as {}", UNRESTRICTED_USERNAME, cacheKey, unrestricted)
-                return unrestricted
+                return unrestricted.get()
             }
             return UserPermission().setId(UNRESTRICTED_USERNAME)
         } catch (e: Exception) {
             log.error(
                 "loading user {} for key {} failed, no permissions returned",
                 UNRESTRICTED_USERNAME,
-                cacheKey
+                cacheKey,
+                e
             )
-            throw PermissionRepositoryException("Failed to read unrestricted user")
+            throw PermissionRepositoryException("Failed to read unrestricted user", e)
         }
     }
 
@@ -716,7 +646,7 @@ class SqlPermissionsRepository(
     @ExperimentalContracts
     private fun useAsync(items: Int): Boolean {
         return dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4) > 1 &&
-                items > dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.read-batch-size", 500) * 2
+            items > dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.read-batch-size", 500) * 2
     }
 
     @ExperimentalContracts
