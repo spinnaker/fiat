@@ -60,12 +60,13 @@ public interface PermissionsRepository {
   Map<String, Set<Role>> getAllById();
 
   /**
-   * Gets all Roles in the repository that has at least 1 of the specified roles, keyed by user ID.
-   * Because this method is usually used in conjunction with updating/syncing the users in question,
-   * the returned map will also contain the unrestricted user. If anyRoles is null, returns the same
-   * result as getAllById() (which includes the unrestricted user). If anyRoles is empty, this is an
-   * indication to sync only the anonymous/unrestricted user. When this is the case, this method
-   * returns a map with a single entry for the unrestricted user.
+   * Gets a map of all users and their Roles from the repository where the user has at least one of
+   * the specified named roles. Because this method is usually used in conjunction with
+   * updating/syncing the users in question, the returned map will also contain the unrestricted
+   * user. If anyRoles is null, returns the same result as getAllById() (which includes the
+   * unrestricted user). If anyRoles is empty, this is an indication to sync only the
+   * anonymous/unrestricted user. When this is the case, this method returns a map with a single
+   * entry for the unrestricted user.
    *
    * @param anyRoles
    * @return
