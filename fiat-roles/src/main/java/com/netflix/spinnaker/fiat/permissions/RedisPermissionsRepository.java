@@ -39,7 +39,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import net.jpountz.lz4.*;
 import redis.clients.jedis.*;
 import redis.clients.jedis.commands.BinaryJedisCommands;
@@ -392,15 +391,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     Set<String> allUsers =
         scanSet(allUsersKey).stream().map(String::toLowerCase).collect(Collectors.toSet());
 
-    if (allUsers.isEmpty()) {
-      return new HashMap<>(0);
-    }
-
-    return allUsers.stream()
-        .map(this::get)
-        .filter(Optional::isPresent)
-        .map(Optional::get)
-        .collect(Collectors.toMap(UserPermission::getId, p -> p.getRoles()));
+    return getRolesOf(allUsers);
   }
 
   @Override
@@ -408,13 +399,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     if (anyRoles == null) {
       return getAllById();
     } else if (anyRoles.isEmpty()) {
-      val unrestricted = getFromRedis(UNRESTRICTED);
-      if (unrestricted.isPresent()) {
-        val map = new HashMap<String, Set<Role>>();
-        map.put(UNRESTRICTED, unrestricted.get().getRoles());
-        return map;
-      }
-      return new HashMap<>();
+      return getRolesOf(Set.of(UNRESTRICTED));
     }
 
     final Set<String> uniqueUsernames = new HashSet<>();
@@ -424,11 +409,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     }
     uniqueUsernames.add(UNRESTRICTED);
 
-    return uniqueUsernames.stream()
-        .map(this::get)
-        .filter(Optional::isPresent)
-        .map(Optional::get)
-        .collect(Collectors.toMap(UserPermission::getId, p -> p.getRoles()));
+    return getRolesOf(uniqueUsernames);
   }
 
   @Override
@@ -449,6 +430,33 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     } catch (Exception e) {
       log.error("Storage exception reading " + id + " entry.", e);
     }
+  }
+
+  private Map<String, Set<Role>> getRolesOf(Set<String> userIds) {
+    if (userIds.isEmpty()) {
+      return new HashMap<>(0);
+    }
+
+    Map<String, Set<Role>> usersToRoles = new HashMap<>(userIds.size());
+
+    for (String userId : userIds) {
+      try {
+        Set<Role> roles =
+            getUserResourceMapFromRedis(userId, ResourceType.ROLE).values().stream()
+                .map(it -> (Role) it)
+                .collect(Collectors.toSet());
+        usersToRoles.put(userId, roles);
+      } catch (Throwable t) {
+        String message = String.format("Storage exception reading %s entry.", userId);
+        log.error(message, t);
+        if (t instanceof SpinnakerException) {
+          throw (SpinnakerException) t;
+        }
+        throw new PermissionReadException(message, t);
+      }
+    }
+
+    return usersToRoles;
   }
 
   private Set<String> scanSet(byte[] key) {
