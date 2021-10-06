@@ -38,7 +38,6 @@ import kotlinx.coroutines.*
 import org.jooq.*
 import org.jooq.exception.DataAccessException
 import org.jooq.exception.SQLDialectNotSupportedException
-import org.jooq.impl.DSL
 import org.jooq.impl.DSL.field
 import org.jooq.impl.SQLDataType
 import org.jooq.util.mysql.MySQLDSL
@@ -136,16 +135,9 @@ class SqlPermissionsRepository(
             .setAdmin(isAdmin)
 
         val resourceIds = getUserPermissionsRecords(id)
-        val resourceRecords = fetchResourceRecord(resourceIds)
+        val resourceRecords = fetchResourceRecords(resourceIds)
 
-        val existingResources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
-        parseResourceRecords(resourceRecords).forEach { (type, values) ->
-            val foo = existingResources[type] ?: mutableMapOf()
-            foo += values
-            existingResources[type] = foo
-        }
-
-        return combineResourceAndUserRecords(userPermission, resourceIds, unrestrictedUser, existingResources)
+        return combineResourceAndUserRecords(userPermission, resourceIds, unrestrictedUser, resourceRecords)
     }
 
     override fun getAllById(): Map<String, Set<Role>> {
@@ -227,62 +219,42 @@ class SqlPermissionsRepository(
             .mapValues { record -> record.value.map { it.get(PERMISSION.RESOURCE_NAME) }.mapNotNull { allRoles[it] }.toSet() }
     }
 
-    private fun fetchResourceRecord(ids: Collection<ResourceId>): Result<Record3<ResourceType, String, String>> {
-        return withRetry(RetryCategory.READ) {
-            jooq.select(
-                RESOURCE.RESOURCE_TYPE,
-                RESOURCE.RESOURCE_NAME,
-                RESOURCE.BODY
-            )
-                .from(RESOURCE)
-                .where(
-                    DSL.or(
-                        ids.groupBy { it.type }.map { (type, idsForType) ->
-                            val names = idsForType.map { it.name }
-                            RESOURCE.RESOURCE_TYPE.eq(type).and(RESOURCE.RESOURCE_NAME.`in`(*names.toTypedArray()))
-                        }
-                    )
-                )
-                .fetch()
-        }
-    }
+    private fun fetchResourceRecords(ids: Collection<ResourceId>): Map<ResourceId, Resource> {
+        val resources = mutableMapOf<ResourceId, Resource>()
 
-    private fun parseResourceRecords(records: Result<Record3<ResourceType, String, String>>): Map<ResourceType, MutableMap<String, Resource>> {
-        val resources = mutableMapOf<ResourceType, MutableMap<String, Resource>>()
-        records
-            .asSequence()
-            .mapNotNull { record -> parseResourceRecord(record) }
-            .forEach {
-                val resourcesForType = resources.getOrPut(it.first) { mutableMapOf() }
-                resourcesForType[it.second.first] = it.second.second
+        ids.groupBy { it.type }.forEach { (type, resourceIds) ->
+            val resourceForType = resourceTypes[type] ?: return@forEach
+            val objectReaderForType = objectMapper.readerFor(resourceForType.javaClass)
+
+            resourceIds.chunked(
+                dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.read-batch-size", 300)
+            ) { chunk ->
+                val names = chunk.map { it.name }.sorted()
+
+                withRetry(RetryCategory.READ) {
+                    jooq.select(RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
+                        .from(RESOURCE)
+                        .where(RESOURCE.RESOURCE_TYPE.eq(type).and(RESOURCE.RESOURCE_NAME.`in`(*names.toTypedArray())))
+                        .fetch()
+                        .forEach {
+                            resources[ResourceId(type, it.get(RESOURCE.RESOURCE_NAME))] =
+                                objectReaderForType.readValue(it.get(RESOURCE.BODY)) as Resource
+                        }
+                }
             }
+        }
 
         return resources
-    }
-
-    private fun parseResourceRecord(record: Record3<ResourceType, String, String>): Pair<ResourceType, Pair<String, Resource>>? {
-        val rt = record.get(RESOURCE.RESOURCE_TYPE)
-        val name = record.get(RESOURCE.RESOURCE_NAME)
-        val body = record.get(RESOURCE.BODY)
-        val resourceForType = resourceTypes[rt]
-        if (resourceForType == null) {
-            log.error("unhandled resource type: {}", rt)
-            return null
-        }
-        val value = objectMapper.readValue(body, resourceForType.javaClass)
-
-        return rt to (name to value)
     }
 
     private fun combineResourceAndUserRecords(
         userPermission: UserPermission,
         resourceIds: Set<ResourceId>,
         unrestrictedUser: UserPermission?,
-        existingResources: Map<ResourceType, MutableMap<String, Resource>>
+        existingResources: Map<ResourceId, Resource>
     ): Optional<UserPermission> {
         resourceIds.forEach {
-            val resourcesByType = existingResources.getOrDefault(it.type, emptyMap())
-            val resource = resourcesByType[it.name]
+            val resource = existingResources[it]
             if (resource != null) {
                 userPermission.addResource(resource)
             }
@@ -407,9 +379,7 @@ class SqlPermissionsRepository(
                 .select(PERMISSION.RESOURCE_TYPE, PERMISSION.RESOURCE_NAME)
                 .from(PERMISSION)
                 .where(PERMISSION.USER_ID.eq(id))
-                .fetch()
-                .map { ResourceId(it.get(PERMISSION.RESOURCE_TYPE), it.get(PERMISSION.RESOURCE_NAME)) }
-                .toSet()
+                .fetchSet { ResourceId(it.get(PERMISSION.RESOURCE_TYPE), it.get(PERMISSION.RESOURCE_NAME)) }
         }
 
     private fun putResources(resources: Set<Resource>, cleanup: Boolean = false) {
