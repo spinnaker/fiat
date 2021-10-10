@@ -94,7 +94,7 @@ class SqlPermissionsRepository(
 
         putResources(allResources)
 
-        if (coroutineContext.useAsync(this::asyncEnabled)) {
+        if (coroutineContext.useAsync(permissions.size, this::useAsync)) {
             permissions.values.chunked(
                 dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.max-query-concurrency", 4)
             ).forEach { chunk ->
@@ -137,12 +137,19 @@ class SqlPermissionsRepository(
         val resourceIds = getUserPermissionsRecords(id)
         val resourceRecords = fetchResourceRecords(resourceIds)
 
-        return combineResourceAndUserRecords(userPermission, resourceIds, unrestrictedUser, resourceRecords)
+        resourceIds.mapNotNull { resourceRecords[it] }.forEach {
+            userPermission.addResource(it)
+        }
+
+        if (unrestrictedUser != null) {
+            userPermission.merge(unrestrictedUser)
+        }
+
+        return Optional.of(userPermission)
     }
 
     override fun getAllById(): Map<String, Set<Role>> {
-        val unrestricted = getUnrestrictedUserPermission()
-        return this.getUserRoles(emptySet(), unrestricted.roles)
+        return this.getUserRoles(emptySet())
     }
 
     override fun getAllByRoles(anyRoles: List<String>?): Map<String, Set<Role>> {
@@ -152,8 +159,6 @@ class SqlPermissionsRepository(
             val unrestricted = getUnrestrictedUserPermission()
             return mapOf(UNRESTRICTED_USERNAME to unrestricted.roles)
         }
-
-        val unrestricted = getUnrestrictedUserPermission()
 
         val idsWithRoles = jooq.select(USER.ID)
             .from(USER)
@@ -168,7 +173,7 @@ class SqlPermissionsRepository(
             .intoSet(USER.ID)
             .plus(UNRESTRICTED_USERNAME) // ensure unrestricted user is included in results
 
-        return getUserRoles(idsWithRoles, unrestricted.roles)
+        return getUserRoles(idsWithRoles)
     }
 
     override fun remove(id: String) {
@@ -185,15 +190,14 @@ class SqlPermissionsRepository(
         }
     }
 
-    private fun getUserRoles(ids: Set<String>, unrestrictedUser: Set<Role>?): Map<String, Set<Role>> {
+    private fun getUserRoles(ids: Set<String>): Map<String, Set<Role>> {
         val allRoles = withRetry(RetryCategory.READ) {
             jooq.select(RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
                 .from(RESOURCE)
                 .where(RESOURCE.RESOURCE_TYPE.eq(ResourceType.ROLE))
-                .fetch()
+                .fetchMap(RESOURCE.RESOURCE_NAME, RESOURCE.BODY)
         }
-            .intoMap(RESOURCE.RESOURCE_NAME)
-            .mapValues { objectMapper.readValue(it.value.get(RESOURCE.BODY), Role::class.java) }
+            .mapValues { objectMapper.readValue(it.value, Role::class.java) }
 
         if (ids.isEmpty()) {
             return withRetry(RetryCategory.READ) {
@@ -201,10 +205,9 @@ class SqlPermissionsRepository(
                     .from(USER)
                     .leftJoin(PERMISSION)
                     .on(USER.ID.eq(PERMISSION.USER_ID).and(PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE)))
-                    .fetch()
+                    .fetchGroups(USER.ID, PERMISSION.RESOURCE_NAME)
             }
-                .intoGroups(USER.ID)
-                .mapValues { record -> record.value.map { it.get(PERMISSION.RESOURCE_NAME) }.mapNotNull { allRoles[it] }.toSet() }
+                .mapValues { record -> record.value.mapNotNull { allRoles[it] }.toSet() }
         }
 
         return withRetry(RetryCategory.READ) {
@@ -213,10 +216,9 @@ class SqlPermissionsRepository(
                 .leftJoin(PERMISSION)
                 .on(USER.ID.eq(PERMISSION.USER_ID).and(PERMISSION.RESOURCE_TYPE.eq(ResourceType.ROLE)))
                 .where(USER.ID.`in`(ids))
-                .fetch()
+                .fetchGroups(USER.ID, PERMISSION.RESOURCE_NAME)
         }
-            .intoGroups(USER.ID)
-            .mapValues { record -> record.value.map { it.get(PERMISSION.RESOURCE_NAME) }.mapNotNull { allRoles[it] }.toSet() }
+            .mapValues { record -> record.value.mapNotNull { allRoles[it] }.toSet() }
     }
 
     private fun fetchResourceRecords(ids: Collection<ResourceId>): Map<ResourceId, Resource> {
@@ -245,26 +247,6 @@ class SqlPermissionsRepository(
         }
 
         return resources
-    }
-
-    private fun combineResourceAndUserRecords(
-        userPermission: UserPermission,
-        resourceIds: Set<ResourceId>,
-        unrestrictedUser: UserPermission?,
-        existingResources: Map<ResourceId, Resource>
-    ): Optional<UserPermission> {
-        resourceIds.forEach {
-            val resource = existingResources[it]
-            if (resource != null) {
-                userPermission.addResource(resource)
-            }
-        }
-
-        if (unrestrictedUser != null) {
-            userPermission.merge(unrestrictedUser)
-        }
-
-        return Optional.of(userPermission)
     }
 
     private fun putUserPermission(permission: UserPermission) {
@@ -309,11 +291,7 @@ class SqlPermissionsRepository(
         }
 
         toStore.chunked(
-            dynamicConfigService.getConfig(
-                Int::class.java,
-                "permissions-repository.sql.write-batch-size",
-                100
-            )
+            dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.write-batch-size", 100)
         ) { chunk ->
             val insert = jooq.insertInto(
                 PERMISSION,
@@ -339,20 +317,13 @@ class SqlPermissionsRepository(
             }
         }
 
-        val toDelete = existingPermissions
-            .asSequence()
-            .filter { !currentPermissions.contains(it) }
-            .toSet()
+        val toDelete = existingPermissions.minus(currentPermissions)
 
         try {
             toDelete.groupBy { it.type }
                 .forEach { (type, ids) ->
                     ids.chunked(
-                        dynamicConfigService.getConfig(
-                            Int::class.java,
-                            "sql.cache.write-batch-size",
-                            100
-                        )
+                        dynamicConfigService.getConfig(Int::class.java, "sql.cache.write-batch-size", 100)
                     ) { chunk ->
                         val names = chunk.map { it.name }.sorted()
                         withRetry(RetryCategory.WRITE) {
@@ -455,10 +426,7 @@ class SqlPermissionsRepository(
         }
 
         if (cleanup) {
-            val toDelete = existingIds
-                .asSequence()
-                .filter { !currentIds.contains(it) }
-                .toSet()
+            val toDelete = existingIds.minus(currentIds)
 
             deleteResources(toDelete)
         }
@@ -469,14 +437,10 @@ class SqlPermissionsRepository(
             jooq
                 .select(RESOURCE.RESOURCE_TYPE, RESOURCE.RESOURCE_NAME, RESOURCE.BODY_HASH)
                 .from(RESOURCE)
-                .fetch()
-                .map {
-                    ResourceId(
-                        it.get(RESOURCE.RESOURCE_TYPE),
-                        it.get(RESOURCE.RESOURCE_NAME)
-                    ) to it.get(RESOURCE.BODY_HASH)
-                }
-                .toMap()
+                .fetchMap(
+                    { ResourceId(it.get(RESOURCE.RESOURCE_TYPE), it.get(RESOURCE.RESOURCE_NAME)) },
+                    { it.get(RESOURCE.BODY_HASH) }
+                )
         }
 
     data class ResourceId(
