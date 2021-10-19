@@ -276,6 +276,8 @@ class SqlPermissionsRepository(
     }
 
     private fun putUserPermissions(id: String, resources: Set<Resource>) {
+        val writeBatchSize = dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.write-batch-size", 100)
+
         val existingPermissions = getUserPermissionsRecords(id)
 
         val currentPermissions = mutableSetOf<ResourceId>() // current permissions from request
@@ -290,9 +292,7 @@ class SqlPermissionsRepository(
             }
         }
 
-        toStore.chunked(
-            dynamicConfigService.getConfig(Int::class.java, "permissions-repository.sql.write-batch-size", 100)
-        ) { chunk ->
+        toStore.chunked(writeBatchSize) { chunk ->
             val insert = jooq.insertInto(
                 PERMISSION,
                 PERMISSION.USER_ID,
@@ -322,9 +322,7 @@ class SqlPermissionsRepository(
         try {
             toDelete.groupBy { it.type }
                 .forEach { (type, ids) ->
-                    ids.chunked(
-                        dynamicConfigService.getConfig(Int::class.java, "sql.cache.write-batch-size", 100)
-                    ) { chunk ->
+                    ids.chunked(writeBatchSize) { chunk ->
                         val names = chunk.map { it.name }.sorted()
                         withRetry(RetryCategory.WRITE) {
                             jooq.deleteFrom(PERMISSION)
