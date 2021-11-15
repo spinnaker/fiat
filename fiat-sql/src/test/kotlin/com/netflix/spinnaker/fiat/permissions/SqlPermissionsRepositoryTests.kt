@@ -696,18 +696,18 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
     fun tests() = rootContext<JooqConfig> {
 
         fixture {
-            JooqConfig(SQLDialect.MYSQL, "jdbc:tc:mysql:5.7.22://somehostname:someport/databasename")
+            JooqConfig(SQLDialect.MYSQL, "jdbc:tc:mysql:5.7.22:///databasename")
         }
 
         context("mysql CRUD operations") {
-            crudOperations(JooqConfig(SQLDialect.MYSQL, "jdbc:tc:mysql:5.7.22://somehostname:someport/databasename"))
+            crudOperations(JooqConfig(SQLDialect.MYSQL, "jdbc:tc:mysql:5.7.22:///databasename"))
         }
 
         context("postgresql CRUD operations") {
             crudOperations(
                 JooqConfig(
                     SQLDialect.POSTGRES,
-                    "jdbc:tc:postgresql:12-alpine://somehostname:someport/databasename"
+                    "jdbc:tc:postgresql:12-alpine:///databasename"
                 )
             )
         }

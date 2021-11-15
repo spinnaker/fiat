@@ -20,10 +20,10 @@ sql:
   enabled: false
   connectionPools:
     default:
-      jdbcUrl: "jdbc:tc:mysql:5.7.22://somehostname:someport/somedb"
+      jdbcUrl: "jdbc:tc:mysql:5.7.22:///somedb"
       user:
   migration:
-    jdbcUrl: "jdbc:tc:mysql:5.7.22://somehostname:someport/somedb"
+    jdbcUrl: "jdbc:tc:mysql:5.7.22:///somedb"
     user:
 
 permissionsRepository:
