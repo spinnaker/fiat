@@ -42,7 +42,11 @@ class DefaultApplicationProviderSpec extends Specification {
   @Subject DefaultApplicationResourceProvider provider
 
   def makePerms(Map<Authorization, List<String>> auths) {
-    return Permissions.Builder.factory(auths).build()
+    Map<Authorization, Set<String>> data = new HashMap<>()
+    if (auths != null) {
+      auths.entrySet().forEach { data.put(it.key, new HashSet(it.value)) }
+    }
+    return Permissions.Builder.factory(data).build()
   }
 
   @Unroll
@@ -65,7 +69,7 @@ class DefaultApplicationProviderSpec extends Specification {
     provider = new DefaultApplicationResourceProvider(front50Service, clouddriverService, defaultProvider, fallbackPermissionsResolver, allowAccessToUnknownApplications)
 
     when:
-    def restrictedResult = provider.getAllRestricted([new Role(role)] as Set<Role>, false)
+    def restrictedResult = provider.getAllRestricted("userId", [new Role(role)] as Set<Role>, false)
     List<String> restrictedApplicationNames = restrictedResult*.name
 
     def unrestrictedResult = provider.getAllUnrestricted()

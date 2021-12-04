@@ -28,23 +28,31 @@ dependencies {
   implementation "org.springframework.boot:spring-boot-properties-migrator"
   implementation "org.springframework.boot:spring-boot-starter-actuator"
   implementation "org.springframework.boot:spring-boot-starter-web"
-  implementation "com.netflix.spinnaker.kork:kork-plugins"
-  implementation "com.netflix.spinnaker.kork:kork-web"
+  implementation "io.spinnaker.kork:kork-plugins"
+  implementation "io.spinnaker.kork:kork-web"
   implementation "io.swagger:swagger-annotations"
   implementation "net.logstash.logback:logstash-logback-encoder"
 
-  runtimeOnly "com.netflix.spinnaker.kork:kork-runtime"
+  runtimeOnly "io.spinnaker.kork:kork-runtime"
 
   implementation project(':fiat-core')
   implementation project(':fiat-roles')
+  implementation project(':fiat-sql')
+
+  if (!rootProject.hasProperty("excludeSqlDrivers")) {
+    runtimeOnly(project(":fiat-sql-mysql"))
+    runtimeOnly(project(":fiat-sql-postgres"))
+  }
 
   // Add each included authz provider as a runtime dependency
   gradle.includedProviderProjects.each {
     implementation project(it)
   }
 
-  testImplementation "com.netflix.spinnaker.kork:kork-jedis"
-  testImplementation "com.netflix.spinnaker.kork:kork-jedis-test"
+  testImplementation "io.spinnaker.kork:kork-jedis"
+  testImplementation "org.testcontainers:testcontainers"
+
+  testImplementation "io.spinnaker.kork:kork-sql-test"
 }
 
 applicationName = 'fiat'

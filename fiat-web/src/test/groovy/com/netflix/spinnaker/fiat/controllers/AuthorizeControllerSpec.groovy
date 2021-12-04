@@ -32,6 +32,10 @@ import com.netflix.spinnaker.fiat.permissions.PermissionsRepository
 import com.netflix.spinnaker.fiat.permissions.PermissionsResolver
 import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider
 import com.netflix.spinnaker.kork.web.exceptions.NotFoundException
+import org.jooq.Configuration
+import org.jooq.DSLContext
+import org.jooq.TransactionalRunnable
+import org.jooq.impl.DSL
 import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.mock.web.MockHttpServletResponse
@@ -83,6 +87,9 @@ class AuthorizeControllerSpec extends Specification {
   @Autowired
   List<Resource> resources;
 
+  @Autowired(required = false)
+  DSLContext jooq
+
   @Delegate
   FiatSystemTestSupport fiatIntegrationTestSupport = new FiatSystemTestSupport()
 
@@ -95,6 +102,21 @@ class AuthorizeControllerSpec extends Specification {
         .build();
 
     jedisPool.resource.withCloseable { it.flushAll() }
+    if (jooq) {
+      def schema = jooq.select(DSL.currentSchema()).fetchOne(DSL.currentSchema())
+      jooq.meta().getTables().each {
+        if (it.getSchema().name == schema && !it.name.startsWith("DATABASE")) {
+          jooq.transaction(new TransactionalRunnable() {
+            @Override
+            void run(Configuration configuration) throws Throwable {
+              jooq.execute("set foreign_key_checks=0")
+              jooq.truncate(it).execute()
+              jooq.execute("set foreign_key_checks=1")
+            }
+          })
+        }
+      }
+    }
   }
 
   def "should get user from repo via endpoint"() {
@@ -376,7 +398,7 @@ class AuthorizeControllerSpec extends Specification {
     given:
     def applicationResourcePermissionProvider = Mock(ResourcePermissionProvider) {
       getPermissions(_) >> Permissions.factory([
-              (Authorization.CREATE): ['rolea']
+              (Authorization.CREATE): ['rolea'] as Set
       ])
     }
     permissionsRepository.put(roleAUser)

@@ -16,6 +16,9 @@
 
 package com.netflix.spinnaker.fiat.model.resources
 
+import com.fasterxml.jackson.core.PrettyPrinter
+import com.fasterxml.jackson.core.util.DefaultIndenter
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.netflix.spinnaker.fiat.YamlFileApplicationContextInitializer
@@ -38,10 +41,15 @@ class PermissionsSpec extends Specification {
   @Autowired
   TestConfigProps testConfigProps
 
+  // Make line endings consistent regardless of OS
+  PrettyPrinter printer =
+          new DefaultPrettyPrinter()
+                  .withObjectIndenter(new DefaultIndenter().withLinefeed("\n"))
+
   ObjectMapper mapper =
-    new ObjectMapper()
-      .enable(SerializationFeature.INDENT_OUTPUT)
-      .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+          new ObjectMapper()
+                  .enable(SerializationFeature.INDENT_OUTPUT)
+                  .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
 
   String permissionJson = '''\
     {
@@ -60,27 +68,27 @@ class PermissionsSpec extends Specification {
     Permissions p = mapper.readValue(permissionJson, Permissions)
 
     then:
-    p.get(R) == ["foo"]
-    p.get(W) == ["bar"]
-    p.get(E) == []
+    p.get(R) == ["foo"] as Set
+    p.get(W) == ["bar"] as Set
+    p.get(E) == [] as Set
 
     when:
     Permissions.Builder b = mapper.readValue(permissionJson, Permissions.Builder)
     p = b.build()
 
     then:
-    p.get(R) == ["foo"]
-    p.get(W) == ["bar"]
-    p.get(E) == []
+    p.get(R) == ["foo"] as Set
+    p.get(W) == ["bar"] as Set
+    p.get(E) == [] as Set
   }
 
   def "should serialize"() {
     when:
     Permissions.Builder b = new Permissions.Builder()
-    b.set([(R): ["foo"], (W): ["bar"]])
+    b.set([(R): ["foo"] as Set, (W): ["bar"] as Set])
 
     then:
-    permissionSerialized ==  mapper.writeValueAsString(b.build())
+    permissionSerialized ==  mapper.writer(printer).writeValueAsString(b.build())
   }
 
   def "can deserialize to builder from serialized Permissions"() {
@@ -100,16 +108,16 @@ class PermissionsSpec extends Specification {
   def "should trim and lower"() {
     when:
     Permissions.Builder b = new Permissions.Builder()
-    b.set([(R): ["FOO"]])
+    b.set([(R): ["FOO"] as Set])
 
     then:
-    b.build().get(R) == ["foo"]
+    b.build().get(R) == ["foo"] as Set
 
     when:
     b.add(W, "bAr          ")
 
     then:
-    b.build().get(W) == ["bar"]
+    b.build().get(W) == ["bar"] as Set
   }
 
   def "test immutability"() {
@@ -138,13 +146,13 @@ class PermissionsSpec extends Specification {
     b.build().allGroups() == ["foo"] as Set
 
     when:
-    Permissions p = Permissions.factory([(R): ["bar"], (W): ["bar"]])
+    Permissions p = Permissions.factory([(R): ["bar"] as Set, (W): ["bar"] as Set])
 
     then:
     p.allGroups() == ["bar"] as Set
 
     when:
-    p = Permissions.factory([(R): ["foo"], (W): ["bar"]])
+    p = Permissions.factory([(R): ["foo"] as Set, (W): ["bar"] as Set])
 
     then:
     p.allGroups() == ["foo", "bar"] as Set
@@ -165,13 +173,13 @@ class PermissionsSpec extends Specification {
     p.getAuthorizations([]) == [R, W, E, C] as Set
 
     when:
-    p = Permissions.factory([(R): ["bar"], (W): ["bar"]])
+    p = Permissions.factory([(R): ["bar"] as Set, (W): ["bar"] as Set])
 
     then:
     p.getAuthorizations(["bar"]) == [R, W] as Set
 
     when:
-    p = Permissions.factory([(R): ["bar"]])
+    p = Permissions.factory([(R): ["bar"] as Set])
 
     then:
     p.getAuthorizations(["bar", "foo"]) == [R] as Set
@@ -186,8 +194,8 @@ class PermissionsSpec extends Specification {
     Permissions p = testConfigProps.permissions.build()
 
     then:
-    p.get(R) == ["foo"]
-    p.get(W) == ["bar"]
+    p.get(R) == ["foo"] as Set
+    p.get(W) == ["bar"] as Set
   }
 
   @Configuration

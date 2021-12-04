@@ -24,10 +24,16 @@ import com.netflix.spinnaker.fiat.providers.internal.ClouddriverAccountLoader
 import com.netflix.spinnaker.fiat.providers.internal.Front50ApplicationLoader
 import com.netflix.spinnaker.fiat.providers.internal.Front50ServiceAccountLoader
 import com.netflix.spinnaker.fiat.providers.internal.IgorBuildServiceLoader
+import org.jooq.Configuration
+import org.jooq.DSLContext
+import org.jooq.TransactionalRunnable
+import org.jooq.impl.DSL
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
+import redis.clients.jedis.Jedis
+import redis.clients.jedis.util.Pool
 import retrofit.RetrofitError
 import spock.lang.Specification
 
@@ -58,6 +64,12 @@ class RolesControllerSpec extends Specification {
   @Autowired
   TestUserRoleProvider userRoleProvider
 
+  @Autowired
+  Pool<Jedis> jedisPool
+
+  @Autowired(required = false)
+  DSLContext jooq
+
   @Delegate
   FiatSystemTestSupport fiatIntegrationTestSupport = new FiatSystemTestSupport()
 
@@ -68,6 +80,22 @@ class RolesControllerSpec extends Specification {
         .webAppContextSetup(this.wac)
         .defaultRequest(get("/").content().contentType("application/json"))
         .build()
+
+    jedisPool.resource.withCloseable { it.flushAll() }
+    if (jooq) {
+      def schema = jooq.select(DSL.currentSchema()).fetchOne(DSL.currentSchema())
+      jooq.meta().getTables().each {
+        if (it.getSchema().name == schema && !it.name.startsWith("DATABASE")) {
+          jooq.transaction(new TransactionalRunnable() {
+            @Override
+            void run(Configuration configuration) throws Throwable {
+              jooq.execute("set foreign_key_checks=0")
+              jooq.truncate(it).execute()
+              jooq.execute("set foreign_key_checks=1")
+            }
+          })        }
+      }
+    }
   }
 
   def "should put user in the repo"() {

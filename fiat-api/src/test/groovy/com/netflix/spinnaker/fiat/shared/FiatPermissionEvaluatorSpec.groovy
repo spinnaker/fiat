@@ -53,6 +53,7 @@ class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
 
   def cleanup() {
     MDC.clear()
+    SecurityContextHolder.clearContext()
   }
 
   @Unroll
@@ -78,7 +79,7 @@ class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
             applications: [
                 new Application(name: "abc-def",
                                 permissions: Permissions.factory([
-                                    (Authorization.READ): ["testRole"]
+                                    (Authorization.READ): ["testRole"] as Set
                                 ])),
             ],
             roles: [new Role("testRole")]

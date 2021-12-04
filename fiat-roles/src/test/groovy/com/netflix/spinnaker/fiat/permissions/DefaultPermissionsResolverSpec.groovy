@@ -29,6 +29,7 @@ import com.netflix.spinnaker.fiat.model.resources.ServiceAccount
 import com.netflix.spinnaker.fiat.providers.AccessControlledResourcePermissionSource
 import com.netflix.spinnaker.fiat.providers.AggregatingResourcePermissionProvider
 import com.netflix.spinnaker.fiat.providers.DefaultAccountResourceProvider
+import com.netflix.spinnaker.fiat.providers.DefaultServiceAccountPredicateProvider
 import com.netflix.spinnaker.fiat.providers.DefaultServiceAccountResourceProvider
 import com.netflix.spinnaker.fiat.providers.ResourcePermissionProvider
 import com.netflix.spinnaker.fiat.providers.ResourceProvider
@@ -50,14 +51,14 @@ class DefaultPermissionsResolverSpec extends Specification {
 
   @Shared
   Account reqGroup1Acct = new Account().setName("reqGroup1")
-                                       .setRequiredGroupMembership(["group1"])
+                                       .setRequiredGroupMembership(["group1"] as Set)
   @Shared
   Account reqGroup1and2Acct = new Account().setName("reqGroup1and2")
-                                           .setRequiredGroupMembership(["group1", "GrouP2"]) // test case insensitivity.
+                                           .setRequiredGroupMembership(["group1", "GrouP2"] as Set) // test case insensitivity.
 
   @Shared
   Account anonymousRead = new Account().setName("anonymousRead")
-                                       .setPermissions(Permissions.factory((Authorization.READ): [anonymous.name], (Authorization.WRITE): ["otherGroup"]))
+                                       .setPermissions(Permissions.factory((Authorization.READ): [anonymous.name] as Set, (Authorization.WRITE): ["otherGroup"] as Set))
 
   @Shared
   ClouddriverService clouddriverService = Mock(ClouddriverService) {
@@ -87,7 +88,9 @@ class DefaultPermissionsResolverSpec extends Specification {
   }
 
   @Shared
-  DefaultServiceAccountResourceProvider serviceAccountProvider = new DefaultServiceAccountResourceProvider(front50Service, fiatRoleConfig)
+  DefaultServiceAccountResourceProvider serviceAccountProvider = new DefaultServiceAccountResourceProvider(
+          front50Service, [new DefaultServiceAccountPredicateProvider(fiatRoleConfig) ]
+  )
 
   @Shared
   ResourceProvider<Application> applicationProvider = Mock(ResourceProvider) {
