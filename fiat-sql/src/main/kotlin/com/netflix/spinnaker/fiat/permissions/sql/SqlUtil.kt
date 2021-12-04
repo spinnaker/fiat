@@ -1,11 +1,11 @@
 /*
- * Copyright 2019 Netflix, Inc.
+ * Copyright 2021 Expedia, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,19 +14,15 @@
  * limitations under the License.
  */
 
-apply plugin: "java-platform"
+package com.netflix.spinnaker.fiat.permissions.sql
 
-javaPlatform {
-  allowDependencies()
-}
+import org.jooq.Field
+import org.jooq.impl.DSL
 
-dependencies {
-  api(platform("io.spinnaker.kork:kork-bom:$korkVersion"))
+object SqlUtil {
 
-  constraints {
-    rootProject
-      .subprojects
-      .findAll { it != project }
-      .each { api(project(it.path)) }
-  }
+    fun <T> excluded(values: Field<T>): Field<T> {
+        return DSL.field("excluded.{0}", values.dataType, values)
+    }
+
 }
