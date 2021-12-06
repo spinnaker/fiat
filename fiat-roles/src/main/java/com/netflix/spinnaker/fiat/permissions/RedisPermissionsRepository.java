@@ -35,6 +35,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.NonNull;
@@ -286,9 +287,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       return;
     }
 
-    for (UserPermission permission : permissions.values()) {
-      put(permission);
-    }
+    permissions.values().parallelStream().forEach(this::put);
   }
 
   @Override
@@ -402,11 +401,12 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       return getRolesOf(Set.of(UNRESTRICTED));
     }
 
-    final Set<String> uniqueUsernames = new HashSet<>();
-    for (String role : new HashSet<>(anyRoles)) {
-      uniqueUsernames.addAll(
-          scanSet(roleKey(role)).stream().map(String::toLowerCase).collect(Collectors.toSet()));
-    }
+    final Set<String> uniqueUsernames =
+        new HashSet<>(anyRoles)
+            .parallelStream()
+                .flatMap(role -> scanSet(roleKey(role)).stream().map(String::toLowerCase))
+                .collect(Collectors.toSet());
+
     uniqueUsernames.add(UNRESTRICTED);
 
     return getRolesOf(uniqueUsernames);
@@ -440,40 +440,42 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     Map<String, Set<Role>> usersToRoles = new HashMap<>(userIds.size());
 
     for (String userId : userIds) {
-      try {
-        Set<Role> roles =
-            getUserResourceMapFromRedis(userId, ResourceType.ROLE).values().stream()
-                .map(it -> (Role) it)
-                .collect(Collectors.toSet());
-        usersToRoles.put(userId, roles);
-      } catch (Throwable t) {
-        String message = String.format("Storage exception reading %s entry.", userId);
-        log.error(message, t);
-        if (t instanceof SpinnakerException) {
-          throw (SpinnakerException) t;
-        }
-        throw new PermissionReadException(message, t);
-      }
+      usersToRoles.put(userId, new HashSet<>());
     }
+
+    ThrowingConsumer<Map.Entry<String, Set<Role>>> fn =
+        e -> {
+          try {
+            Set<Role> roles =
+                getUserResourceMapFromRedis(e.getKey(), ResourceType.ROLE).values().stream()
+                    .map(it -> (Role) it)
+                    .collect(Collectors.toSet());
+
+            e.setValue(roles);
+          } catch (Throwable t) {
+            String message = String.format("Storage exception reading %s entry.", e.getKey());
+            log.error(message, t);
+            if (t instanceof SpinnakerException) {
+              throw (SpinnakerException) t;
+            }
+            throw new PermissionReadException(message, t);
+          }
+        };
+
+    usersToRoles.entrySet().parallelStream().forEach(fn);
 
     return usersToRoles;
   }
 
   private Set<String> scanSet(byte[] key) {
-    final Set<String> results = new HashSet<>();
-    final AtomicReference<byte[]> cursor =
-        new AtomicReference<>(ScanParams.SCAN_POINTER_START_BINARY);
-    do {
-      final ScanResult<byte[]> result =
-          redisClientDelegate.withBinaryClient(
-              jedis -> {
-                return jedis.sscan(key, cursor.get());
-              });
-      results.addAll(
-          result.getResult().stream().map(SafeEncoder::encode).collect(Collectors.toList()));
-      cursor.set(result.getCursorAsBytes());
-    } while (!Arrays.equals(cursor.get(), ScanParams.SCAN_POINTER_START_BINARY));
-    return results;
+    return redisClientDelegate
+        .withBinaryClient(
+            jedis -> {
+              return jedis.smembers(key);
+            })
+        .stream()
+        .map(SafeEncoder::encode)
+        .collect(Collectors.toSet());
   }
 
   private byte[] userKey(String userId, ResourceType r) {
@@ -511,6 +513,21 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     }
 
     R applyThrows(T t) throws Exception;
+  }
+
+  @FunctionalInterface
+  private interface ThrowingConsumer<T> extends Consumer<T> {
+
+    @Override
+    default void accept(T t) {
+      try {
+        acceptThrows(t);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    void acceptThrows(T t) throws Exception;
   }
 
   /**
