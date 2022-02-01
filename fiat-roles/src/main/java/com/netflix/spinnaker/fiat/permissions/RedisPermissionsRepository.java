@@ -402,11 +402,12 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       return getRolesOf(Set.of(UNRESTRICTED));
     }
 
-    final Set<String> uniqueUsernames = new HashSet<>();
-    for (String role : new HashSet<>(anyRoles)) {
-      uniqueUsernames.addAll(
-          scanSet(roleKey(role)).stream().map(String::toLowerCase).collect(Collectors.toSet()));
-    }
+    final Set<String> uniqueUsernames =
+        new HashSet<>(anyRoles)
+            .parallelStream()
+                .flatMap(role -> scanSet(roleKey(role)).stream().map(String::toLowerCase))
+                .collect(Collectors.toSet());
+
     uniqueUsernames.add(UNRESTRICTED);
 
     return getRolesOf(uniqueUsernames);
