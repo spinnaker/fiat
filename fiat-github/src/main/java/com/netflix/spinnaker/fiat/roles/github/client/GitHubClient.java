@@ -43,9 +43,9 @@ public interface GitHubClient {
   List<Member> getOrgMembers(
       @Path("org") String org, @Query("page") int page, @Query("per_page") int paginationValue);
 
-  @GET("/teams/{idTeam}/members")
+  @GET("/orgs/{org}/teams/{idTeam}/members")
   List<Member> getMembersOfTeam(
-      @Path("idTeam") Long idTeam, @Query("page") int page, @Query("per_page") int paginationValue);
+    @Path("org") String org, @Path("idTeam") Long idTeam, @Query("page") int page, @Query("per_page") int paginationValue);
 
   @GET("/teams/{idTeam}/memberships/{username}")
   TeamMembership isMemberOfTeam(@Path("idTeam") Long idTeam, @Path("username") String username);
