@@ -61,7 +61,7 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
 
   private LoadingCache<String, List<Team>> teamsCache;
 
-  private LoadingCache<Long, Set<String>> teamMembershipCache;
+  private LoadingCache<String, Set<String>> teamMembershipCache;
 
   private static final String ACTIVE = "active";
 
@@ -169,8 +169,8 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
             .refreshAfterWrite(
                 this.gitHubProperties.getMembershipCacheTTLSeconds(), TimeUnit.SECONDS)
             .build(
-                new CacheLoader<Long, Set<String>>() {
-                  public Set<String> load(Long key) {
+                new CacheLoader<String, Set<String>>() {
+                  public Set<String> load(String key) {
                     Set<String> memberships = new HashSet<>();
                     int page = 1;
                     boolean hasMorePages = true;
@@ -188,7 +188,7 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
                   }
 
                   public ListenableFuture<Set<String>> reload(
-                      final Long key, final Set<String> prev) {
+                      final String key, final Set<String> prev) {
                     ListenableFutureTask<Set<String>> task =
                         ListenableFutureTask.create(
                             new Callable<Set<String>>() {
@@ -295,11 +295,21 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     return members;
   }
 
+<<<<<<< HEAD
   private List<Member> getMembersInTeamPaginated(Long teamId, int page) {
     List<Member> members = new ArrayList<>();
     try {
       log.debug("Requesting page " + page + " of members team " + teamId + ".");
       members = gitHubClient.getMembersOfTeam(teamId, page, gitHubProperties.paginationValue);
+=======
+  private List<Member> getMembersInTeamPaginated(String organization, String teamSlug, int page) {
+    List<Member> members = new ArrayList<>();
+    try {
+      log.debug("Requesting page " + page + " of members team " + teamSlug + ".");
+      members =
+          gitHubClient.getMembersOfTeam(
+              organization, teamSlug, page, gitHubProperties.paginationValue);
+>>>>>>> ea88218 (fix(gitub): using team slug instead of id (#911))
     } catch (RetrofitError e) {
       if (e.getResponse().getStatus() != 404) {
         handleNon404s(e);
@@ -314,7 +324,7 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
 
   private boolean isMemberOfTeam(Team t, String username) {
     try {
-      return this.teamMembershipCache.get(t.getId()).contains(username.toLowerCase());
+      return this.teamMembershipCache.get(t.getSlug()).contains(username.toLowerCase());
     } catch (ExecutionException e) {
       log.error("Failed to read from cache when getting team membership", e);
     }
