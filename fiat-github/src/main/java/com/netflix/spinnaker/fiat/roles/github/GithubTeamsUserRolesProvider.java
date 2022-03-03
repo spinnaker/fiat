@@ -175,7 +175,9 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
                     int page = 1;
                     boolean hasMorePages = true;
                     do {
-                      List<Member> members = getMembersInTeamPaginated(key, page++);
+                      List<Member> members =
+                          getMembersInTeamPaginated(
+                              gitHubProperties.getOrganization(), key, page++);
                       members.forEach(m -> memberships.add(m.getLogin().toLowerCase()));
                       if (members.size() != gitHubProperties.paginationValue) {
                         hasMorePages = false;
@@ -295,13 +297,6 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     return members;
   }
 
-<<<<<<< HEAD
-  private List<Member> getMembersInTeamPaginated(Long teamId, int page) {
-    List<Member> members = new ArrayList<>();
-    try {
-      log.debug("Requesting page " + page + " of members team " + teamId + ".");
-      members = gitHubClient.getMembersOfTeam(teamId, page, gitHubProperties.paginationValue);
-=======
   private List<Member> getMembersInTeamPaginated(String organization, String teamSlug, int page) {
     List<Member> members = new ArrayList<>();
     try {
@@ -309,7 +304,6 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
       members =
           gitHubClient.getMembersOfTeam(
               organization, teamSlug, page, gitHubProperties.paginationValue);
->>>>>>> ea88218 (fix(gitub): using team slug instead of id (#911))
     } catch (RetrofitError e) {
       if (e.getResponse().getStatus() != 404) {
         handleNon404s(e);

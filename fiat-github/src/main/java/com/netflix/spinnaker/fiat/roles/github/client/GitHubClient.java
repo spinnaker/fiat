@@ -18,22 +18,13 @@ package com.netflix.spinnaker.fiat.roles.github.client;
 
 import com.netflix.spinnaker.fiat.roles.github.model.Member;
 import com.netflix.spinnaker.fiat.roles.github.model.Team;
-import com.netflix.spinnaker.fiat.roles.github.model.TeamMembership;
 import java.util.List;
-import retrofit.client.Response;
 import retrofit.http.GET;
 import retrofit.http.Path;
 import retrofit.http.Query;
 
 /** Retrofit interface for interacting with a GitHub REST API. */
 public interface GitHubClient {
-
-  @GET("/orgs/{org}/members/{username}")
-  Response isMemberOfOrganization(@Path("org") String org, @Path("username") String username);
-
-  /** This one should use the Current User credentials */
-  @GET("/user/teams")
-  List<Team> getUserTeams();
 
   @GET("/orgs/{org}/teams")
   List<Team> getOrgTeams(
@@ -43,19 +34,10 @@ public interface GitHubClient {
   List<Member> getOrgMembers(
       @Path("org") String org, @Query("page") int page, @Query("per_page") int paginationValue);
 
-<<<<<<< HEAD
-  @GET("/teams/{idTeam}/members")
-  List<Member> getMembersOfTeam(
-      @Path("idTeam") Long idTeam, @Query("page") int page, @Query("per_page") int paginationValue);
-
-  @GET("/teams/{idTeam}/memberships/{username}")
-  TeamMembership isMemberOfTeam(@Path("idTeam") Long idTeam, @Path("username") String username);
-=======
   @GET("/orgs/{org}/teams/{teamSlug}/members")
   List<Member> getMembersOfTeam(
       @Path("org") String org,
       @Path("teamSlug") String teamSlug,
       @Query("page") int page,
       @Query("per_page") int paginationValue);
->>>>>>> ea88218 (fix(gitub): using team slug instead of id (#911))
 }
