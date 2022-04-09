@@ -14,6 +14,13 @@ jobs:
         ref: ${{ github.event.client_payload.ref }}
         baseBranch: ${{ github.event.client_payload.branch }}
         key: fiatVersion
+<<<<<<< HEAD
         repositories: clouddriver,echo,front50,gate,halyard,igor,keel,orca
+=======
+        repositories: clouddriver,echo,front50,gate,igor,keel,orca
+        mavenRepositoryUrl: https://repo.maven.apache.org/maven2
+        groupId: io.spinnaker.fiat
+        artifactId: fiat-bom
+>>>>>>> 3cf7254 (chore(dependencies): don't create an autobump PR for halyard on a fia… (#938))
       env:
         GITHUB_OAUTH: ${{ secrets.SPINNAKER_GITHUB_TOKEN }}
