@@ -14,10 +14,10 @@ jobs:
     - name: decide bumpdep target repositories
       id: bumpdep_targets
       run: |
-        REPOS=clouddriver,echo,front50,gate,halyard,igor,keel,orca
-        if [ "${{ github.event.client_payload.branch }}" != "  origin/master"]; then
-          echo "on release-* branch, excluding halyard from dumpdeps target list"
-          REPOS=clouddriver,echo,front50,gate,igor,keel,orca
+        REPOS=clouddriver,echo,front50,gate,igor,keel,orca
+        if [ "${{ github.event.client_payload.branch }}" == "  origin/master"]; then
+          echo "on master branch, include halyard in bumpdeps target list"
+          REPOS+=",halyard"
         fi
         echo ::set-output name=REPOS::$(echo -e "${REPOS}")
     - uses: spinnaker/bumpdeps@master
