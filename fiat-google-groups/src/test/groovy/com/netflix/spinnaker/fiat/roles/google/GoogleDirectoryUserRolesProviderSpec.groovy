@@ -61,6 +61,22 @@ class GoogleDirectoryUserRolesProviderSpec extends Specification {
         then:
         result4.name.containsAll(["test@test.com"])
         result4.name.size() == 1
+       
+        when:
+        //test that a service account does not get groups returned
+        def result1 = provider.loadRoles(externalUser("testuser@managed-service-account"))
+
+        then:
+        result1.name.containsAll([])
+        result1.name.size() == 0
+        
+        when:
+        //test that a shared service account does not get groups returned
+        def result1 = provider.loadRoles(externalUser("testuser@shared-managed-service-account"))
+
+        then:
+        result1.name.containsAll([])
+        result1.name.size() == 0
 
 
 
