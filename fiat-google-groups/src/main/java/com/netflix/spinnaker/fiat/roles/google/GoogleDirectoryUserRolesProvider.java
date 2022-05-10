@@ -126,8 +126,8 @@ public class GoogleDirectoryUserRolesProvider implements UserRolesProvider, Init
           try {
             // Check if this is a managed service account, we should never check google groups for
             // these
-            if (userEmail.endsWith(SERVICE_ACCOUNT_SUFFIX)
-                || userEmail.endsWith(SHARED_SERVICE_ACCOUNT_SUFFIX)) {
+            if (email.endsWith(SERVICE_ACCOUNT_SUFFIX)
+                || email.endsWith(SHARED_SERVICE_ACCOUNT_SUFFIX)) {
               // Skip over this in the batch
               return;
             }
