@@ -123,6 +123,12 @@ public class GoogleDirectoryUserRolesProvider implements UserRolesProvider, Init
     userEmails.forEach(
         email -> {
           try {
+            //Check if this is a managed service account, we should never check google groups for these
+            if (userEmail.endsWith(SERVICE_ACCOUNT_SUFFIX) || userEmail.endsWith(SHARED_SERVICE_ACCOUNT_SUFFIX)) {
+              //Skip over this in the batch
+              return;
+            }
+            
             GroupBatchCallback callback =
                 new GroupBatchCallback().setEmailGroupsMap(emailGroupsMap).setEmail(email);
             HttpRequest request =
