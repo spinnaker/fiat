@@ -14,13 +14,9 @@ jobs:
         ref: ${{ github.event.client_payload.ref }}
         baseBranch: ${{ github.event.client_payload.branch }}
         key: fiatVersion
-<<<<<<< HEAD
         repositories: clouddriver,echo,front50,gate,igor,keel,orca
-=======
-        repositories: clouddriver,echo,front50,gate,halyard,igor,keel,orca
         mavenRepositoryUrl: https://repo.maven.apache.org/maven2
         groupId: io.spinnaker.fiat
         artifactId: fiat-bom
->>>>>>> 8306933 (chore(build): specify an artifact for bumpdeps to look for (#916))
       env:
         GITHUB_OAUTH: ${{ secrets.SPINNAKER_GITHUB_TOKEN }}
