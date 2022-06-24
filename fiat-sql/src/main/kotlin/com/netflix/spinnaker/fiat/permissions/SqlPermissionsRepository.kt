@@ -118,6 +118,34 @@ class SqlPermissionsRepository(
         if (UNRESTRICTED_USERNAME == id) {
             return Optional.of(unrestricted)
         }
+<<<<<<< HEAD
+=======
+        return getUserPermissions(id, unrestricted)
+    }
+
+    private fun getUserPermissions(id: String, unrestrictedUser: UserPermission?): Optional<UserPermission> {
+        // Check if the user exists and if they do are they an admin
+        val isAdmin = withRetry(RetryCategory.READ) {
+            jooq.select(USER.ADMIN)
+                .from(USER)
+                .where(USER.ID.eq(id))
+                .fetchOne(USER.ADMIN)
+        } ?: return Optional.empty()
+        val isAccountManager = withRetry(RetryCategory.READ) {
+            jooq.select(USER.ACCOUNT_MANAGER)
+                .from(USER)
+                .where(USER.ID.eq(id))
+                .fetchOne(USER.ACCOUNT_MANAGER)
+        } ?: return Optional.empty()
+
+        val userPermission = UserPermission()
+            .setId(id)
+            .setAdmin(isAdmin)
+            .setAccountManager(isAccountManager)
+
+        val resourceIds = getUserPermissionsRecords(id)
+        val resourceRecords = fetchResourceRecords(resourceIds)
+>>>>>>> 9e7b7a0 (fix(roles): Ensure account manager role is cached (#960))
 
         val userPermissions = getUserPermissions(setOf(id), unrestricted)
         return Optional.ofNullable(userPermissions[id])
@@ -366,20 +394,22 @@ class SqlPermissionsRepository(
     }
 
     private fun putUserPermission(permission: UserPermission) {
-        val insert = jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.UPDATED_AT)
+        val insert = jooq.insertInto(USER, USER.ID, USER.ADMIN, USER.ACCOUNT_MANAGER, USER.UPDATED_AT)
 
         insert.apply {
-            values(permission.id, permission.isAdmin, clock.millis())
+            values(permission.id, permission.isAdmin, permission.isAccountManager, clock.millis())
             // https://github.com/jOOQ/jOOQ/issues/5975 means we have to duplicate field names here
             when (jooq.dialect()) {
                 SQLDialect.POSTGRES ->
                     onConflict(USER.ID)
                         .doUpdate()
                         .set(USER.ADMIN, SqlUtil.excluded(field("admin", SQLDataType.BOOLEAN)))
+                        .set(USER.ACCOUNT_MANAGER, SqlUtil.excluded(field("account_manager", SQLDataType.BOOLEAN)))
                         .set(USER.UPDATED_AT, SqlUtil.excluded(field("updated_at", SQLDataType.BIGINT)))
                 else ->
                     onDuplicateKeyUpdate()
                         .set(USER.ADMIN, MySQLDSL.values(field("admin", SQLDataType.BOOLEAN)))
+                        .set(USER.ACCOUNT_MANAGER, MySQLDSL.values(field("account_manager", SQLDataType.BOOLEAN)))
                         .set(USER.UPDATED_AT, MySQLDSL.values(field("updated_at", SQLDataType.BIGINT)))
             }
         }

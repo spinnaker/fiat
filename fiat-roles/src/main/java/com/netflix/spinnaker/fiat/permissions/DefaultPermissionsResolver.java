@@ -198,8 +198,14 @@ public class DefaultPermissionsResolver implements PermissionsResolver {
               return new UserPermission()
                   .setId(userId)
                   .setRoles(userRoles)
+<<<<<<< HEAD
                   .setAdmin(resolveAdminRole(userRoles))
                   .addResources(getResources(userId, userRoles, resolveAdminRole(userRoles)));
+=======
+                  .setAdmin(hasAdminRole(userRoles))
+                  .setAccountManager(hasAccountManagerRole(userRoles))
+                  .addResources(getResources(userId, userRoles, hasAdminRole(userRoles)));
+>>>>>>> 9e7b7a0 (fix(roles): Ensure account manager role is cached (#960))
             })
         .collect(Collectors.toMap(UserPermission::getId, Function.identity()));
   }

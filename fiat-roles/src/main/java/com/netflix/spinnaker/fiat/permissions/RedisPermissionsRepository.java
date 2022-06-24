@@ -68,6 +68,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private static final String KEY_ROLES = "roles";
   private static final String KEY_ALL_USERS = "users";
   private static final String KEY_ADMIN = "admin";
+  private static final String KEY_ACCOUNT_MANAGERS = "accountmanagers";
   private static final String KEY_LAST_MODIFIED = "last_modified";
 
   private static final String UNRESTRICTED = UnrestrictedResourceConfig.UNRESTRICTED_USERNAME;
@@ -91,6 +92,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   private final String prefix;
   private final byte[] allUsersKey;
   private final byte[] adminKey;
+  private final byte[] accountManagersKey;
 
   RedisPermissionsRepository(
       Clock clock,
@@ -114,6 +116,13 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     this.allUsersKey = SafeEncoder.encode(String.format("%s:%s", prefix, KEY_ALL_USERS));
     this.adminKey =
         SafeEncoder.encode(String.format("%s:%s:%s", prefix, KEY_PERMISSIONS, KEY_ADMIN));
+<<<<<<< HEAD
+=======
+    this.accountManagersKey =
+        SafeEncoder.encode(String.format("%s:%s", prefix, KEY_ACCOUNT_MANAGERS));
+
+    this.syncThreadPool = new ForkJoinPool(configProps.getRepository().getSyncThreads());
+>>>>>>> 9e7b7a0 (fix(roles): Ensure account manager role is cached (#960))
   }
 
   public RedisPermissionsRepository(
@@ -247,6 +256,12 @@ public class RedisPermissionsRepository implements PermissionsRepository {
               pipeline.srem(adminKey, bUserId);
             }
 
+            if (permission.isAccountManager()) {
+              pipeline.sadd(accountManagersKey, bUserId);
+            } else {
+              pipeline.srem(accountManagersKey, bUserId);
+            }
+
             permission.getRoles().forEach(role -> pipeline.sadd(roleKey(role), bUserId));
             existingRoles.stream()
                 .filter(it -> !permission.getRoles().contains(it))
@@ -374,6 +389,9 @@ public class RedisPermissionsRepository implements PermissionsRepository {
       if (!UNRESTRICTED.equals(id)) {
         userPermission.setAdmin(
             redisRead(timeoutContext, c -> c.sismember(adminKey, SafeEncoder.encode(id))));
+        userPermission.setAccountManager(
+            redisRead(
+                timeoutContext, c -> c.sismember(accountManagersKey, SafeEncoder.encode(id))));
         userPermission.merge(getUnrestrictedUserPermission());
       }
       return Optional.of(userPermission);
@@ -444,6 +462,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
 
             resources.stream().map(Resource::getResourceType).forEach(r -> p.del(userKey(id, r)));
             p.srem(adminKey, bId);
+            p.srem(accountManagersKey, bId);
             p.sync();
           });
     } catch (Exception e) {
