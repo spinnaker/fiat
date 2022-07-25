@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Netflix, Inc.
+ * Copyright 2022 Armory, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package com.netflix.spinnaker.fiat.roles;
 
 import java.util.List;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,13 +42,13 @@ public interface UserRolesSyncStrategy {
     private final Synchronizer synchronizer;
     private final CallableCache<List<String>, Long> callableCache;
 
-    public CachedSynchronizationStrategy(Synchronizer synchronizer) {
+    public CachedSynchronizationStrategy(@NonNull Synchronizer synchronizer) {
       this.synchronizer = synchronizer;
       this.callableCache = new CallableCache<>();
     }
 
     public CachedSynchronizationStrategy(
-        Synchronizer synchronizer, CallableCache<List<String>, Long> cache) {
+        @NonNull Synchronizer synchronizer, @NonNull CallableCache<List<String>, Long> cache) {
       this.synchronizer = synchronizer;
       this.callableCache = cache;
     }
@@ -56,7 +57,7 @@ public interface UserRolesSyncStrategy {
     public long syncAndReturn(List<String> roles) {
       try {
         return this.callableCache
-            .runAndGetResult(roles, () -> synchronizer.syncAndReturn(roles))
+            .runAndGetResult(roles, () -> this.synchronizer.syncAndReturn(roles))
             .get();
       } catch (Exception e) {
         log.error(e.getMessage());

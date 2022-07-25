@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Netflix, Inc.
+ * Copyright 2022 Armory, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,14 +88,16 @@ public class Synchronizer {
 
     while (true) {
       try {
-        Map<String, Set<Role>> combo = new HashMap<String, Set<Role>>();
+        Map<String, Set<Role>> combo = new HashMap<>();
         // force a refresh of the unrestricted user in case the backing repository is empty:
-        combo.put(UnrestrictedResourceConfig.UNRESTRICTED_USERNAME, new HashSet<Role>());
+        combo.put(UnrestrictedResourceConfig.UNRESTRICTED_USERNAME, new HashSet<>());
         Map<String, Set<Role>> temp;
-        if (!(temp = this.getUserPermissions(roles)).isEmpty()) {
+        boolean userPermissionsExists = (temp = this.getUserPermissions(roles)).isEmpty();
+        if (!userPermissionsExists) {
           combo.putAll(temp);
         }
-        if (!(temp = this.getServiceAccountsAsMap(roles)).isEmpty()) {
+        boolean serviceAccountsExists = (temp = this.getServiceAccountsAsMap(roles)).isEmpty();
+        if (!serviceAccountsExists) {
           combo.putAll(temp);
         }
 
@@ -149,7 +151,7 @@ public class Synchronizer {
     }
   }
 
-  public long updateUserPermissions(Map<String, Set<Role>> rolesById) {
+  private long updateUserPermissions(Map<String, Set<Role>> rolesById) {
     if (rolesById.remove(UnrestrictedResourceConfig.UNRESTRICTED_USERNAME) != null) {
       timeIt(
           "syncAnonymous",

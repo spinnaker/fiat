@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Netflix, Inc.
+ * Copyright 2022 Armory, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,14 @@ package com.netflix.spinnaker.fiat.roles;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class CallableCache<Key, Result> {
+
+  private static final Predicate<Future> isExecutionInProgress =
+      future -> !future.isDone() && !future.isCancelled();
 
   private final ExecutorService executor;
   private final ConcurrentHashMap<Key, Future<Result>> cache;
@@ -34,12 +38,12 @@ public class CallableCache<Key, Result> {
     this.lock = new ReentrantLock();
   }
 
-  public Future<Result> runAndGetResult(Key key, Callable<Result> callable) {
+  Future<Result> runAndGetResult(Key key, Callable<Result> callable) {
     try {
       lock.lock();
       if (isPresent(key)) {
         var futureResultFromCache = cache.get(key);
-        if (isExecutionInProgress(futureResultFromCache)) {
+        if (isExecutionInProgress.test(futureResultFromCache)) {
           log.info(
               "There's running callable in cache associated with the key. Reusing that execution");
           return futureResultFromCache;
@@ -67,10 +71,6 @@ public class CallableCache<Key, Result> {
 
   private boolean isPresent(Key key) {
     return this.cache.containsKey(key);
-  }
-
-  private boolean isExecutionInProgress(Future<Result> callableFuture) {
-    return !callableFuture.isDone() && !callableFuture.isCancelled();
   }
 
   private Future<Result> cacheAndRun(Key key, Callable<Result> callable) {
