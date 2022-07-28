@@ -16,15 +16,17 @@
 
 package com.netflix.spinnaker.fiat.shared;
 
+import com.netflix.spinnaker.fiat.model.SpinnakerAuthorities;
+import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import javax.servlet.*;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
 
@@ -32,33 +34,44 @@ import org.springframework.security.web.authentication.preauth.PreAuthenticatedA
 public class FiatAuthenticationFilter implements Filter {
 
   private final FiatStatus fiatStatus;
+  private final FiatPermissionEvaluator permissionEvaluator;
 
-  public FiatAuthenticationFilter(FiatStatus fiatStatus) {
+  public FiatAuthenticationFilter(
+      FiatStatus fiatStatus, FiatPermissionEvaluator permissionEvaluator) {
     this.fiatStatus = fiatStatus;
+    this.permissionEvaluator = permissionEvaluator;
   }
 
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException {
+    Authentication auth;
     if (!fiatStatus.isEnabled()) {
-      chain.doFilter(request, response);
-      return;
+      List<GrantedAuthority> authorities =
+          List.of(SpinnakerAuthorities.ADMIN_AUTHORITY, SpinnakerAuthorities.ANONYMOUS_AUTHORITY);
+      auth = new AnonymousAuthenticationToken("anonymous", "anonymous", authorities);
+    } else {
+      auth =
+          AuthenticatedRequest.getSpinnakerUser()
+              .map(
+                  username -> {
+                    UserPermission.View permission = permissionEvaluator.getPermission(username);
+                    if (permission == null) {
+                      return null;
+                    }
+                    Set<GrantedAuthority> authorities = permission.toGrantedAuthorities();
+                    return (Authentication)
+                        new PreAuthenticatedAuthenticationToken(username, null, authorities);
+                  })
+              .orElseGet(
+                  () ->
+                      new AnonymousAuthenticationToken(
+                          "anonymous",
+                          "anonymous",
+                          List.of(SpinnakerAuthorities.ANONYMOUS_AUTHORITY)));
     }
 
-    Authentication auth =
-        AuthenticatedRequest.getSpinnakerUser()
-            .map(
-                username ->
-                    (Authentication)
-                        new PreAuthenticatedAuthenticationToken(username, null, new ArrayList<>()))
-            .orElseGet(
-                () ->
-                    new AnonymousAuthenticationToken(
-                        "anonymous",
-                        "anonymous",
-                        AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
-
-    val ctx = SecurityContextHolder.createEmptyContext();
+    var ctx = SecurityContextHolder.createEmptyContext();
     ctx.setAuthentication(auth);
     SecurityContextHolder.setContext(ctx);
     log.debug("Set SecurityContext to user: {}", auth.getPrincipal().toString());

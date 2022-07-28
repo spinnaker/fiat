@@ -86,8 +86,9 @@ public class FiatAuthenticationConfig {
   }
 
   @Bean
-  FiatWebSecurityConfigurerAdapter fiatSecurityConfig(FiatStatus fiatStatus) {
-    return new FiatWebSecurityConfigurerAdapter(fiatStatus);
+  FiatWebSecurityConfigurerAdapter fiatSecurityConfig(
+      FiatStatus fiatStatus, FiatPermissionEvaluator permissionEvaluator) {
+    return new FiatWebSecurityConfigurerAdapter(fiatStatus, permissionEvaluator);
   }
 
   @Bean
@@ -97,12 +98,15 @@ public class FiatAuthenticationConfig {
     return new FiatAccessDeniedExceptionHandler(exceptionMessageDecorator);
   }
 
-  private class FiatWebSecurityConfigurerAdapter extends WebSecurityConfigurerAdapter {
+  private static class FiatWebSecurityConfigurerAdapter extends WebSecurityConfigurerAdapter {
     private final FiatStatus fiatStatus;
+    private final FiatPermissionEvaluator permissionEvaluator;
 
-    private FiatWebSecurityConfigurerAdapter(FiatStatus fiatStatus) {
+    private FiatWebSecurityConfigurerAdapter(
+        FiatStatus fiatStatus, FiatPermissionEvaluator permissionEvaluator) {
       super(true);
       this.fiatStatus = fiatStatus;
+      this.permissionEvaluator = permissionEvaluator;
     }
 
     @Override
@@ -114,7 +118,8 @@ public class FiatAuthenticationConfig {
           .anonymous()
           .and()
           .addFilterBefore(
-              new FiatAuthenticationFilter(fiatStatus), AnonymousAuthenticationFilter.class);
+              new FiatAuthenticationFilter(fiatStatus, permissionEvaluator),
+              AnonymousAuthenticationFilter.class);
     }
   }
 }
