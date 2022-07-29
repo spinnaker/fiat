@@ -19,6 +19,11 @@ package com.netflix.spinnaker.fiat.model;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+/**
+ * Constants and utilities for working with Spring Security GrantedAuthority objects specific to
+ * Spinnaker and Fiat. Spinnaker-specific roles such as admin and account manager are represented
+ * here as granted authorities.
+ */
 public class SpinnakerAuthorities {
   public static final String ADMIN = "SPINNAKER_ADMIN";
   /** Granted authority for Spinnaker administrators. */

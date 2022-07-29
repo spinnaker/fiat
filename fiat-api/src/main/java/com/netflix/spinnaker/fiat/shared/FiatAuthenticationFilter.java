@@ -16,71 +16,40 @@
 
 package com.netflix.spinnaker.fiat.shared;
 
-import com.netflix.spinnaker.fiat.model.SpinnakerAuthorities;
-import com.netflix.spinnaker.fiat.model.UserPermission;
-import com.netflix.spinnaker.security.AuthenticatedRequest;
 import java.io.IOException;
-import java.util.List;
-import java.util.Set;
-import javax.servlet.*;
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpFilter;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
+import org.springframework.security.web.authentication.AuthenticationConverter;
 
 @Slf4j
-public class FiatAuthenticationFilter implements Filter {
+public class FiatAuthenticationFilter extends HttpFilter {
 
   private final FiatStatus fiatStatus;
-  private final FiatPermissionEvaluator permissionEvaluator;
+  private final AuthenticationConverter authenticationConverter;
 
   public FiatAuthenticationFilter(
-      FiatStatus fiatStatus, FiatPermissionEvaluator permissionEvaluator) {
+      FiatStatus fiatStatus, AuthenticationConverter authenticationConverter) {
     this.fiatStatus = fiatStatus;
-    this.permissionEvaluator = permissionEvaluator;
+    this.authenticationConverter = authenticationConverter;
   }
 
   @Override
-  public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+  protected void doFilter(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
       throws IOException, ServletException {
-    Authentication auth;
-    if (!fiatStatus.isEnabled()) {
-      List<GrantedAuthority> authorities =
-          List.of(SpinnakerAuthorities.ADMIN_AUTHORITY, SpinnakerAuthorities.ANONYMOUS_AUTHORITY);
-      auth = new AnonymousAuthenticationToken("anonymous", "anonymous", authorities);
-    } else {
-      auth =
-          AuthenticatedRequest.getSpinnakerUser()
-              .map(
-                  username -> {
-                    UserPermission.View permission = permissionEvaluator.getPermission(username);
-                    if (permission == null) {
-                      return null;
-                    }
-                    Set<GrantedAuthority> authorities = permission.toGrantedAuthorities();
-                    return (Authentication)
-                        new PreAuthenticatedAuthenticationToken(username, null, authorities);
-                  })
-              .orElseGet(
-                  () ->
-                      new AnonymousAuthenticationToken(
-                          "anonymous",
-                          "anonymous",
-                          List.of(SpinnakerAuthorities.ANONYMOUS_AUTHORITY)));
+    if (fiatStatus.isEnabled()) {
+      SecurityContext ctx = SecurityContextHolder.createEmptyContext();
+      Authentication auth = authenticationConverter.convert(req);
+      ctx.setAuthentication(auth);
+      SecurityContextHolder.setContext(ctx);
+      log.debug("Set SecurityContext to user: {}", auth.getPrincipal().toString());
     }
-
-    var ctx = SecurityContextHolder.createEmptyContext();
-    ctx.setAuthentication(auth);
-    SecurityContextHolder.setContext(ctx);
-    log.debug("Set SecurityContext to user: {}", auth.getPrincipal().toString());
-    chain.doFilter(request, response);
+    chain.doFilter(req, res);
   }
-
-  @Override
-  public void init(FilterConfig filterConfig) throws ServletException {}
-
-  @Override
-  public void destroy() {}
 }
