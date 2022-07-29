@@ -19,13 +19,14 @@ package com.netflix.spinnaker.fiat.shared;
 import com.netflix.spinnaker.fiat.model.Authorization;
 import com.netflix.spinnaker.fiat.model.resources.Permissions;
 import com.netflix.spinnaker.security.AccessControlled;
+import java.util.Objects;
 import org.springframework.security.core.Authentication;
 
 public class AccessControlledResource implements AccessControlled {
   private final Permissions permissions;
 
   public AccessControlledResource(Permissions permissions) {
-    this.permissions = permissions;
+    this.permissions = Objects.requireNonNull(permissions);
   }
 
   @Override
