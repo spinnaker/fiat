@@ -27,6 +27,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationConverter;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
 
+/**
+ * Converts an {@code X-SPINNAKER-USER} HTTP header into an Authentication object containing a list
+ * of roles and other {@linkplain SpinnakerAuthorities granted authorities} in its granted
+ * authorities.
+ */
 @RequiredArgsConstructor
 public class FiatAuthenticationConverter implements AuthenticationConverter {
   private final FiatPermissionEvaluator permissionEvaluator;

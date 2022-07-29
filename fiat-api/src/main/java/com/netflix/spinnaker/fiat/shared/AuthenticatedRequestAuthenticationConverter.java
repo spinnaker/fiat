@@ -25,6 +25,12 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.web.authentication.AuthenticationConverter;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
 
+/**
+ * Provides an Authentication for an HTTP request using the current {@link
+ * AuthenticatedRequest#getSpinnakerUser()}.
+ *
+ * @see AuthenticatedRequest
+ */
 public class AuthenticatedRequestAuthenticationConverter implements AuthenticationConverter {
   @Override
   public Authentication convert(HttpServletRequest request) {
