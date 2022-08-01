@@ -150,6 +150,9 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
   @Override
   public boolean hasPermission(
       Authentication authentication, Object resource, Object authorization) {
+    if (!fiatStatus.isGrantedAuthoritiesEnabled()) {
+      return false;
+    }
     if (!fiatStatus.isEnabled()) {
       return true;
     }

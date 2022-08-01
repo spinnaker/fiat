@@ -292,6 +292,7 @@ class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
     configurationProperties.enabled = true
     configurationProperties.cache.maxEntries = 0
     configurationProperties.cache.expiresAfterWriteSeconds = 0
+    configurationProperties.grantedAuthorities.enabled = true
     return configurationProperties
   }
 
