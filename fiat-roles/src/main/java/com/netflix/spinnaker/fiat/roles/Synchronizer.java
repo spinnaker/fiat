@@ -145,11 +145,11 @@ public class Synchronizer {
 
     // Store this service account as a user with associated resources via `resolveAndMerge`.
     List<Role> convertedRoles =
-            roles.stream()
-                    .map(extRole -> new Role().setSource(Role.Source.EXTERNAL).setName(extRole))
-                    .collect(Collectors.toList());
+        roles.stream()
+            .map(extRole -> new Role().setSource(Role.Source.EXTERNAL).setName(extRole))
+            .collect(Collectors.toList());
     ExternalUser serviceAccount =
-            new ExternalUser().setId(serviceAccountId.toLowerCase()).setExternalRoles(convertedRoles);
+        new ExternalUser().setId(serviceAccountId.toLowerCase()).setExternalRoles(convertedRoles);
     UserPermission serviceAccountPermissions = permissionsResolver.resolveAndMerge(serviceAccount);
     permissionsRepository.put(serviceAccountPermissions);
 
@@ -160,16 +160,16 @@ public class Synchronizer {
     // The chance of collisions are quite low, but if it does occur often we should create
     // a specific update operation on the permissionsRepository.
     Map<String, Collection<Role>> allUsersForRoles =
-            permissionsRepository.getAllByRoles(roles).entrySet().stream()
-                    .filter(
-                            it ->
-                                    it.getValue().stream()
-                                            .map(Role::getName)
-                                            .collect(Collectors.toSet())
-                                            .containsAll(roles))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        permissionsRepository.getAllByRoles(roles).entrySet().stream()
+            .filter(
+                it ->
+                    it.getValue().stream()
+                        .map(Role::getName)
+                        .collect(Collectors.toSet())
+                        .containsAll(roles))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     Map<String, UserPermission> resolvedUsers =
-            permissionsResolver.resolveResources(allUsersForRoles);
+        permissionsResolver.resolveResources(allUsersForRoles);
     permissionsRepository.putAllById(resolvedUsers);
     return allUsersForRoles.size();
   }
