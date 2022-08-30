@@ -35,11 +35,22 @@ public class ResourceProviderConfig {
 
   @Data
   public static class ApplicationProviderConfig {
+    @NestedConfigurationProperty private ClouddriverConfig clouddriver = new ClouddriverConfig();
+  }
+
+  @Data
+  public static class ClouddriverConfig {
     /**
      * If true, then {@link com.netflix.spinnaker.fiat.providers.DefaultApplicationResourceProvider}
      * will call Clouddriver in addition to Front50 for loading applications. If false, then only
      * Front50 will be used.
      */
-    private boolean loadApplicationsFromClouddriver = true;
+    private boolean loadApplications = true;
+
+    /**
+     * Defines how frequently the clouddriver application cache is refreshed. Note that the
+     * clouddriver application cache is refreshed only when loadApplications: true
+     */
+    private long cacheRefreshIntervalMs = 30000;
   }
 }

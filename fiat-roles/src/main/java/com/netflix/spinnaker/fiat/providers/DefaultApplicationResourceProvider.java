@@ -80,7 +80,7 @@ public class DefaultApplicationResourceProvider extends BaseResourceProvider<App
       // This preserves stream concatenation logic below,
       // ensuring that there is a non-null placeholder for Clouddriver applications.
       final List<Application> clouddriverApplications =
-          applicationProviderConfig.isLoadApplicationsFromClouddriver()
+          applicationProviderConfig.getClouddriver().isLoadApplications()
               ? clouddriverService.getApplications()
               : Collections.emptyList();
 
