@@ -11,12 +11,9 @@ databaseChangeLog:
   - include:
       file: changelog/20210324-resource-body-hash.yml
       relativeToChangelogFile: true
-<<<<<<< HEAD
-=======
   - include:
       file: changelog/20220615-account-manager-flag.yml
       relativeToChangelogFile: true
   - include:
       file: changelog/20220727-resource-name-to-lower-case.yml
       relativeToChangelogFile: true
->>>>>>> 611cd94 (fix: add migration to ensure consistency between resource_name in fiat_resource and fiat_permission tables (#964))
