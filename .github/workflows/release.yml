@@ -73,7 +73,7 @@ jobs:
           ORG_GRADLE_PROJECT_artifactRegistryPublishEnabled: true
           GAR_JSON_KEY: ${{ secrets.GAR_JSON_KEY }}
         run: |
-          ./gradlew -PartifactRegistryAptImportTimeoutSeconds=300 --info publish
+          ./gradlew -PartifactRegistryAptImportTimeoutSeconds=600 --info --stacktrace publish
       - name: Login to Google Cloud
         # Only run this on repositories in the 'spinnaker' org, not on forks.
         if: startsWith(github.repository, 'spinnaker/')
