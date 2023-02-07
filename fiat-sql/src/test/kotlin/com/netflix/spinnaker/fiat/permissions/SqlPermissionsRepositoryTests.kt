@@ -21,7 +21,6 @@ import com.netflix.spinnaker.fiat.config.UnrestrictedResourceConfig.UNRESTRICTED
 import com.netflix.spinnaker.fiat.model.Authorization
 import com.netflix.spinnaker.fiat.model.UserPermission
 import com.netflix.spinnaker.fiat.model.resources.*
-import com.netflix.spinnaker.fiat.permissions.SqlPermissionsRepository
 import com.netflix.spinnaker.kork.sql.config.SqlRetryProperties
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.PERMISSION
 import com.netflix.spinnaker.fiat.permissions.sql.tables.references.RESOURCE
@@ -30,7 +29,6 @@ import com.netflix.spinnaker.kork.dynamicconfig.DynamicConfigService
 import dev.minutest.ContextBuilder
 import dev.minutest.junit.JUnit5Minutests
 import dev.minutest.rootContext
-import kotlinx.coroutines.newSingleThreadContext
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL.*
@@ -682,6 +680,47 @@ internal object SqlPermissionsRepositoryTests : JUnit5Minutests {
                 }
             }
 
+<<<<<<< HEAD
+=======
+            test("putAllById should not delete existing permissions when application name is uppercase") {
+                val abcRead = Permissions.Builder().add(Authorization.EXECUTE, "abc").build()
+                val account1 = Account().setName("account").setPermissions(abcRead)
+                val application1 = Application().setName("APP").setPermissions(abcRead)
+                val testUser = UserPermission()
+                        .setId("testUser")
+                        .setAccounts(mutableSetOf(account1))
+                        .setApplications(mutableSetOf(application1))
+                        .setServiceAccounts(mutableSetOf(ServiceAccount().setName("serviceAccount")))
+
+                sqlPermissionsRepository.put(testUser)
+
+                expectThat(
+                        jooq.select(USER.ADMIN).from(USER).where(USER.ID.eq("testuser")).fetchOne(USER.ADMIN)
+                ).isFalse()
+
+                sqlPermissionsRepository.putAllById(mutableMapOf("testUser" to testUser))
+
+
+                expectThat(
+                        jooq.selectCount().from(USER).fetchOne(count())
+                ).isEqualTo(1)
+
+
+                expectThat(
+                        resourceBody(jooq, "testuser", application1.resourceType, application1.name.toLowerCase()).get()
+                ).isEqualTo("""{"name":"APP","permissions":{"EXECUTE":["abc"]},"details":{}}""")
+
+                expectThat(
+                        jooq.select(PERMISSION.RESOURCE_TYPE).from(PERMISSION).where(PERMISSION.USER_ID.eq("testuser").and(PERMISSION.RESOURCE_NAME.eq("app"))).count()
+                ).isEqualTo(1)
+
+                sqlPermissionsRepository.putAllById(mutableMapOf("testUser" to testUser))
+                expectThat(
+                        jooq.select(PERMISSION.RESOURCE_TYPE).from(PERMISSION).where(PERMISSION.USER_ID.eq("testuser").and(PERMISSION.RESOURCE_NAME.eq("app"))).count()
+                ).isEqualTo(1)
+
+            }
+>>>>>>> 6d4bcfc (fix: Should fix the deletion of permissions when resource name is uppercase (#1012))
         }
 
         after {
