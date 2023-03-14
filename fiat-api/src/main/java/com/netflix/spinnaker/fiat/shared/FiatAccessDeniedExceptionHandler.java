@@ -41,6 +41,10 @@ public class FiatAccessDeniedExceptionHandler {
 
   private final ExceptionMessageDecorator exceptionMessageDecorator;
 
+  private static final String SECRET_DATA_HEADER_FORMAT = "X-";
+  private static final String AUTHORIZATION_HEADER = "Authorization";
+  private static final String SECRET_DATA_VALUE = "**REDACTED**";
+
   public FiatAccessDeniedExceptionHandler(ExceptionMessageDecorator exceptionMessageDecorator) {
     this.exceptionMessageDecorator = exceptionMessageDecorator;
   }
@@ -111,12 +115,24 @@ public class FiatAccessDeniedExceptionHandler {
     if (request.getHeaderNames() != null) {
       for (Enumeration<String> h = request.getHeaderNames(); h.hasMoreElements(); ) {
         String headerName = h.nextElement();
-        String headerValue = request.getHeader(headerName);
+        String headerValue = getRedactedHeaderValue(headerName, request.getHeader(headerName));
         headers.put(headerName, headerValue);
       }
     }
 
     return headers;
+  }
+
+  private String getRedactedHeaderValue(String headerName, String headerValue) {
+    if (headerName.startsWith(SECRET_DATA_HEADER_FORMAT)) {
+      return SECRET_DATA_VALUE;
+    } else {
+      if (headerName.contains(AUTHORIZATION_HEADER)) {
+        return headerValue.trim().split("\n")[0].split(" ")[0] + " " + SECRET_DATA_VALUE;
+      } else {
+        return headerValue;
+      }
+    }
   }
 
   private void storeException(
