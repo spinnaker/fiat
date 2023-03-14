@@ -26,7 +26,6 @@ import com.netflix.spinnaker.kork.web.exceptions.ExceptionMessageDecorator
 import org.jetbrains.annotations.Nullable
 import org.springframework.beans.BeansException
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken
 import spock.lang.Shared
 import spock.lang.Subject
@@ -76,7 +75,7 @@ class FiatAccessDeniedExceptionHandlerSpec extends FiatSharedSpecification {
     @Subject
     def fiatAccessDeniedExceptionHandler = new FiatAccessDeniedExceptionHandler(exceptionMessageDecorator)
 
-    def request = new MockHttpServletRequest()
+    def request = Mock(HttpServletRequest)
     def response = Mock(HttpServletResponse)
 
     @Shared
@@ -98,10 +97,6 @@ class FiatAccessDeniedExceptionHandlerSpec extends FiatSharedSpecification {
         upv.setApplications([new Application.View().setName(resource)
                                      .setAuthorizations([userAuthorizationType] as Set)] as Set)
         fiatService.getUserPermission("testUser") >> upv
-
-        request.addHeader("Content-Type", "text/html");
-        request.addHeader("Authorization", "bearer token");
-        request.addHeader("X-Frame-Options", "DENY");
 
         when:
         evaluator.hasPermission(authentication, resource, 'APPLICATION', authorizationTypeRequired)
