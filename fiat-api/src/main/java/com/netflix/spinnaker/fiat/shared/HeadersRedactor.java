@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Netflix, Inc.
+ * Copyright 2023 Armory, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 
-public class HeadersRedactor {
+class HeadersRedactor {
 
   private static final String SECRET_DATA_HEADER_FORMAT = "X-";
   private static final String AUTHORIZATION_HEADER = "Authorization";
@@ -40,7 +40,7 @@ public class HeadersRedactor {
     return headers;
   }
 
-  private String getRedactedHeaderValue(String headerName, String headerValue) {
+  private static String getRedactedHeaderValue(String headerName, String headerValue) {
     if (headerName.startsWith(SECRET_DATA_HEADER_FORMAT)) {
       return SECRET_DATA_VALUE;
     } else {
@@ -48,7 +48,7 @@ public class HeadersRedactor {
     }
   }
 
-  private String removeCredsFromAuthorization(String headerName, String headerValue) {
+  private static String removeCredsFromAuthorization(String headerName, String headerValue) {
     if (headerName.contains(AUTHORIZATION_HEADER)) {
       return headerValue.trim().split("\n")[0].split(" ")[0] + " " + SECRET_DATA_VALUE;
     } else {
