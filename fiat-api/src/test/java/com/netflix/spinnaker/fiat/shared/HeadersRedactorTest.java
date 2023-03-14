@@ -28,7 +28,7 @@ class HeadersRedactorTest {
   HeadersRedactor unit = new HeadersRedactor();
 
   @Test
-  public void redactHeadersTest() {
+  public void verifyNoSecretDataIsShownTest() {
     request.addHeader("Content-Type", "text/html");
     request.addHeader("Authorization", "bearer token");
     request.addHeader("Proxy-Authorization", "bearer token");
@@ -36,9 +36,9 @@ class HeadersRedactorTest {
 
     Map<String, String> result = unit.getRedactedHeaders(request);
 
-    assertEquals("text/html", result.get("Content-Type"));
-    assertEquals("bearer **REDACTED**", result.get("Authorization"));
-    assertEquals("bearer **REDACTED**", result.get("Proxy-Authorization"));
-    assertEquals("**REDACTED**", result.get("X-Frame-Options"));
+    assertEquals("**REDACTED**", result.get("Content-Type"));
+    assertEquals("**REDACTED**", result.get("Authorization"));
+    assertEquals("**REDACTED**", result.get("Proxy-Authorization"));
+    assertEquals("DENY", result.get("X-Frame-Options"));
   }
 }

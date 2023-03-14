@@ -41,16 +41,8 @@ class HeadersRedactor {
   }
 
   private static String getRedactedHeaderValue(String headerName, String headerValue) {
-    if (headerName.startsWith(SECRET_DATA_HEADER_FORMAT)) {
+    if (!headerName.startsWith(SECRET_DATA_HEADER_FORMAT)) {
       return SECRET_DATA_VALUE;
-    } else {
-      return removeCredsFromAuthorization(headerName, headerValue);
-    }
-  }
-
-  private static String removeCredsFromAuthorization(String headerName, String headerValue) {
-    if (headerName.contains(AUTHORIZATION_HEADER)) {
-      return headerValue.trim().split("\n")[0].split(" ")[0] + " " + SECRET_DATA_VALUE;
     } else {
       return headerValue;
     }
