@@ -23,8 +23,7 @@ import javax.servlet.http.HttpServletRequest;
 
 class HeadersRedactor {
 
-  private static final String SECRET_DATA_HEADER_FORMAT = "X-";
-  private static final String AUTHORIZATION_HEADER = "Authorization";
+  private static final String WHITELIST_HEADER_PREFIX = "X-";
   private static final String SECRET_DATA_VALUE = "**REDACTED**";
 
   public Map<String, String> getRedactedHeaders(HttpServletRequest request) {
@@ -40,8 +39,8 @@ class HeadersRedactor {
     return headers;
   }
 
-  private static String getRedactedHeaderValue(String headerName, String headerValue) {
-    if (!headerName.startsWith(SECRET_DATA_HEADER_FORMAT)) {
+  private String getRedactedHeaderValue(String headerName, String headerValue) {
+    if (!headerName.startsWith(WHITELIST_HEADER_PREFIX)) {
       return SECRET_DATA_VALUE;
     } else {
       return headerValue;
