@@ -30,6 +30,9 @@ import com.netflix.spinnaker.fiat.roles.github.model.Team;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+
+import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerHttpException;
+import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerNetworkException;
 import lombok.Data;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -38,10 +41,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
-import retrofit.RetrofitError;
-import retrofit.client.Header;
 
 @Slf4j
 @Component
@@ -268,8 +271,10 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     try {
       log.debug("Requesting page " + page + " of teams.");
       teams = gitHubClient.getOrgTeams(organization, page, gitHubProperties.paginationValue);
-    } catch (RetrofitError e) {
-      if (e.getResponse().getStatus() != 404) {
+    } catch (SpinnakerNetworkException e){
+      log.error(String.format("Could not find the server %s", gitHubProperties.getBaseUrl()), e);
+    } catch (SpinnakerHttpException e) {
+      if (e.getResponseCode() != HttpStatus.NOT_FOUND.value()) {
         handleNon404s(e);
         throw e;
       } else {
@@ -285,8 +290,10 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     try {
       log.debug("Requesting page " + page + " of members.");
       members = gitHubClient.getOrgMembers(organization, page, gitHubProperties.paginationValue);
-    } catch (RetrofitError e) {
-      if (e.getResponse().getStatus() != 404) {
+    } catch (SpinnakerNetworkException e){
+      log.error(String.format("Could not find the server %s", gitHubProperties.getBaseUrl()), e);
+    } catch (SpinnakerHttpException e) {
+      if (e.getResponseCode() != HttpStatus.NOT_FOUND.value()) {
         handleNon404s(e);
         throw e;
       } else {
@@ -304,8 +311,10 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
       members =
           gitHubClient.getMembersOfTeam(
               organization, teamSlug, page, gitHubProperties.paginationValue);
-    } catch (RetrofitError e) {
-      if (e.getResponse().getStatus() != 404) {
+    } catch (SpinnakerNetworkException e){
+      log.error(String.format("Could not find the server %s", gitHubProperties.getBaseUrl()), e);
+    } catch (SpinnakerHttpException e) {
+      if (e.getResponseCode() != HttpStatus.NOT_FOUND.value()) {
         handleNon404s(e);
         throw e;
       } else {
@@ -325,17 +334,16 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     return false;
   }
 
-  private void handleNon404s(RetrofitError e) {
+  private void handleNon404s(SpinnakerHttpException e) {
     String msg = "";
-    if (e.getKind() == RetrofitError.Kind.NETWORK) {
-      msg = String.format("Could not find the server %s", gitHubProperties.getBaseUrl());
-    } else if (e.getResponse().getStatus() == 401) {
+    if (e.getResponseCode() == HttpStatus.UNAUTHORIZED.value()) {
       msg = "HTTP 401 Unauthorized.";
-    } else if (e.getResponse().getStatus() == 403) {
+    } else if (e.getResponseCode() == HttpStatus.FORBIDDEN.value()) {
+      HttpHeaders headers = e.getHeaders();
       val rateHeaders =
-          e.getResponse().getHeaders().stream()
-              .filter(header -> RATE_LIMITING_HEADERS.contains(header.getName()))
-              .map(Header::toString)
+          RATE_LIMITING_HEADERS.stream()
+              .filter(headers::containsKey)
+              .map(headers::getFirst)
               .collect(Collectors.toList());
 
       msg = "HTTP 403 Forbidden. Rate limit info: " + StringUtils.join(rateHeaders, ", ");

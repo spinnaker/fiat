@@ -27,7 +27,10 @@ import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Authorizable;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
 import com.netflix.spinnaker.kork.exceptions.IntegrationException;
+import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerHttpException;
+import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerServerException;
 import com.netflix.spinnaker.kork.telemetry.caffeine.CaffeineStatsCounter;
+import com.netflix.spinnaker.kork.web.exceptions.NotFoundException;
 import com.netflix.spinnaker.security.AccessControlled;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
 import java.io.Serializable;
@@ -55,7 +58,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.BackOffExecution;
 import org.springframework.util.backoff.ExponentialBackOff;
-import retrofit.RetrofitError;
 
 @Component
 @Slf4j
@@ -188,18 +190,19 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
                       try {
                         fiatService.canCreate(username, resourceType, resource);
                         return true;
-                      } catch (RetrofitError re) {
+                      } catch (NotFoundException e) {
+                        return false;
+                      } catch (SpinnakerHttpException e) {
                         boolean shouldRetry = true;
-                        if (re.getKind() == RetrofitError.Kind.HTTP) {
-                          switch (HttpStatus.valueOf(re.getResponse().getStatus())) {
-                            case NOT_FOUND:
-                              return false;
-                            case BAD_REQUEST:
-                              shouldRetry = false;
-                          }
+                        if (e.getResponseCode() == HttpStatus.BAD_REQUEST.value()) {
+                          shouldRetry = false;
                         }
-                        IntegrationException ie = new IntegrationException(re);
+                        IntegrationException ie = new IntegrationException(e);
                         ie.setRetryable(shouldRetry);
+                        throw ie;
+                      } catch (SpinnakerServerException e) {
+                        IntegrationException ie = new IntegrationException(e);
+                        ie.setRetryable(true);
                         throw ie;
                       }
                     });
