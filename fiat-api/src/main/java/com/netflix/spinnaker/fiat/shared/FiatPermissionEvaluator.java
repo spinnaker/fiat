@@ -26,7 +26,6 @@ import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Authorizable;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
-import com.netflix.spinnaker.kork.exceptions.IntegrationException;
 import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerHttpException;
 import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerServerException;
 import com.netflix.spinnaker.kork.telemetry.caffeine.CaffeineStatsCounter;
@@ -197,13 +196,11 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
                         if (e.getResponseCode() == HttpStatus.BAD_REQUEST.value()) {
                           shouldRetry = false;
                         }
-                        IntegrationException ie = new IntegrationException(e);
-                        ie.setRetryable(shouldRetry);
-                        throw ie;
+                        e.setRetryable(shouldRetry);
+                        throw e;
                       } catch (SpinnakerServerException e) {
-                        IntegrationException ie = new IntegrationException(e);
-                        ie.setRetryable(true);
-                        throw ie;
+                        e.setRetryable(true);
+                        throw e;
                       }
                     });
               })
