@@ -26,6 +26,7 @@ import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Authorizable;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
+import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerHttpException;
 import com.netflix.spinnaker.kork.telemetry.caffeine.CaffeineStatsCounter;
 import com.netflix.spinnaker.kork.web.exceptions.NotFoundException;
 import com.netflix.spinnaker.security.AccessControlled;
@@ -187,8 +188,11 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
                       try {
                         fiatService.canCreate(username, resourceType, resource);
                         return true;
-                      } catch (NotFoundException e) {
-                        return false;
+                      } catch (SpinnakerHttpException e) {
+                        if(e.getResponseCode() == HttpStatus.NOT_FOUND.value()){
+                          return false;
+                        }
+                        throw e;
                       }
                     });
               })
