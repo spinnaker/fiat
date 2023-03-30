@@ -27,12 +27,11 @@ import com.netflix.spinnaker.fiat.roles.UserRolesProvider;
 import com.netflix.spinnaker.fiat.roles.github.client.GitHubClient;
 import com.netflix.spinnaker.fiat.roles.github.model.Member;
 import com.netflix.spinnaker.fiat.roles.github.model.Team;
+import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerHttpException;
+import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerNetworkException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
-
-import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerHttpException;
-import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerNetworkException;
 import lombok.Data;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -271,7 +270,7 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     try {
       log.debug("Requesting page " + page + " of teams.");
       teams = gitHubClient.getOrgTeams(organization, page, gitHubProperties.paginationValue);
-    } catch (SpinnakerNetworkException e){
+    } catch (SpinnakerNetworkException e) {
       log.error(String.format("Could not find the server %s", gitHubProperties.getBaseUrl()), e);
     } catch (SpinnakerHttpException e) {
       if (e.getResponseCode() != HttpStatus.NOT_FOUND.value()) {
@@ -290,7 +289,7 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
     try {
       log.debug("Requesting page " + page + " of members.");
       members = gitHubClient.getOrgMembers(organization, page, gitHubProperties.paginationValue);
-    } catch (SpinnakerNetworkException e){
+    } catch (SpinnakerNetworkException e) {
       log.error(String.format("Could not find the server %s", gitHubProperties.getBaseUrl()), e);
     } catch (SpinnakerHttpException e) {
       if (e.getResponseCode() != HttpStatus.NOT_FOUND.value()) {
@@ -311,7 +310,7 @@ public class GithubTeamsUserRolesProvider implements UserRolesProvider, Initiali
       members =
           gitHubClient.getMembersOfTeam(
               organization, teamSlug, page, gitHubProperties.paginationValue);
-    } catch (SpinnakerNetworkException e){
+    } catch (SpinnakerNetworkException e) {
       log.error(String.format("Could not find the server %s", gitHubProperties.getBaseUrl()), e);
     } catch (SpinnakerHttpException e) {
       if (e.getResponseCode() != HttpStatus.NOT_FOUND.value()) {
