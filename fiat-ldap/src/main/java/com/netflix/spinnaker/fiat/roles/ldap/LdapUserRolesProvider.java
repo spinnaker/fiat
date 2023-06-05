@@ -169,11 +169,10 @@ public class LdapUserRolesProvider implements UserRolesProvider {
     if (users.size() > configProps.getThresholdToUseGroupMembership()
         && StringUtils.isNotEmpty(configProps.getGroupUserAttributes())) {
       log.info("Querying all groups to get a mapping of user to its roles.");
-      Set<String> userIds =
-          users.stream().map(user -> user.getId().toLowerCase()).collect(Collectors.toSet());
       if (configProps.isEnableDnBasedMultiLoad()) {
-        return multiLoadDnBasedRoles(userIds);
+        return multiLoadDnBasedRoles(users);
       }
+      Set<String> userIds = users.stream().map(ExternalUser::getId).collect(Collectors.toSet());
       return ldapTemplate
           .search(
               configProps.getGroupSearchBase(),
@@ -198,7 +197,9 @@ public class LdapUserRolesProvider implements UserRolesProvider {
         .collect(Collectors.toMap(ExternalUser::getId, ExternalUser::getExternalRoles));
   }
 
-  private Map<String, Collection<Role>> multiLoadDnBasedRoles(Set<String> userIds) {
+  private Map<String, Collection<Role>> multiLoadDnBasedRoles(Collection<ExternalUser> users) {
+    Set<String> userIds =
+        users.stream().map(user -> user.getId().toLowerCase()).collect(Collectors.toSet());
     Map<String, String> userDNToId = getUserDNs(userIds);
     Map<String, Collection<Role>> userDNtoRoles =
         configProps.isEnablePagingForGroupMembershipQueries()
