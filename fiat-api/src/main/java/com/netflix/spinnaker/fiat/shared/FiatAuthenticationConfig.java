@@ -116,7 +116,7 @@ public class FiatAuthenticationConfig {
     protected void configure(HttpSecurity http) throws Exception {
       http.servletApi(withDefaults())
           .exceptionHandling(withDefaults())
-          .anonymous(withDefaults())
+          .anonymous(anonymous -> anonymous.principal("anonymous"))
           .addFilterBefore(
               new FiatAuthenticationFilter(fiatStatus, authenticationConverter),
               AnonymousAuthenticationFilter.class);
