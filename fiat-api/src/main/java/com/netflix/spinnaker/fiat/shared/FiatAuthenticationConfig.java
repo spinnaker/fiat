@@ -28,6 +28,7 @@ import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerRetrofitErrorHand
 import com.netflix.spinnaker.kork.web.exceptions.ExceptionMessageDecorator;
 import com.netflix.spinnaker.okhttp.SpinnakerRequestInterceptor;
 import com.netflix.spinnaker.retrofit.Slf4jRetrofitLogger;
+import com.netflix.spinnaker.security.SpinnakerUsers;
 import lombok.Setter;
 import lombok.val;
 import okhttp3.OkHttpClient;
@@ -143,6 +144,8 @@ public class FiatAuthenticationConfig {
           .exceptionHandling()
           .and()
           .anonymous()
+          // match the same anonymous userid as expected elsewhere
+          .principal(SpinnakerUsers.ANONYMOUS)
           .and()
           .addFilterBefore(
               new FiatAuthenticationFilter(fiatStatus, authenticationConverter),
