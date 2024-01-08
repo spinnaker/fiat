@@ -17,11 +17,8 @@
 package com.netflix.spinnaker.fiat.shared;
 
 import com.netflix.spinnaker.security.AuthenticatedRequest;
-import com.netflix.spinnaker.security.SpinnakerAuthorities;
-import com.netflix.spinnaker.security.SpinnakerUsers;
 import java.util.List;
 import javax.servlet.http.HttpServletRequest;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationConverter;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
@@ -39,11 +36,6 @@ public class AuthenticatedRequestAuthenticationConverter implements Authenticati
         .map(
             user ->
                 (Authentication) new PreAuthenticatedAuthenticationToken(user, "N/A", List.of()))
-        .orElseGet(
-            () ->
-                new AnonymousAuthenticationToken(
-                    SpinnakerUsers.ANONYMOUS,
-                    SpinnakerUsers.ANONYMOUS,
-                    List.of(SpinnakerAuthorities.ANONYMOUS_AUTHORITY)));
+        .orElse(FiatWebSecurityConfigurerAdapter.ANONYMOUS);
   }
 }

@@ -19,11 +19,8 @@ package com.netflix.spinnaker.fiat.shared;
 import com.netflix.spinnaker.fiat.model.SpinnakerAuthorities;
 import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.kork.common.Header;
-import com.netflix.spinnaker.security.SpinnakerUsers;
-import java.util.List;
 import javax.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationConverter;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
@@ -47,9 +44,6 @@ public class FiatAuthenticationConverter implements AuthenticationConverter {
             user, "N/A", permission.toGrantedAuthorities());
       }
     }
-    return new AnonymousAuthenticationToken(
-        SpinnakerUsers.ANONYMOUS,
-        SpinnakerUsers.ANONYMOUS,
-        List.of(SpinnakerAuthorities.ANONYMOUS_AUTHORITY));
+    return FiatWebSecurityConfigurerAdapter.ANONYMOUS;
   }
 }
