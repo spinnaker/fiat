@@ -16,16 +16,11 @@
 
 package com.netflix.spinnaker.fiat.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jakewharton.retrofit.Ok3Client;
 import com.netflix.spinnaker.config.DefaultServiceEndpoint;
-import com.netflix.spinnaker.config.okhttp3.OkHttpClientProvider;
 import com.netflix.spinnaker.fiat.providers.ProviderHealthTracker;
 import com.netflix.spinnaker.fiat.providers.internal.*;
-import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerRetrofitErrorHandler;
-import com.netflix.spinnaker.retrofit.Slf4jRetrofitLogger;
-import lombok.Setter;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.netflix.spinnaker.kork.client.ServiceClientProvider;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -35,45 +30,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.annotation.Scope;
-import retrofit.Endpoints;
-import retrofit.RestAdapter;
-import retrofit.converter.JacksonConverter;
 
 @Configuration
 @EnableConfigurationProperties(ProviderCacheConfig.class)
 @PropertySource("classpath:resilience4j-defaults.properties")
+@RequiredArgsConstructor
 public class ResourcesConfig {
-  @Autowired @Setter private RestAdapter.LogLevel retrofitLogLevel;
-
-  @Autowired @Setter private ObjectMapper objectMapper;
-
-  @Autowired @Setter private OkHttpClientProvider clientProvider;
-
-  @Value("${services.front50.base-url}")
-  @Setter
-  private String front50Endpoint;
-
-  @Value("${services.clouddriver.base-url}")
-  @Setter
-  private String clouddriverEndpoint;
-
-  @Value("${services.igor.base-url}")
-  @Setter
-  private String igorEndpoint;
+  private final ServiceClientProvider provider;
 
   @Bean
-  Front50Api front50Api() {
-    return new RestAdapter.Builder()
-        .setEndpoint(Endpoints.newFixedEndpoint(front50Endpoint))
-        .setClient(
-            new Ok3Client(
-                clientProvider.getClient(new DefaultServiceEndpoint("front50", front50Endpoint))))
-        .setConverter(new JacksonConverter(objectMapper))
-        .setErrorHandler(SpinnakerRetrofitErrorHandler.getInstance())
-        .setLogLevel(retrofitLogLevel)
-        .setLog(new Slf4jRetrofitLogger(Front50Api.class))
-        .build()
-        .create(Front50Api.class);
+  Front50Api front50Api(@Value("${services.front50.base-url}") String front50Endpoint) {
+    return provider.getService(
+        Front50Api.class, new DefaultServiceEndpoint("front50", front50Endpoint));
   }
 
   @Bean
@@ -96,19 +64,10 @@ public class ResourcesConfig {
   }
 
   @Bean
-  ClouddriverApi clouddriverApi() {
-    return new RestAdapter.Builder()
-        .setEndpoint(Endpoints.newFixedEndpoint(clouddriverEndpoint))
-        .setClient(
-            new Ok3Client(
-                clientProvider.getClient(
-                    new DefaultServiceEndpoint("clouddriver", clouddriverEndpoint))))
-        .setConverter(new JacksonConverter(objectMapper))
-        .setErrorHandler(SpinnakerRetrofitErrorHandler.getInstance())
-        .setLogLevel(retrofitLogLevel)
-        .setLog(new Slf4jRetrofitLogger(ClouddriverApi.class))
-        .build()
-        .create(ClouddriverApi.class);
+  ClouddriverApi clouddriverApi(
+      @Value("${services.clouddriver.base-url}") String clouddriverEndpoint) {
+    return provider.getService(
+        ClouddriverApi.class, new DefaultServiceEndpoint("clouddriver", clouddriverEndpoint));
   }
 
   @Bean
@@ -154,17 +113,7 @@ public class ResourcesConfig {
   @Bean
   @ConditionalOnProperty("services.igor.enabled")
   IgorApi igorApi(@Value("${services.igor.base-url}") String igorEndpoint) {
-    return new RestAdapter.Builder()
-        .setEndpoint(Endpoints.newFixedEndpoint(igorEndpoint))
-        .setClient(
-            new Ok3Client(
-                clientProvider.getClient(new DefaultServiceEndpoint("igor", igorEndpoint))))
-        .setConverter(new JacksonConverter(objectMapper))
-        .setErrorHandler(SpinnakerRetrofitErrorHandler.getInstance())
-        .setLogLevel(retrofitLogLevel)
-        .setLog(new Slf4jRetrofitLogger(IgorApi.class))
-        .build()
-        .create(IgorApi.class);
+    return provider.getService(IgorApi.class, new DefaultServiceEndpoint("igor", igorEndpoint));
   }
 
   @Bean
