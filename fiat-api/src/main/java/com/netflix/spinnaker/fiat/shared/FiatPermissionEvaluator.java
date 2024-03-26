@@ -21,15 +21,15 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.netflix.spectator.api.Id;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.fiat.model.Authorization;
-import com.netflix.spinnaker.fiat.model.SpinnakerAuthorities;
 import com.netflix.spinnaker.fiat.model.UserPermission;
 import com.netflix.spinnaker.fiat.model.resources.Account;
 import com.netflix.spinnaker.fiat.model.resources.Authorizable;
 import com.netflix.spinnaker.fiat.model.resources.ResourceType;
 import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerHttpException;
 import com.netflix.spinnaker.kork.telemetry.caffeine.CaffeineStatsCounter;
-import com.netflix.spinnaker.security.AccessControlled;
+import com.netflix.spinnaker.security.AbstractPermissionEvaluator;
 import com.netflix.spinnaker.security.AuthenticatedRequest;
+import com.netflix.spinnaker.security.SpinnakerUsers;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,17 +48,14 @@ import lombok.val;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.BackOffExecution;
 import org.springframework.util.backoff.ExponentialBackOff;
 
 @Component
 @Slf4j
-public class FiatPermissionEvaluator implements PermissionEvaluator {
+public class FiatPermissionEvaluator extends AbstractPermissionEvaluator {
   private static final ThreadLocal<AuthorizationFailure> authorizationFailure = new ThreadLocal<>();
 
   private final Registry registry;
@@ -147,36 +144,25 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
   }
 
   @Override
+  protected boolean isDisabled() {
+    return !fiatStatus.isEnabled();
+  }
+
+  @Override
   public boolean hasPermission(
       Authentication authentication, Object resource, Object authorization) {
     if (!fiatStatus.isGrantedAuthoritiesEnabled()) {
       return false;
     }
-    if (!fiatStatus.isEnabled()) {
-      return true;
-    }
-    if (authentication == null || resource == null) {
-      log.warn(
-          "Permission denied because at least one of the required arguments was null. authentication={}, resource={}",
-          authentication,
-          resource);
-      return false;
-    }
-    if (authentication.getAuthorities().contains(SpinnakerAuthorities.ADMIN_AUTHORITY)) {
-      return true;
-    }
-    if (resource instanceof AccessControlled) {
-      return ((AccessControlled) resource).isAuthorized(authentication, authorization);
-    }
-    return false;
+    return super.hasPermission(authentication, resource, authorization);
   }
 
   public boolean canCreate(String resourceType, Object resource) {
-    if (!fiatStatus.isEnabled()) {
+    if (isDisabled()) {
       return true;
     }
 
-    String username = getUsername(SecurityContextHolder.getContext().getAuthentication());
+    String username = SpinnakerUsers.getCurrentUserId();
 
     try {
       return AuthenticatedRequest.propagate(
@@ -208,7 +194,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
    */
   @SuppressWarnings("unused")
   public boolean hasCachedPermission(String username) {
-    if (!fiatStatus.isEnabled()) {
+    if (isDisabled()) {
       return true;
     }
 
@@ -217,7 +203,7 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
 
   public boolean hasPermission(
       String username, Serializable resourceName, String resourceType, Object authorization) {
-    if (!fiatStatus.isEnabled()) {
+    if (isDisabled()) {
       return true;
     }
     if (resourceName == null || resourceType == null || authorization == null) {
@@ -264,18 +250,6 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
     }
 
     return hasPermission;
-  }
-
-  @Override
-  public boolean hasPermission(
-      Authentication authentication,
-      Serializable resourceName,
-      String resourceType,
-      Object authorization) {
-    if (!fiatStatus.isEnabled()) {
-      return true;
-    }
-    return hasPermission(getUsername(authentication), resourceName, resourceType, authorization);
   }
 
   /**
@@ -370,32 +344,17 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
   @SuppressWarnings("unused")
   @Deprecated
   public boolean storeWholePermission() {
-    if (!fiatStatus.isEnabled()) {
+    if (isDisabled()) {
       return true;
     }
 
-    val authentication = SecurityContextHolder.getContext().getAuthentication();
-    val permission = getPermission(getUsername(authentication));
+    var user = SpinnakerUsers.getCurrentUserId();
+    var permission = getPermission(user);
     return permission != null;
   }
 
   public static Optional<AuthorizationFailure> getAuthorizationFailure() {
     return Optional.ofNullable(authorizationFailure.get());
-  }
-
-  private String getUsername(Authentication authentication) {
-    String username = "anonymous";
-    if (authentication != null
-        && authentication.isAuthenticated()
-        && authentication.getPrincipal() != null) {
-      Object principal = authentication.getPrincipal();
-      if (principal instanceof UserDetails) {
-        username = ((UserDetails) principal).getUsername();
-      } else if (StringUtils.isNotEmpty(principal.toString())) {
-        username = principal.toString();
-      }
-    }
-    return username;
   }
 
   private boolean permissionContains(
@@ -500,10 +459,10 @@ public class FiatPermissionEvaluator implements PermissionEvaluator {
   }
 
   public boolean isAdmin(Authentication authentication) {
-    if (!fiatStatus.isEnabled()) {
+    if (isDisabled()) {
       return true;
     }
-    UserPermission.View permission = getPermission(getUsername(authentication));
+    UserPermission.View permission = getPermission(SpinnakerUsers.getUserId(authentication));
     return permission != null && permission.isAdmin();
   }
 

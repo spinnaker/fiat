@@ -19,7 +19,9 @@ package com.netflix.spinnaker.fiat.model;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 
 public enum Authorization {
@@ -28,14 +30,33 @@ public enum Authorization {
   EXECUTE,
   CREATE;
 
+  private static final Map<com.netflix.spinnaker.security.Authorization, Authorization>
+      KORK_TO_FIAT =
+          Map.of(
+              com.netflix.spinnaker.security.Authorization.READ, READ,
+              com.netflix.spinnaker.security.Authorization.WRITE, WRITE,
+              com.netflix.spinnaker.security.Authorization.EXECUTE, EXECUTE,
+              com.netflix.spinnaker.security.Authorization.CREATE, CREATE);
+
   public static final Set<Authorization> ALL =
       Collections.unmodifiableSet(EnumSet.allOf(Authorization.class));
 
-  @Nullable
-  public static Authorization parse(Object o) {
+  @CheckForNull
+  public static Authorization parse(@Nullable Object o) {
+    if (o == null) {
+      return null;
+    }
     if (o instanceof Authorization) {
       return (Authorization) o;
     }
-    return o != null ? valueOf(o.toString().toUpperCase(Locale.ROOT)) : null;
+    if (o instanceof com.netflix.spinnaker.security.Authorization) {
+      return KORK_TO_FIAT.get(o);
+    }
+    var string = o.toString().toUpperCase(Locale.ROOT);
+    try {
+      return valueOf(string);
+    } catch (IllegalArgumentException ignored) {
+      return null;
+    }
   }
 }

@@ -323,4 +323,32 @@ class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
     'WRITE'            | false
     'EXECUTE'          | false
   }
+
+  def "should evaluate permissions for AuthorizationMapControlled objects"() {
+    given:
+    def resource = new PermissionsControlledResource()
+    with(resource.permissions) {
+      add(Authorization.READ, 'integration group')
+      add(Authorization.WRITE, 'test group')
+      add(Authorization.EXECUTE, 'test group')
+    }
+
+    when:
+    def hasPermission = evaluator.hasPermission(authentication, resource, authorization)
+
+    then:
+    hasPermission == expectedHasPermission
+
+    where:
+    authorization         | expectedHasPermission
+    'execute'             | true
+    "execute"             | true
+    'EXECUTE'             | true
+    "EXECUTE"             | true
+    Authorization.EXECUTE | true
+    'write'               | true
+    'WRITE'               | true
+    'read'                | false
+    Authorization.READ    | false
+  }
 }

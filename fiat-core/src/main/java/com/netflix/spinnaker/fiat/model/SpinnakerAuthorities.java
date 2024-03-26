@@ -20,25 +20,12 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
- * Constants and utilities for working with Spring Security GrantedAuthority objects specific to
- * Spinnaker and Fiat. Spinnaker-specific roles such as admin and account manager are represented
- * here as granted authorities.
+ * Migrated to {@link com.netflix.spinnaker.security.SpinnakerAuthorities} in {@code kork-security}.
+ * This is left for backward compatibility.
  */
-public class SpinnakerAuthorities {
-  public static final String ADMIN = "SPINNAKER_ADMIN";
-  /** Granted authority for Spinnaker administrators. */
-  public static final GrantedAuthority ADMIN_AUTHORITY = new SimpleGrantedAuthority(ADMIN);
-
+public class SpinnakerAuthorities extends com.netflix.spinnaker.security.SpinnakerAuthorities {
   public static final String ACCOUNT_MANAGER = "SPINNAKER_ACCOUNT_MANAGER";
   /** Granted authority for Spinnaker account managers. */
   public static final GrantedAuthority ACCOUNT_MANAGER_AUTHORITY =
       new SimpleGrantedAuthority(ACCOUNT_MANAGER);
-
-  /** Granted authority for anonymous users. */
-  public static final GrantedAuthority ANONYMOUS_AUTHORITY = forRoleName("ANONYMOUS");
-
-  /** Creates a granted authority corresponding to the provided name of a role. */
-  public static GrantedAuthority forRoleName(String role) {
-    return new SimpleGrantedAuthority(String.format("ROLE_%s", role));
-  }
 }

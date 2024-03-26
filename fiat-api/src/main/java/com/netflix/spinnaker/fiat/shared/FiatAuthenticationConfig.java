@@ -41,10 +41,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.AuthenticationConverter;
 import retrofit.Endpoints;
 import retrofit.RestAdapter;
@@ -113,40 +110,9 @@ public class FiatAuthenticationConfig {
   }
 
   @Bean
-  FiatWebSecurityConfigurerAdapter fiatSecurityConfig(
-      FiatStatus fiatStatus, AuthenticationConverter authenticationConverter) {
-    return new FiatWebSecurityConfigurerAdapter(fiatStatus, authenticationConverter);
-  }
-
-  @Bean
   @Order(HIGHEST_PRECEDENCE)
   FiatAccessDeniedExceptionHandler fiatAccessDeniedExceptionHandler(
       ExceptionMessageDecorator exceptionMessageDecorator) {
     return new FiatAccessDeniedExceptionHandler(exceptionMessageDecorator);
-  }
-
-  private static class FiatWebSecurityConfigurerAdapter extends WebSecurityConfigurerAdapter {
-    private final FiatStatus fiatStatus;
-    private final AuthenticationConverter authenticationConverter;
-
-    private FiatWebSecurityConfigurerAdapter(
-        FiatStatus fiatStatus, AuthenticationConverter authenticationConverter) {
-      super(true);
-      this.fiatStatus = fiatStatus;
-      this.authenticationConverter = authenticationConverter;
-    }
-
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-      http.servletApi()
-          .and()
-          .exceptionHandling()
-          .and()
-          .anonymous()
-          .and()
-          .addFilterBefore(
-              new FiatAuthenticationFilter(fiatStatus, authenticationConverter),
-              AnonymousAuthenticationFilter.class);
-    }
   }
 }

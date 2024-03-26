@@ -16,6 +16,8 @@
 
 dependencies {
   api "io.spinnaker.kork:kork-api"
+  api "io.spinnaker.kork:kork-secrets"
+  api "io.spinnaker.kork:kork-security"
 
   implementation project(":fiat-core")
 
@@ -25,7 +27,6 @@ dependencies {
   implementation "org.springframework.security:spring-security-web"
   implementation "com.netflix.spectator:spectator-api"
   implementation "io.spinnaker.kork:kork-core"
-  implementation "io.spinnaker.kork:kork-security"
   implementation "io.spinnaker.kork:kork-telemetry"
   implementation "io.spinnaker.kork:kork-web"
   implementation "io.spinnaker.kork:kork-retrofit"
@@ -39,4 +40,5 @@ dependencies {
   implementation "com.github.ben-manes.caffeine:caffeine"
 
   testImplementation "org.slf4j:slf4j-api"
+  testImplementation "org.springframework.security:spring-security-test"
 }
