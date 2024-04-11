@@ -1,6 +1,6 @@
 dependencies {
 
-  api "org.springframework.security:spring-security-core"
+  api "io.spinnaker.kork:kork-security:$korkVersion"
 
   implementation "com.fasterxml.jackson.core:jackson-annotations"
   implementation "com.google.code.findbugs:jsr305"
