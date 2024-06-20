@@ -1,6 +1,5 @@
 package com.netflix.spinnaker.fiat.config;
 
-import com.google.common.collect.ImmutableList;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.config.PluginsAutoConfiguration;
 import com.netflix.spinnaker.fiat.model.Authorization;
@@ -24,7 +23,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.val;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -40,19 +38,19 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.servlet.config.annotation.ContentNegotiationConfigurer;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 @Import({RetrofitConfig.class, PluginsAutoConfiguration.class})
 @EnableConfigurationProperties(FiatServerConfigurationProperties.class)
-public class FiatConfig extends WebMvcConfigurerAdapter {
+public class FiatConfig implements WebMvcConfigurer {
 
   @Autowired private Registry registry;
 
   @Override
   public void addInterceptors(InterceptorRegistry registry) {
-    var pathVarsToTag = ImmutableList.of("accountName", "applicationName", "resourceName");
-    List<String> exclude = ImmutableList.of("BasicErrorController");
+    var pathVarsToTag = List.of("accountName", "applicationName", "resourceName");
+    List<String> exclude = List.of("BasicErrorController");
     MetricsInterceptor interceptor =
         new MetricsInterceptor(this.registry, "controller.invocations", pathVarsToTag, exclude);
     registry.addInterceptor(interceptor);
@@ -60,8 +58,7 @@ public class FiatConfig extends WebMvcConfigurerAdapter {
 
   @Override
   public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
-    super.configureContentNegotiation(configurer);
-    configurer.favorPathExtension(false).defaultContentType(MediaType.APPLICATION_JSON);
+    configurer.defaultContentType(MediaType.APPLICATION_JSON);
   }
 
   @Bean
@@ -123,11 +120,11 @@ public class FiatConfig extends WebMvcConfigurerAdapter {
 
   /**
    * This AuthenticatedRequestFilter pulls the email and accounts out of the Spring security context
-   * in order to enabling forwarding them to downstream components.
+   * in order to enable forwarding them to downstream components.
    */
   @Bean
-  FilterRegistrationBean authenticatedRequestFilter() {
-    val frb = new FilterRegistrationBean(new AuthenticatedRequestFilter(true));
+  FilterRegistrationBean<AuthenticatedRequestFilter> authenticatedRequestFilter() {
+    var frb = new FilterRegistrationBean<>(new AuthenticatedRequestFilter(true));
     frb.setOrder(Ordered.LOWEST_PRECEDENCE);
     return frb;
   }

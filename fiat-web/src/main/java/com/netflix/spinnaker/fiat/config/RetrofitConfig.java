@@ -17,14 +17,11 @@
 package com.netflix.spinnaker.fiat.config;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.List;
 import lombok.AllArgsConstructor;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Interceptor;
 import okhttp3.Request;
@@ -33,37 +30,19 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.util.backoff.BackOffExecution;
 import org.springframework.util.backoff.ExponentialBackOff;
 import retrofit.RestAdapter;
 
-/** This package is placed in fiat-core in order to be shared by fiat-web and fiat-shared. */
+/** Provides base beans used for configuring Retrofit REST client facades. */
 @Configuration
 public class RetrofitConfig {
 
-  @Value("${ok-http-client.connection-pool.max-idle-connections:5}")
-  @Setter
-  private int maxIdleConnections;
-
-  @Value("${ok-http-client.connection-pool.keep-alive-duration-ms:300000}")
-  @Setter
-  private int keepAliveDurationMs;
-
-  @Value("${ok-http-client.retry-on-connection-failure:true}")
-  @Setter
-  private boolean retryOnConnectionFailure;
-
-  @Value("${ok-http-client.retries.max-elapsed-backoff-ms:5000}")
-  @Setter
-  private long maxElapsedBackoffMs;
-
   @Bean
   @Primary
-  ObjectMapper objectMapper() {
-    return new ObjectMapper()
-        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        .configure(SerializationFeature.INDENT_OUTPUT, true)
-        .setSerializationInclusion(JsonInclude.Include.NON_NULL);
+  ObjectMapper objectMapper(Jackson2ObjectMapperBuilder builder) {
+    return builder.serializationInclusion(JsonInclude.Include.NON_NULL).indentOutput(true).build();
   }
 
   @Bean
@@ -72,7 +51,8 @@ public class RetrofitConfig {
   }
 
   @Bean
-  RetryingInterceptor retryingInterceptor() {
+  RetryingInterceptor retryingInterceptor(
+      @Value("${ok-http-client.retries.max-elapsed-backoff-ms:5000}") long maxElapsedBackoffMs) {
     return new RetryingInterceptor(maxElapsedBackoffMs);
   }
 
