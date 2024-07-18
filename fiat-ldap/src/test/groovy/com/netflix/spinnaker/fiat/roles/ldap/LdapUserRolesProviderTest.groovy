@@ -45,12 +45,15 @@ class LdapUserRolesProviderTest extends Specification {
       1 * setLdapTemplate(_ as SpringSecurityLdapTemplate)
       1 * loadRoles(user)
       1 * loadRolesForUser(user)
-      (0..1) * getUserFullDn(id)
+      (0..2) * getPartialUserDn(id) >> "notEmpty"
+      (0..1) * getUserDNs([id])
+      (0..1) * getUserFullDn(id) >> null
       0 * _
     }
     provider.configProps = configProps
     provider.ldapTemplate = Mock(SpringSecurityLdapTemplate) {
       (0..1) * searchForSingleEntry(*_) >> { throw new IncorrectResultSizeDataAccessException(1) }
+      (0..1) * search(*_)
       0 * _
     }
 
@@ -81,7 +84,9 @@ class LdapUserRolesProviderTest extends Specification {
       1 * setLdapTemplate(_ as SpringSecurityLdapTemplate)
       1 * loadRoles(user)
       1 * loadRolesForUser(user)
-      (0..1) * getUserFullDn(id)
+      (0..2) * getPartialUserDn(id) >> "notEmpty"
+      (0..1) * getUserDNs([id])
+      (0..1) * getUserFullDn(id) >> null
       0 * _
     }
 
@@ -207,6 +212,7 @@ class LdapUserRolesProviderTest extends Specification {
     1 * provider.doMultiLoadRoles(_)
     1 * provider.getUserDNs(_ as Collection<String>)
     1 * provider.loadRolesForUsers(users)
+    2 * provider.getPartialUserDn(_ as String)
 
     when: "thresholdToUseGroupMembership is breached and userSearchFilter is set"
     // Test to make sure that when the thresholdToUseGroupMembership is breached:
@@ -330,10 +336,13 @@ class LdapUserRolesProviderTest extends Specification {
     1 * provider.loadRolesForUsers(users)
   }
 
-  void "loadRolesForUser returns no roles when multiple DNs exist for a user id"(){
+  @Unroll
+  void "loadRolesForUser should merge roles when multiple DNs exist for a user id"() {
     given:
     def id = 'user1'
     def user = externalUser(id)
+    def role1 = new Role("group1").setSource(Role.Source.LDAP)
+    def role2 = new Role("group2").setSource(Role.Source.LDAP)
 
     def configProps = baseConfigProps()
 
@@ -341,11 +350,15 @@ class LdapUserRolesProviderTest extends Specification {
       1 * setConfigProps(configProps)
       1 * setLdapTemplate(_ as SpringSecurityLdapTemplate)
       1 * loadRolesForUser(user)
-      1 * getUserFullDn(id)
+      1 * getPartialUserDn(id)
+      1 * getUserDNs(_ as Collection<String>) >> [ 'uid=dn1,ou=users,dc=springframework,dc=org' : 'user1',
+                                               'uid=dn2,ou=users,dc=springframework,dc=org' : 'user1']
       0 * _
     }
     provider.ldapTemplate = Mock(SpringSecurityLdapTemplate) {
-      1 * searchForSingleEntry(*_) >> { throw new IncorrectResultSizeDataAccessException(1) } //due to multiple DNs
+      1 * searchForSingleEntry(*_) >> { throw new IncorrectResultSizeDataAccessException(1) } // due to multiple DNs
+      1 * searchForSingleAttributeValues(_, _, ['uid=dn1,ou=users,dc=springframework,dc=org','user1'], _) >> ['group1']
+      1 * searchForSingleAttributeValues(_, _, ['uid=dn2,ou=users,dc=springframework,dc=org','user1'], _) >> ['group2']
       0 * _
     }
     provider.setConfigProps(configProps)
@@ -356,7 +369,7 @@ class LdapUserRolesProviderTest extends Specification {
     def roles = provider.loadRolesForUser(user)
 
     then:
-    roles == []
+    roles.sort() == [role1, role2].sort()
   }
 
   private static ExternalUser externalUser(String id) {
