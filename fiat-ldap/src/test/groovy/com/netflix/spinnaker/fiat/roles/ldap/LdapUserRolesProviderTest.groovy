@@ -330,6 +330,34 @@ class LdapUserRolesProviderTest extends Specification {
     1 * provider.loadRolesForUsers(users)
   }
 
+  void "loadRolesForUser returns no roles when multiple DNs exist for a user id"(){
+    given:
+    def id = 'user1'
+    def user = externalUser(id)
+
+    def configProps = baseConfigProps()
+
+    def provider = Spy(LdapUserRolesProvider) {
+      1 * setConfigProps(configProps)
+      1 * setLdapTemplate(_ as SpringSecurityLdapTemplate)
+      1 * loadRolesForUser(user)
+      1 * getUserFullDn(id)
+      0 * _
+    }
+    provider.ldapTemplate = Mock(SpringSecurityLdapTemplate) {
+      1 * searchForSingleEntry(*_) >> { throw new IncorrectResultSizeDataAccessException(1) } //due to multiple DNs
+      0 * _
+    }
+    provider.setConfigProps(configProps)
+
+    when:
+    configProps.groupSearchBase = "notEmpty"
+    configProps.userSearchFilter = "notEmpty"
+    def roles = provider.loadRolesForUser(user)
+
+    then:
+    roles == []
+  }
 
   private static ExternalUser externalUser(String id) {
     return new ExternalUser().setId(id)
