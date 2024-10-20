@@ -34,8 +34,6 @@ dependencies {
   implementation "com.jakewharton.retrofit:retrofit1-okhttp3-client"
   implementation "org.apache.commons:commons-lang3"
 
-  compileOnly "javax.servlet:javax.servlet-api"
-
   implementation "com.github.ben-manes.caffeine:caffeine"
 
   testImplementation "org.slf4j:slf4j-api"
