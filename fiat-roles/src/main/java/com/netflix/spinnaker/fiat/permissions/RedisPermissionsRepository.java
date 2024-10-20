@@ -43,7 +43,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.jpountz.lz4.*;
 import redis.clients.jedis.*;
-import redis.clients.jedis.commands.BinaryJedisCommands;
+import redis.clients.jedis.commands.JedisBinaryCommands;
 import redis.clients.jedis.util.SafeEncoder;
 
 /**
@@ -213,19 +213,17 @@ public class RedisPermissionsRepository implements PermissionsRepository {
   public RedisPermissionsRepository put(@NonNull UserPermission permission) {
     String userId = permission.getId();
     byte[] bUserId = SafeEncoder.encode(userId);
-    List<ResourceType> resourceTypes =
-        resources.stream().map(Resource::getResourceType).collect(Collectors.toList());
+    List<ResourceType> resourceTypes = resources.stream().map(Resource::getResourceType).toList();
     Map<ResourceType, Map<String, Resource>> resourceTypeToRedisValue =
         new HashMap<>(resourceTypes.size());
 
     permission
         .getAllResources()
         .forEach(
-            resource -> {
-              resourceTypeToRedisValue
-                  .computeIfAbsent(resource.getResourceType(), key -> new HashMap<>())
-                  .put(resource.getName(), resource);
-            });
+            resource ->
+                resourceTypeToRedisValue
+                    .computeIfAbsent(resource.getResourceType(), key -> new HashMap<>())
+                    .put(resource.getName(), resource));
 
     try {
       Set<Role> existingRoles = new HashSet<>(getUserRoleMapFromRedis(userId).values());
@@ -238,7 +236,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
         PutUpdateData pud = new PutUpdateData();
         pud.userResourceKey = userResourceKey;
 
-        if (redisValue == null || redisValue.size() == 0) {
+        if (redisValue == null || redisValue.isEmpty()) {
           pud.compressedData = null;
         } else {
           pud.compressedData = lz4Compressor.compress(objectMapper.writeValueAsBytes(redisValue));
@@ -324,7 +322,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     byte[] key = userKey(id, resourceType);
 
     byte[] compressedData =
-        redisRead(timeoutContext, (ThrowingFunction<BinaryJedisCommands, byte[]>) c -> c.get(key));
+        redisRead(timeoutContext, (ThrowingFunction<JedisBinaryCommands, byte[]>) c -> c.get(key));
 
     if (compressedData == null || compressedData.length == 0) {
       return null;
@@ -577,7 +575,7 @@ public class RedisPermissionsRepository implements PermissionsRepository {
     }
   }
 
-  private <T> T redisRead(TimeoutContext timeoutContext, Function<BinaryJedisCommands, T> fn) {
+  private <T> T redisRead(TimeoutContext timeoutContext, Function<JedisBinaryCommands, T> fn) {
     return retryRegistry
         .retry(REDIS_READ_RETRY)
         .executeSupplier(
