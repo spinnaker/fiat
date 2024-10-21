@@ -18,11 +18,10 @@ package com.netflix.spinnaker.fiat.shared;
 
 import com.netflix.spinnaker.kork.api.exceptions.AccessDeniedDetails;
 import com.netflix.spinnaker.kork.web.exceptions.ExceptionMessageDecorator;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Map;
 import java.util.StringJoiner;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.servlet.error.DefaultErrorAttributes;
