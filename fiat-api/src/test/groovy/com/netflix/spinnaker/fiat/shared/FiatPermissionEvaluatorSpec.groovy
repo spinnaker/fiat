@@ -36,7 +36,7 @@ import spock.lang.Shared
 import spock.lang.Subject
 import spock.lang.Unroll
 
-import javax.servlet.http.HttpServletResponse
+import jakarta.servlet.http.HttpServletResponse
 
 class FiatPermissionEvaluatorSpec extends FiatSharedSpecification {
 
