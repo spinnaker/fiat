@@ -21,6 +21,7 @@ import static org.springframework.core.Ordered.HIGHEST_PRECEDENCE;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jakewharton.retrofit.Ok3Client;
+import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.config.DefaultServiceEndpoint;
 import com.netflix.spinnaker.config.ErrorConfiguration;
 import com.netflix.spinnaker.config.okhttp3.OkHttpClientProvider;
@@ -40,10 +41,12 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.AuthenticationConverter;
 import retrofit.Endpoints;
@@ -52,7 +55,7 @@ import retrofit.converter.JacksonConverter;
 
 @Import(ErrorConfiguration.class)
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
+@EnableMethodSecurity
 @Configuration
 @EnableConfigurationProperties(FiatClientConfigurationProperties.class)
 @ComponentScan("com.netflix.spinnaker.fiat.shared")
@@ -101,6 +104,18 @@ public class FiatAuthenticationConfig {
     return new FiatAuthenticationConverter(permissionEvaluator);
   }
 
+  @Bean
+  static MethodSecurityExpressionHandler expressionHandler(
+      Registry registry,
+      FiatService fiatService,
+      FiatClientConfigurationProperties configProps,
+      FiatStatus fiatStatus) {
+    var expressionHandler = new DefaultMethodSecurityExpressionHandler();
+    expressionHandler.setPermissionEvaluator(
+        new FiatPermissionEvaluator(registry, fiatService, configProps, fiatStatus));
+    return expressionHandler;
+  }
+
   /**
    * Provides the previous behavior of using PreAuthenticatedAuthenticationToken with no granted
    * authorities to indicate an authenticated user or an AnonymousAuthenticationToken with an
@@ -125,20 +140,21 @@ public class FiatAuthenticationConfig {
     return new FiatAccessDeniedExceptionHandler(exceptionMessageDecorator);
   }
 
-  private static class FiatWebSecurityConfigurerAdapter extends WebSecurityConfigurerAdapter {
+  private static class FiatWebSecurityConfigurerAdapter {
     private final FiatStatus fiatStatus;
     private final AuthenticationConverter authenticationConverter;
 
     private FiatWebSecurityConfigurerAdapter(
         FiatStatus fiatStatus, AuthenticationConverter authenticationConverter) {
-      super(true);
       this.fiatStatus = fiatStatus;
       this.authenticationConverter = authenticationConverter;
     }
 
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-      http.servletApi()
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+      http.csrf()
+          .disable()
+          .servletApi()
           .and()
           .exceptionHandling()
           .and()
@@ -147,6 +163,8 @@ public class FiatAuthenticationConfig {
           .addFilterBefore(
               new FiatAuthenticationFilter(fiatStatus, authenticationConverter),
               AnonymousAuthenticationFilter.class);
+      http.csrf().disable();
+      return http.build();
     }
   }
 }
