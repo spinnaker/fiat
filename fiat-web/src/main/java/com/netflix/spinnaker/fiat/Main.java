@@ -16,7 +16,6 @@
 
 package com.netflix.spinnaker.fiat;
 
-import com.netflix.spinnaker.config.ErrorConfiguration;
 import com.netflix.spinnaker.kork.boot.DefaultPropertiesBuilder;
 import java.util.Map;
 import org.springframework.boot.actuate.autoconfigure.ldap.LdapHealthContributorAutoConfiguration;
@@ -27,7 +26,6 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableScheduling
@@ -36,7 +34,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
   "com.netflix.spinnaker.fiat",
   "com.netflix.spinnaker.config",
 })
-@Import(ErrorConfiguration.class)
 @EnableAutoConfiguration(
     exclude = {
       GsonAutoConfiguration.class,
