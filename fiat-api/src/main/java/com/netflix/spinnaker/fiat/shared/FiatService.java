@@ -95,12 +95,10 @@ public interface FiatService {
 
   /**
    * @param userId The user being logged in
-   * @param ignored ignored.
    * @return ignored.
    */
   @POST("/roles/{userId}")
-  Call<Void> loginUser(
-      @Path("userId") String userId, @Body String ignored /* retrofit requires this */);
+  Call<Void> loginUser(@Path("userId") String userId);
 
   /**
    * Used specifically for logins that contain the users roles/groups.

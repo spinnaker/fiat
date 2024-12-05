@@ -24,8 +24,8 @@ import retrofit2.Response
 import spock.lang.Specification
 
 abstract class FiatSharedSpecification extends Specification {
-    FiatService fiatService = Mock(FiatService){
-        getUserPermission(_ as String) >> Mock(Call){
+    FiatService fiatService = Mock(FiatService) {
+        getUserPermission(_ as String) >> Mock(Call) {
             execute() >> Response.success(new UserPermission.View(new UserPermission()))
         }
     }
