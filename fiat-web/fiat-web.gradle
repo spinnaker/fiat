@@ -8,9 +8,7 @@ configurations.all {
 }
 
 dependencies {
-  implementation "com.squareup.retrofit:retrofit"
-  implementation "com.squareup.retrofit:converter-jackson"
-  implementation "com.jakewharton.retrofit:retrofit1-okhttp3-client"
+  implementation "com.squareup.retrofit2:converter-jackson"
   implementation "com.google.guava:guava"
 
   implementation "org.springframework.boot:spring-boot-starter-actuator"
@@ -19,7 +17,7 @@ dependencies {
   implementation "io.spinnaker.kork:kork-plugins"
   implementation "io.spinnaker.kork:kork-web"
   implementation "io.spinnaker.kork:kork-retrofit"
-  implementation "io.swagger:swagger-annotations"
+  implementation "io.swagger.core.v3:swagger-annotations"
   implementation "net.logstash.logback:logstash-logback-encoder"
 
   runtimeOnly "io.spinnaker.kork:kork-runtime"
