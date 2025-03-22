@@ -19,14 +19,15 @@ package com.netflix.spinnaker.fiat.roles.github;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.netflix.spinnaker.fiat.roles.github.client.GitHubClient;
+import com.netflix.spinnaker.fiat.roles.github.model.Member;
 import com.netflix.spinnaker.kork.retrofit.ErrorHandlingExecutorCallAdapterFactory;
 import com.netflix.spinnaker.kork.retrofit.Retrofit2SyncCall;
-import com.netflix.spinnaker.kork.retrofit.exceptions.SpinnakerConversionException;
+import java.util.List;
 import okhttp3.OkHttpClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,21 +71,11 @@ public class GithubTeamsUserRolesProviderTest {
                     .withBody(
                         "[{\"login\": \"foo\",\"id\": 18634546},{\"login\": \"bar\",\"id\": 202758929}]")));
 
-    wmGithub.stubFor(
-        WireMock.get(urlEqualTo("/orgs/org1/members?page=1&per_page=2"))
-            .willReturn(aResponse().withStatus(200).withBody("<html>Incorrect response</html>")));
-
-    // TODO: Fix this issue occurring when base url has multiple slashes
-    assertThrows(
-        SpinnakerConversionException.class,
-        () -> Retrofit2SyncCall.execute(gitHubClient.getOrgMembers("org1", 1, 2)),
-        "Failed to process response body: Unexpected character ('<' (code 60)): "
-            + "expected a valid value (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"
-            + "\\n at [Source: (okhttp3.ResponseBody$BomAwareReader); line: 8, column: 2]");
+    List<Member> members = Retrofit2SyncCall.execute(gitHubClient.getOrgMembers("org1", 1, 2));
 
     wmGithub.verify(
-        0, WireMock.getRequestedFor(urlEqualTo("/api/v3/orgs/org1/members?page=1&per_page=2")));
-    wmGithub.verify(
-        1, WireMock.getRequestedFor(urlEqualTo("/orgs/org1/members?page=1&per_page=2")));
+        1, WireMock.getRequestedFor(urlEqualTo("/api/v3/orgs/org1/members?page=1&per_page=2")));
+
+    assertThat(members.size()).isEqualTo(2);
   }
 }
