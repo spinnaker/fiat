@@ -4,6 +4,15 @@ server:
 redis:
   connection: ${services.redis.baseUrl:redis://localhost:6379}
 
+services:
+  clouddriver:
+    baseUrl: http://localhost:7003
+  front50:
+    baseUrl: http://localhost:8080
+  igor:
+    enabled: false
+    baseUrl: http://localhost:8086
+
 okHttpClient:
   retries:
     maxElapsedBackoffMs: 5000
